@@ -5,12 +5,12 @@ export default {
     extend: {
       colors: {
         /*
-         * A hatterkepek miatt a felulet visszaall sotet ala: a canvas majdnem
-         * fekete, de nem tiszta #000 — a kep also harmadaban levo arany para
-         * adja a melyseget, es egy teljesen fekete alap elnyelne.
+         * A hatterkep miatt a felulet sotet: a canvas majdnem fekete, de nem
+         * tiszta #000 — a hero-hatter also harmadaban levo arany para adja a
+         * melyseget, es egy teljesen fekete alap elnyelne.
          *
-         * A `panel` felig atlatszo fekete, mert a kartyaknak a hatterkep
-         * folott kell ulniuk, nem eltakarniuk.
+         * A `panel` felig atlatszo, mert a kartyaknak a hatterkep folott kell
+         * ulniuk, nem eltakarniuk.
          */
         canvas: '#060607',
         panel: 'rgba(10, 10, 12, 0.72)',
@@ -29,6 +29,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Marcellus', 'Cormorant Garamond', 'Georgia', 'serif'],
       },
       backgroundImage: {
         'accent-glow':

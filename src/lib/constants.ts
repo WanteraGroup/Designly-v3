@@ -1,11 +1,10 @@
 /**
- * The catalogue: 24 design styles, 10 languages, 24 template categories, and
- * the font and effect libraries the generator draws from.
+ * A katalogus: 24 design stilus, 10 nyelv, 24 sablonkategoria.
  *
- * Prices and credit costs are NOT here. They live in the database (`plans`,
- * `system_settings`), because the server is the only place a charge can be
- * decided — a client that holds a number the server disagrees with is a
- * billing bug waiting for a slow connection.
+ * Arak es kreditkoltsegek SZANDEKOSAN nincsenek itt. Azok az adatbazisban
+ * elnek (`system_settings`), mert a szerver az egyetlen hely, ahol egy
+ * terheles eldolhet — egy kliens, ami olyan szamot tart, amivel a szerver nem
+ * egyezik, elszamolasi hiba egy lassu kapcsolaton.
  */
 
 import type { Language } from './types';
@@ -23,7 +22,7 @@ export const LANGUAGES: Language[] = [
   { code: 'nl', name: 'Nederlands', flag: 'NL' },
 ];
 
-/** Bold, cinematic directions the brief builder offers as presets. */
+/** Bator, mozis iranyok, amiket a brief-epito presetkent kinal. */
 export const DESIGN_STYLES = [
   'premium', 'luxury', 'minimal', 'modern', 'corporate', 'elegant', 'bold', 'cinematic',
   'automotive', 'fashion', 'restaurant', 'real_estate', 'technology', 'industrial', 'creative',
@@ -40,9 +39,9 @@ export const TEMPLATE_CATEGORIES = [
 export const DISPLAY_EUR_HUF_RATE = 400;
 
 /**
- * Hungarian pricing is quoted in forint, so the always-shown amount is HUF.
- * Every other language sees the same number converted at a static display
- * rate — this is a label, not a billing rate.
+ * A magyar ar forintban van, ezert a mindig lathato osszeg HUF. Minden mas
+ * nyelv ugyanezt a szamot latja, statikus display-arfolyamon — ez cimke, nem
+ * szamlazasi arfolyam.
  */
 export function formatPrice(ft: number, lang = 'hu'): string {
   if (lang !== 'hu') {
