@@ -11,6 +11,7 @@ import { createProject, deleteProject, listProjects, saveProject, type StudioPro
 import { DEFAULT_COSTS, getCredits, spend } from '../lib/credits';
 import { getDesignlyTemplatePage } from '../lib/templates';
 import { templateCoverUrl } from '../lib/template-art';
+import CreativeModules from '../components/CreativeModules';
 
 const tools = [
   ['site','Weboldal',Globe2,'AI weboldalépítő'],
@@ -216,7 +217,8 @@ export default function Home(){
         <div className="mt-5 flex justify-center gap-2"><button disabled={templateOffset===0} onClick={()=>setTemplateOffset(Math.max(0,templateOffset-12))} className="rounded-xl border border-white/10 px-4 py-2 text-xs disabled:opacity-30">Előző</button><button onClick={()=>setTemplateOffset(templateOffset+12)} className="rounded-xl border border-white/10 px-4 py-2 text-xs">Következő</button></div>
       </section>}
 
-      {tool!=='site'&&tool!=='templates'&&<div className="grid min-h-[70vh] place-items-center rounded-3xl border border-white/10 bg-white/[.025]"><div className="max-w-lg text-center"><Sparkles className="mx-auto h-9 w-9 text-violet-400"/><h2 className="mt-4 text-2xl font-bold">{tools.find(x=>x[0]===tool)?.[1]} Studio</h2><p className="mx-auto mt-3 text-sm leading-6 text-white/45">A Creative OS modul helye elkészült. A közös projekt- és kreditréteg már működik; a következő generátorok erre a projektre mentenek.</p><button onClick={()=>setTool('site')} className="mt-5 rounded-xl bg-white/10 px-4 py-2 text-xs">Vissza a Weboldalhoz</button></div></div>}
+      {tool!=='site'&&tool!=='templates'&&activeProject&&<CreativeModules tool={tool} project={activeProject} onProject={(p)=>{setActiveProject(p);refreshProjects()}} onCredits={setCreditsState}/>}
+      {tool!=='site'&&tool!=='templates'&&!activeProject&&<div className="grid min-h-[70vh] place-items-center rounded-3xl border border-white/10"><p className="text-sm text-white/40">Hozz létre egy projektet.</p></div>}
       </main>
     </div>
   </div>
