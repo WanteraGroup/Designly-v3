@@ -11,3 +11,7 @@ entrypoint = "./functions/vey-refine/index.ts"
 [functions.designly-image]
 verify_jwt = true
 entrypoint = "./functions/designly-image/index.ts"
+
+[functions.designly-video]
+verify_jwt = true
+entrypoint = "./functions/designly-video/index.ts"
