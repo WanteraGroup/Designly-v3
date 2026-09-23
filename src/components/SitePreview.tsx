@@ -179,7 +179,7 @@ function Block({
             {block.heading}
           </h2>
           <div className="grid gap-4 sm:grid-cols-3">
-            {block.images.map((img: GalleryImage, i: number) => (
+            {(Array.isArray(block.images) ? block.images : []).map((img: GalleryImage, i: number) => (
               <figure key={`${img.query}-${i}`} className="overflow-hidden rounded-xl" style={cardBorder}>
                 {/*
                  * Van kep: valodi foto. Nincs kep: helyorzo a keresokifejezessel.
