@@ -1,17 +1,31 @@
 import { useState } from "react";
 import { Bird, ChevronDown, Send, Sparkles, X } from "lucide-react";
 type Message={role:"huginn"|"user";text:string};
+function fallbackReply(message:string){
+ const q=message.trim().toLowerCase();
+ if(/ár|árak|csomag|kredit|price|pricing/.test(q)) return "Az árakat és krediteket a DESIGNLY csomagjai kezelik. A pontos aktuális díjakat a Fiók / Árak részen találod.";
+ if(/ment|letölt|export/.test(q)) return "A generált oldalon a Mentés, HTML letöltés és JSON export gombokkal tudsz továbbmenni.";
+ if(/szerkeszt|módosít|világos|sötét/.test(q)) return "Nyisd meg a Szerkesztést a generált oldal alatt, írd le a változtatást, majd válaszd az Alkalmaz gombot.";
+ if(/stream|gamer|twitch|youtube|merch/.test(q)) return "A Streamer & Gamer Studio kezeli az overlayeket, alertokat, thumbnailokat, emote- és badge-rendszereket, valamint a merch artworköt.";
+ if(/brand|arculat|logó/.test(q)) return "Az Extra Stúdió Brand Kit részében menthető a márkanév, hangnem, betűk és színpaletta.";
+ return "HUGINN jelenleg helyi segéd módban válaszol. A generátor, Extra Stúdió és Streamer & Gamer modulok a főfelületről elérhetők.";
+}
 export default function HuginnAgent(){
- const [open,setOpen]=useState(false); const [input,setInput]=useState(""); const [busy,setBusy]=useState(false);
+ const [open,setOpen]=useState(false),[input,setInput]=useState(""),[busy,setBusy]=useState(false);
  const [messages,setMessages]=useState<Message[]>([{role:"huginn",text:"HUGINN online. VYRON CORE irányítja a DESIGNLY agentcsapatot. Kérdezz bátran."}]);
  async function send(message=input.trim()){
   if(!message||busy)return; setInput(""); setMessages(m=>[...m,{role:"user",text:message}]); setBusy(true);
-  try{const url=(import.meta.env.VITE_SUPABASE_URL as string|undefined)?.trim()||"https://mxrgdcvmxzhocbdhtlhg.supabase.co";
-   const r=await fetch(url+"/functions/v1/designly-huginn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message,language:"hu"})});
-   const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error(d.message||d.error||"HUGINN hiba");
-   setMessages(m=>[...m,{role:"huginn",text:String(d.reply||"")}]);
-  }catch(e){setMessages(m=>[...m,{role:"huginn",text:e instanceof Error?e.message:"HUGINN nem érhető el."}]);}
-  finally{setBusy(false);}
+  const url=(import.meta.env.VITE_SUPABASE_URL as string|undefined)?.trim()||"https://mxrgdcvmxzhocbdhtlhg.supabase.co";
+  try{
+   const controller=new AbortController(); const timeout=window.setTimeout(()=>controller.abort(),9000);
+   const r=await fetch(url+"/functions/v1/designly-huginn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message,language:"hu"}),signal:controller.signal});
+   window.clearTimeout(timeout);
+   const d=await r.json().catch(()=>({}));
+   if(!r.ok)throw new Error(d.message||d.error||"HUGINN hiba");
+   setMessages(m=>[...m,{role:"huginn",text:String(d.reply||fallbackReply(message))}]);
+  }catch{
+   setMessages(m=>[...m,{role:"huginn",text:fallbackReply(message)}]);
+  }finally{setBusy(false);}
  }
  return <div className={"fixed bottom-5 right-5 z-[80] "+(open?"w-[min(390px,calc(100vw-2rem))]":"w-auto")}>
   {open&&<section className="mb-3 overflow-hidden rounded-2xl border border-accent/30 bg-panel/95 shadow-2xl backdrop-blur">
