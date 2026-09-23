@@ -1,60 +1,290 @@
-import type { SiteBlock, SiteDocument } from '../lib/site-schema';
+import type { SiteDocument, SiteBlock, GalleryImage } from '../lib/site-schema';
 
-const imageUrl = (query: string) =>
-  'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1400&q=82';
+export interface SiteRendererProps {
+  document: SiteDocument;
+  /** Renders inside the editor at a fixed width instead of full-bleed. */
+  embedded?: boolean;
+}
 
-export default function SitePreview({ document }: { document: SiteDocument }) {
-  const { site, blocks } = document;
-  const dark = site.theme.mode !== 'light';
+/**
+ * A site document rendereloje.
+ *
+ * A modell BLOKKLISTAT ad vissza, nem markupot: minden elem, ami a lapra kerul,
+ * itt szuletik, tehat a generalt szoveg mindig szoveges csomopont — soha nem
+ * HTML. Egy ismeretlen blokktipus kimarad, nem talalgatunk helyette.
+ */
+export function SiteRenderer({ document: doc, embedded }: SiteRendererProps) {
+  const { theme } = doc.site;
+  const light = theme.mode === 'light';
+  const accent = theme.palette[0] ?? '#c9a45c';
+  const heading = { fontFamily: theme.heading_font };
 
   return (
-    <div className={`overflow-hidden rounded-3xl border shadow-2xl ${dark ? 'border-white/10 bg-[#090a0f] text-white' : 'border-black/10 bg-white text-slate-900'}`}>
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-xs">
-        <strong className="tracking-wide">{site.title}</strong>
-        <nav className="hidden gap-4 sm:flex">
-          {site.nav.slice(0, 5).map((n) => <span key={n.label} className="opacity-70">{n.label}</span>)}
+    <div
+      className={`designly-site ${embedded ? 'overflow-hidden rounded-xl border border-line' : ''}`}
+      style={{
+        background: light ? '#fdfbf7' : '#0a0a12',
+        color: light ? '#141417' : '#f2efe8',
+        fontFamily: theme.body_font,
+      }}
+    >
+      <header
+        className="flex items-center justify-between gap-4 px-6 py-4"
+        style={{ borderBottom: `1px solid ${accent}33` }}
+      >
+        <span style={{ ...heading, fontWeight: 600, letterSpacing: '0.08em' }}>
+          {doc.site.title}
+        </span>
+        <nav className="flex flex-wrap gap-5 text-sm opacity-70">
+          {doc.site.nav.map((item) => (
+            <span key={item.label}>{item.label}</span>
+          ))}
         </nav>
-      </div>
-      <div>
-        {blocks.map((block, i) => <Block key={`${block.type}-${i}`} block={block} dark={dark} />)}
-      </div>
+      </header>
+
+      {doc.blocks.map((block, i) => (
+        <Block key={i} block={block} theme={theme} accent={accent} light={light} />
+      ))}
     </div>
   );
 }
 
-function Block({ block, dark }: { block: SiteBlock; dark: boolean }) {
-  const muted = dark ? 'text-white/65' : 'text-slate-600';
-  const surface = dark ? 'bg-white/[0.035]' : 'bg-slate-50';
+function Block({
+  block,
+  theme,
+  accent,
+  light,
+}: {
+  block: SiteBlock;
+  theme: SiteDocument['site']['theme'];
+  accent: string;
+  light: boolean;
+}) {
+  const heading = { fontFamily: theme.heading_font };
+  const btn = { background: accent, color: light ? '#ffffff' : '#0a0a12' };
+  const cardBorder = { border: `1px solid ${accent}2e` };
+
   switch (block.type) {
     case 'hero':
-      return <section className="relative overflow-hidden px-6 py-16 sm:px-10 sm:py-24">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(124,92,255,.28),transparent_38%)]" />
-        <div className="relative max-w-3xl">
-          <span className="text-xs font-semibold uppercase tracking-[.25em] text-violet-400">{block.eyebrow}</span>
-          <h1 className="mt-4 text-4xl font-black leading-tight sm:text-6xl">{block.headline}</h1>
-          <p className={`mt-5 max-w-2xl text-lg leading-8 ${muted}`}>{block.subheadline}</p>
-          <button className="mt-7 rounded-full bg-violet-500 px-6 py-3 text-sm font-bold">{block.cta.label}</button>
-        </div>
-      </section>;
+      return (
+        <section className="px-6 py-24 text-center">
+          <p className="text-xs uppercase tracking-[0.28em]" style={{ color: accent }}>
+            {block.eyebrow}
+          </p>
+          <h1 className="mx-auto mt-5 max-w-3xl text-4xl leading-tight" style={heading}>
+            {block.headline}
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base opacity-70">{block.subheadline}</p>
+          <span className="mt-8 inline-block rounded-xl px-7 py-3 text-sm font-semibold" style={btn}>
+            {block.cta.label}
+          </span>
+        </section>
+      );
+
     case 'features':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><div className="mt-6 grid gap-3 sm:grid-cols-3">{block.items.slice(0,6).map((x,i)=><div key={i} className={`rounded-2xl p-5 ${surface}`}><h3 className="font-semibold">{x.title}</h3><p className={`mt-2 text-sm leading-6 ${muted}`}>{x.text}</p></div>)}</div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-10 text-center text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {block.items.map((it) => (
+              <div key={it.title} className="rounded-xl p-6" style={cardBorder}>
+                <h3 className="text-lg" style={heading}>
+                  {it.title}
+                </h3>
+                <p className="mt-2 text-sm opacity-70">{it.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+
     case 'about':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><p className={`mt-4 max-w-3xl leading-8 ${muted}`}>{block.body}</p></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-4 text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <p className="max-w-3xl leading-relaxed opacity-75">{block.body}</p>
+        </section>
+      );
+
     case 'services':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><div className="mt-6 grid gap-3 md:grid-cols-3">{block.items.map((x,i)=><div key={i} className={`rounded-2xl border p-5 ${dark?'border-white/10':'border-black/10'}`}><div className="flex justify-between gap-3"><h3 className="font-semibold">{x.name}</h3><span className="text-violet-400">{x.price}</span></div><p className={`mt-3 text-sm ${muted}`}>{x.text}</p></div>)}</div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-8 text-center text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <ul className="mx-auto max-w-2xl">
+            {block.items.map((it) => (
+              <li
+                key={it.name}
+                className="flex items-baseline justify-between gap-6 py-4"
+                style={{ borderBottom: `1px solid ${accent}22` }}
+              >
+                <span>
+                  <strong className="font-medium">{it.name}</strong>
+                  <em className="mt-1 block text-sm not-italic opacity-60">{it.text}</em>
+                </span>
+                <span className="whitespace-nowrap text-sm" style={{ color: accent }}>
+                  {it.price}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+
     case 'pricing':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><div className="mt-6 grid gap-3 md:grid-cols-3">{block.tiers.map((x,i)=><div key={i} className={`rounded-2xl p-6 ${surface}`}><h3 className="font-semibold">{x.name}</h3><div className="mt-3 text-3xl font-black">{x.price}<span className={`text-sm font-normal ${muted}`}> {x.period}</span></div><ul className={`mt-5 space-y-2 text-sm ${muted}`}>{x.features.map((f,j)=><li key={j}>✓ {f}</li>)}</ul></div>)}</div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-10 text-center text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {block.tiers.map((t) => (
+              <div key={t.name} className="rounded-xl p-6" style={cardBorder}>
+                <h3 className="text-lg" style={heading}>
+                  {t.name}
+                </h3>
+                <p className="mt-3 text-3xl" style={{ color: accent, ...heading }}>
+                  {t.price}
+                  {t.period ? <span className="ml-1 text-sm opacity-60">{t.period}</span> : null}
+                </p>
+                <ul className="mt-5 space-y-1.5 text-sm opacity-70">
+                  {t.features.map((f) => (
+                    <li key={f}>· {f}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+
     case 'gallery':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><div className="mt-6 grid gap-3 sm:grid-cols-3">{block.images.slice(0,6).map((x,i)=><figure key={i} className="overflow-hidden rounded-2xl"><img src={imageUrl(x.query)} alt="" className="aspect-[4/3] w-full object-cover" /><figcaption className="p-3 text-sm">{x.caption}</figcaption></figure>)}</div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-8 text-center text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {block.images.map((img: GalleryImage, i: number) => (
+              <figure key={`${img.query}-${i}`} className="overflow-hidden rounded-xl" style={cardBorder}>
+                {/*
+                 * Van kep: valodi foto. Nincs kep: helyorzo a keresokifejezessel.
+                 * A kettő kozott az a kulonbseg, hogy a `vey-images` funkcio
+                 * elerheto-e — nem az, hogy a galeria hibas.
+                 */}
+                {img.url ? (
+                  <img
+                    src={img.url}
+                    alt={img.alt ?? img.caption ?? ''}
+                    loading="lazy"
+                    className="aspect-[4/3] w-full object-cover"
+                  />
+                ) : (
+                  <div className="grid aspect-[4/3] place-items-center px-4 text-center text-xs opacity-40">
+                    {img.query}
+                  </div>
+                )}
+
+                {(img.caption || img.author) && (
+                  <figcaption className="px-3 py-2 text-xs opacity-60">
+                    {img.caption}
+                    {img.author ? (
+                      <span className="mt-0.5 block opacity-70">Fotó: {img.author}</span>
+                    ) : null}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        </section>
+      );
+
     case 'testimonials':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><div className="mt-6 grid gap-3 md:grid-cols-3">{block.items.map((x,i)=><blockquote key={i} className={`rounded-2xl p-5 ${surface}`}><p className="leading-7">“{x.quote}”</p><footer className={`mt-4 text-sm ${muted}`}>{x.author} · {x.role}</footer></blockquote>)}</div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-10 text-center text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {block.items.map((it) => (
+              <blockquote key={it.author} className="rounded-xl p-6" style={cardBorder}>
+                <p className="text-sm italic opacity-80">“{it.quote}”</p>
+                <footer className="mt-3 text-xs opacity-60">
+                  {it.author}
+                  {it.role ? ` — ${it.role}` : ''}
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        </section>
+      );
+
     case 'faq':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><div className="mt-6 divide-y divide-white/10">{block.items.map((x,i)=><details key={i} className="py-4"><summary className="cursor-pointer font-semibold">{x.q}</summary><p className={`mt-3 text-sm leading-6 ${muted}`}>{x.a}</p></details>)}</div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-8 text-center text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <dl className="mx-auto max-w-2xl space-y-4">
+            {block.items.map((it) => (
+              <div key={it.q}>
+                <dt className="font-medium">{it.q}</dt>
+                <dd className="mt-1 text-sm opacity-70">{it.a}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      );
+
     case 'contact':
-      return <section className="px-6 py-12 sm:px-10"><h2 className="text-2xl font-bold">{block.heading}</h2><p className={`mt-3 ${muted}`}>{block.body}</p><div className="mt-6 grid gap-3 sm:grid-cols-3 text-sm"><div className={`rounded-xl p-4 ${surface}`}>{block.email}</div><div className={`rounded-xl p-4 ${surface}`}>{block.phone}</div><div className={`rounded-xl p-4 ${surface}`}>{block.address}</div></div></section>;
+      return (
+        <section className="px-6 py-16">
+          <h2 className="mb-4 text-2xl" style={heading}>
+            {block.heading}
+          </h2>
+          <p className="max-w-2xl text-sm opacity-70">{block.body}</p>
+          <ul className="mt-5 space-y-1 text-sm">
+            {block.email && <li>{block.email}</li>}
+            {block.phone && <li>{block.phone}</li>}
+            {block.address && <li>{block.address}</li>}
+          </ul>
+        </section>
+      );
+
     case 'cta':
-      return <section className="px-6 py-14 text-center sm:px-10"><h2 className="text-3xl font-black">{block.headline}</h2><p className={`mx-auto mt-3 max-w-2xl ${muted}`}>{block.subheadline}</p><button className="mt-6 rounded-full bg-violet-500 px-6 py-3 text-sm font-bold">{block.cta.label}</button></section>;
+      return (
+        <section className="px-6 py-20 text-center">
+          <h2 className="text-3xl" style={heading}>
+            {block.headline}
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-sm opacity-70">{block.subheadline}</p>
+          <span className="mt-8 inline-block rounded-xl px-7 py-3 text-sm font-semibold" style={btn}>
+            {block.cta.label}
+          </span>
+        </section>
+      );
+
     case 'footer':
-      return <footer className={`border-t px-6 py-8 text-sm ${dark?'border-white/10':'border-black/10'} `}><div className="flex flex-wrap justify-between gap-4"><span>{block.text}</span><span className="opacity-60">{block.links.map(x=>x.label).join(' · ')}</span></div></footer>;
+      return (
+        <footer
+          className="px-6 py-10 text-xs opacity-60"
+          style={{ borderTop: `1px solid ${accent}22` }}
+        >
+          <p>{block.text}</p>
+          <ul className="mt-3 flex flex-wrap gap-4">
+            {block.links.map((l) => (
+              <li key={l.label}>{l.label}</li>
+            ))}
+          </ul>
+        </footer>
+      );
+
+    default:
+      return null;
   }
 }

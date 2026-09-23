@@ -25,6 +25,21 @@ interface CtaLink {
   href: string;
 }
 
+/**
+ * Egy galeriaelem.
+ *
+ * A modell csak `query`-t es `caption`-t ad: egy rovid angol keresokifejezest,
+ * nem URL-t. A `url` es tarsai a `vey-images` funkciobol kerulnek bele utolag —
+ * ezert mind opcionalis. Ha nincs URL, a renderelo helyorzot rajzol.
+ */
+export interface GalleryImage {
+  query: string;
+  caption: string;
+  url?: string;
+  alt?: string;
+  author?: string;
+}
+
 export type SiteBlock =
   | { type: 'hero'; eyebrow: string; headline: string; subheadline: string; cta: CtaLink }
   | { type: 'features'; heading: string; items: { title: string; text: string }[] }
@@ -35,7 +50,7 @@ export type SiteBlock =
       heading: string;
       tiers: { name: string; price: string; period: string; features: string[] }[];
     }
-  | { type: 'gallery'; heading: string; images: { query: string; caption: string }[] }
+  | { type: 'gallery'; heading: string; images: GalleryImage[] }
   | {
       type: 'testimonials';
       heading: string;
@@ -92,8 +107,8 @@ export function parseSite(raw: unknown): SiteDocument | null {
       theme: {
         mode: theme.mode === 'light' ? 'light' : 'dark',
         palette:
-          Array.isArray(theme.palette) && theme.palette.length ? theme.palette : ['#7c5cff'],
-        heading_font: theme.heading_font ?? 'Inter',
+          Array.isArray(theme.palette) && theme.palette.length ? theme.palette : ['#c9a45c'],
+        heading_font: theme.heading_font ?? 'Marcellus',
         body_font: theme.body_font ?? 'Inter',
       },
       nav: Array.isArray(doc.site.nav) ? doc.site.nav : [],
