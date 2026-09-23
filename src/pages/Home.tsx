@@ -22,6 +22,7 @@ import { templateCoverUrl } from '../lib/template-art';
 // Egy default import itt rollup-hibat ad ("default is not exported"), es a build
 // 1-es koddal all le — ez volt a deploy hibaja.
 import { SiteRenderer } from '../components/SitePreview';
+import HuginnAgent from '../components/HuginnAgent';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -42,6 +43,8 @@ export default function Home() {
   const [instruction, setInstruction] = useState('');
   const [reply, setReply] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeAgents, setRuntimeAgents] = useState<string[]>([]);
+  const [runtimeMode, setRuntimeMode] = useState<'ai' | 'fallback'>('fallback');
   const refineRef = useRef<HTMLInputElement>(null);
 
   const plan = planAgents(brief);
@@ -69,10 +72,12 @@ export default function Home() {
 
     try {
       const built = await buildSite(composedBrief(), language);
-      setSite(built);
+      setSite(built.site);
+      setRuntimeAgents(built.activeAgents);
+      setRuntimeMode(built.runtimeMode);
       setBusy(false);
 
-      const queries = collectImageQueries(built);
+      const queries = collectImageQueries(built.site);
       if (queries.length > 0) {
         setImagesLoading(true);
         const images = await resolveImages(queries);
@@ -251,7 +256,7 @@ export default function Home() {
               {busy && (
                 <div className="mt-5 flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-ink-300">
                   <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                  A csapat megtervezi a szerkezetet, megírja a szövegeket és összeállítja az oldalt.
+                  VYRON CORE felbontja a briefet, a DESIGNLY MASTER és a kiválasztott specialisták összeállítják az oldalt.
                 </div>
               )}
 
@@ -322,7 +327,7 @@ export default function Home() {
               )}
             </div>
 
-            <AgentTeam plan={plan} />
+            <AgentTeam plan={plan} runtimeAgents={runtimeAgents} runtimeMode={runtimeMode} />
           </div>
         </section>
       )}
@@ -383,6 +388,7 @@ export default function Home() {
           </div>
         </section>
       )}
+      <HuginnAgent />
     </div>
   );
 }
@@ -394,12 +400,16 @@ export default function Home() {
  * generalasban, a `planned` pedig helyet jelol a kovetkezo koroknek. Egy
  * agent, ami a listan van, de nem fut, nem hazudik mukodest.
  */
-function AgentTeam({ plan }: { plan: AgentPlan }) {
+function AgentTeam({ plan, runtimeAgents, runtimeMode }: { plan: AgentPlan; runtimeAgents: string[]; runtimeMode: 'ai' | 'fallback' }) {
   return (
     <aside className="vp-card h-fit p-5">
       <div className="mb-4 flex items-center gap-2">
         <Users className="h-4 w-4 text-accent" />
         <h2 className="font-display text-sm tracking-[0.14em] text-ink-100">AGENT TEAM</h2>
+      </div>
+
+      <div className="mb-3 rounded-lg border border-line bg-panel-hi/50 px-3 py-2 text-[10px] text-ink-300">
+        <div className="flex items-center justify-between gap-2"><span>FŐNÖK: <b className="text-ink-100">VYRON CORE</b></span><span className={runtimeMode === 'ai' ? 'text-emerald-400' : 'text-amber-300'}>{runtimeMode === 'ai' ? 'AI RUNTIME' : 'FALLBACK'}</span></div>
       </div>
 
       <ul className="space-y-2">
@@ -409,14 +419,12 @@ function AgentTeam({ plan }: { plan: AgentPlan }) {
               <span className="text-[11px] font-semibold tracking-wider text-ink-100">
                 {agent.name}
               </span>
-              {agent.status === 'live' ? (
-                <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                  <Check className="h-3 w-3" /> AKTÍV
-                </span>
+              {runtimeAgents.includes(agent.id) ? (
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400"><Check className="h-3 w-3" /> FUTOTT</span>
+              ) : agent.status === 'live' ? (
+                <span className="flex items-center gap-1 text-[10px] text-cyan-300"><Check className="h-3 w-3" /> BEKÖTVE</span>
               ) : (
-                <span className="flex items-center gap-1 text-[10px] text-ink-400">
-                  <Clock className="h-3 w-3" /> HAMAROSAN
-                </span>
+                <span className="flex items-center gap-1 text-[10px] text-ink-400"><Clock className="h-3 w-3" /> HAMAROSAN</span>
               )}
             </div>
             <p className="mt-1 text-[11px] leading-snug text-ink-300">{agent.role}</p>
@@ -428,7 +436,7 @@ function AgentTeam({ plan }: { plan: AgentPlan }) {
       </ul>
 
       <p className="mt-4 text-[10px] leading-relaxed text-ink-400">
-        BRIEF → szakértők → ellenőrzés → eredmény
+        VYRON CORE → DESIGNLY MASTER → specialisták → BUILDER → REVIEWER
       </p>
     </aside>
   );
