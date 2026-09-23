@@ -1,62 +1,64 @@
 /**
- * Client for the two generator functions.
+ * A kliens a ket generator-uthoz.
  *
- * Both calls go through Supabase Edge Functions, so the model key stays
- * server-side and the prompts cannot be rewritten from the browser.
+ * KET KULON UT, szandekosan nem osszemosva:
+ *   - `buildSite` a Vercel AI Gateway-t hivja kozvetlenul a bongeszobol
+ *     (src/lib/gateway.ts) — nincs kulcs, nincs telepitett funkcio.
+ *   - `refineSite` Supabase Edge Functiont hiv, mert a diff-allow-listet
+ *     szerveroldalon kell tartani: egy bongeszobol atirhato allow-list nem
+ *     allow-list.
+ *
+ * Ha a `vey-refine` nincs telepitve, a finomitas 404-et ad — a hivas ezt
+ * ertheto hibauzenette forditja, nem nyers statuszkodot ad vissza.
  */
 
-import { parseSite, applyEdits, type SiteDocument, type SiteEdit } from './site-schema';
+import { generateSite } from './gateway';
+import { applyEdits, type SiteDocument, type SiteEdit } from './site-schema';
 
 export type { SiteDocument, SiteBlock, SiteTheme, SiteMeta } from './site-schema';
+export { GatewayError } from './gateway';
 
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const headers = {
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${ANON_KEY}`,
-  apikey: ANON_KEY,
-};
-
 /**
- * Turns a brief into a finished site document.
- *
- * The response is narrowed through `parseSite`, which drops any block type
- * outside the allow-list. A malformed answer is a shorter page, not a crash.
+ * Brief -> kesz oldal, a gateway-en keresztul.
  */
-export async function buildSite(brief: string, language = 'hu'): Promise<SiteDocument> {
-  const res = await fetch(`${FUNCTIONS_URL}/vey-generate`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ brief, language }),
-  });
-
-  const body = (await res.json().catch(() => ({}))) as { document?: unknown; error?: string };
-  if (!res.ok) throw new Error(body.error ?? `A generálás nem sikerült (${res.status})`);
-
-  const site = parseSite(body.document);
-  if (!site) throw new Error('A válasz nem tartalmazott felhasználható oldalt.');
-  return site;
-}
+export const buildSite = generateSite;
 
 /**
- * Applies a natural-language change to an existing page.
+ * Termeszetes nyelvu valtoztatas egy meglevo oldalon.
  *
- * The model returns a diff of dotted paths rather than a new document, and the
- * diff is applied here against the caller's own copy. A path that does not
- * resolve is skipped, so a hallucinated edit is a no-op rather than a
- * corrupted page.
+ * A modell diffet ad vissza pontozott utvonalakon (`blocks.0.headline`,
+ * `site.theme.palette`), nem uj dokumentumot, es a diff itt alkalmazodik a
+ * hivo sajat peldanyan. Egy nem letezo utvonal kimarad, tehat egy kitalalt
+ * szerkesztes nem teszi tonkre az oldalt — neman nem tortenik semmi.
  */
 export async function refineSite(
   site: SiteDocument,
   instruction: string,
   language = 'hu',
 ): Promise<{ site: SiteDocument; reply: string }> {
-  const res = await fetch(`${FUNCTIONS_URL}/vey-refine`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ document: site, instruction, language }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${FUNCTIONS_URL}/vey-refine`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ANON_KEY}`,
+        apikey: ANON_KEY,
+      },
+      body: JSON.stringify({ document: site, instruction, language }),
+    });
+  } catch {
+    throw new Error('A finomitas nem erte el a szervert. Ellenorizd a kapcsolatot, es probald ujra.');
+  }
+
+  if (res.status === 404) {
+    throw new Error(
+      'A finomito funkcio (vey-refine) nincs telepitve ezen a Supabase projekten. A generalas mukodik, a finomitas nem.',
+    );
+  }
 
   const body = (await res.json().catch(() => ({}))) as {
     edits?: SiteEdit[];
@@ -64,7 +66,7 @@ export async function refineSite(
     error?: string;
   };
 
-  if (!res.ok) throw new Error(body.error ?? `A finomítás nem sikerült (${res.status})`);
+  if (!res.ok) throw new Error(body.error ?? `A finomitas nem sikerult (${res.status})`);
 
   const edits = Array.isArray(body.edits) ? body.edits : [];
   return { site: applyEdits(site, edits), reply: body.reply ?? '' };
