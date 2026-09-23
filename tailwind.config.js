@@ -4,19 +4,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: '#07070c',
-        panel: '#0e0e16',
-        'panel-hi': '#15151f',
-        line: 'rgba(255,255,255,0.09)',
+        // Vilagos alapon dolgozik a felulet: krem hatter, sotet szoveg.
+        // A `canvas` a lap hattere, a `panel` a kartyake — a kettot egyutt kell
+        // allitani, kulonben a kartyak eltunnek a hatterben.
+        canvas: '#f7f5f1',
+        panel: '#ffffff',
+        'panel-hi': '#f1eee8',
+        line: 'rgba(23,23,28,0.10)',
         ink: {
-          100: '#eef0f6',
-          200: '#c9cddb',
-          300: '#9aa1b4',
-          400: '#6b7180',
+          100: '#17171c',
+          200: '#33333d',
+          300: '#5b5b68',
+          400: '#8a8a97',
         },
         accent: {
-          DEFAULT: '#7c5cff',
-          strong: '#6b48f5',
+          DEFAULT: '#6d4aff',
+          strong: '#5a37f0',
         },
       },
       fontFamily: {
@@ -24,7 +27,7 @@ export default {
       },
       backgroundImage: {
         'accent-glow':
-          'radial-gradient(circle at 50% 0%, rgba(124,92,255,0.22) 0%, transparent 60%)',
+          'radial-gradient(circle at 50% 0%, rgba(109,74,255,0.10) 0%, transparent 60%)',
       },
     },
   },
