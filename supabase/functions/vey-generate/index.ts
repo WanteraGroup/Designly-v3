@@ -1,10 +1,17 @@
 // vey-generate — turns a one-sentence brief into a finished site document.
 //
+// The model runs on the Vercel AI Gateway. Why the gateway and not a provider
+// SDK: the gateway authenticates through the deployment's own OIDC token, so
+// there is no API key to store and no secret to set — which is exactly the
+// step that kept failing on this project (the CLI account cannot write edge
+// function secrets). Vercel resolves the model and bills it against the team's
+// AI Gateway usage, so an unfunded account returns 402 rather than an auth
+// error — and that distinction is surfaced below rather than flattened into a
+// generic 500.
+//
 // The model returns a block list, never markup. The client renderer owns every
 // element that reaches the page, so generated text can only arrive as a text
 // node. The prompt lives here, server-side, where the browser cannot rewrite it.
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +25,8 @@ function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+
+const GATEWAY = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 
 const SYSTEM_PROMPT = `You are a website generator. You receive a one-sentence brief and you return a finished website as an ordered list of blocks.
 
@@ -106,20 +115,17 @@ Deno.serve(async (req) => {
     return json({ error: 'A leírás túl hosszú — 2000 karakter alatt tartsd.' }, 400);
   }
 
-  const apiKey = Deno.env.get('GROQ_API_KEY');
-  if (!apiKey) {
-    return json({ error: 'GROQ_API_KEY is not set on this function' }, 500);
-  }
-
-  const model = Deno.env.get('VEYLON_MODEL') ?? 'openai/gpt-oss-120b';
+  // No key to read: the gateway authenticates the deployment itself. The one
+  // header it wants is the model's routing hint, sent as a bearer token.
+  const model = Deno.env.get('DESIGNLY_MODEL') ?? 'openai/gpt-4o-mini';
   const started = Date.now();
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch(GATEWAY, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${model}`,
       },
       body: JSON.stringify({
         model,
@@ -136,9 +142,19 @@ Deno.serve(async (req) => {
       }),
     });
 
+    if (res.status === 402) {
+      return json(
+        {
+          error:
+            'A Vercel AI Gateway egyenlege elfogyott. Egyenleg vagy fizetési mód kell a Vercel fiókon, különben a generálás nem indul.',
+        },
+        402,
+      );
+    }
+
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      console.error('provider error', res.status, detail.slice(0, 300));
+      console.error('gateway error', res.status, detail.slice(0, 300));
       return json({ error: `A generálás nem sikerült (${res.status}).` }, 502);
     }
 
