@@ -1,4 +1,4 @@
-import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Clock, Briefcase, Video, Languages } from 'lucide-react';
+import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Clock, Briefcase, Video, Languages, Gamepad2 } from 'lucide-react';
 import { LANGUAGES } from '../lib/constants';
 import { FULL_AGENT_TEAM, LIVE_AGENTS, PLANNED_AGENTS } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
@@ -134,6 +134,7 @@ export default function Landing() {
             { icon: Users, name: 'Agent Team', desc: `${LIVE_AGENTS.length} aktív specialista, és ${PLANNED_AGENTS.length} épülőben.`, live: true },
             { icon: Briefcase, name: 'Brand Kit', desc: 'Színek, tipográfia és hangnem, minden kreatívhoz köthető.', live: true },
             { icon: Video, name: 'Kampány Stúdió', desc: 'Poster, flyer, social és hirdetés egy közös kampányból.', live: true },
+            { icon: Gamepad2, name: 'Streamer & Gamer Studio', desc: 'OBS overlay, alert, scene, thumbnail, emote, badge és merch.', live: true },
             { icon: Wand2, name: 'Extra Design Studio', desc: 'Névjegy, meghívó, flyer, poszter, Tattoo, Planner és CNC CAM egy helyen.', live: true },
           ].map((m) => (
             <div key={m.name} className="vp-card p-6">
