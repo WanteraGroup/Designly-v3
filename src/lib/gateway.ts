@@ -1,6 +1,7 @@
 import { parseSite, type SiteDocument } from './site-schema';
 
-const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
+const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export interface SiteGenerationResult {
@@ -26,9 +27,7 @@ export class GatewayError extends Error {
 
 export async function generateSite(brief: string, language = 'hu'): Promise<SiteGenerationResult> {
   if (!brief.trim()) throw new GatewayError('A brief nem lehet üres.', 400);
-  if (!import.meta.env.VITE_SUPABASE_URL) {
-    throw new GatewayError('A Supabase kapcsolat nincs beállítva ebben a buildben.', 0);
-  }
+  if (!SUPABASE_URL) throw new GatewayError('A Supabase kapcsolat nincs beállítva ebben a buildben.', 0);
 
   let res: Response;
   try {
