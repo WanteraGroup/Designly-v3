@@ -24,6 +24,7 @@ import { templateCoverUrl } from '../lib/template-art';
 import { SiteRenderer } from '../components/SitePreview';
 import HuginnAgent from '../components/HuginnAgent';
 import CreativeStudio from '../components/CreativeStudio';
+import GamerStudio from '../components/GamerStudio';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -36,9 +37,9 @@ export default function Home() {
   const [language, setLanguage] = useState('hu');
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
-  const [tab, setTab] = useState<'generator' | 'studio' | 'templates'>(() => {
+  const [tab, setTab] = useState<'generator' | 'studio' | 'gamer' | 'templates'>(() => {
     const requested = new URLSearchParams(window.location.search).get('tab');
-    return requested === 'studio' || requested === 'templates' ? requested : 'generator';
+    return requested === 'studio' || requested === 'gamer' || requested === 'templates' ? requested : 'generator';
   });
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,7 +159,7 @@ export default function Home() {
       </header>
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
-        {(['generator', 'studio', 'templates'] as const).map((t) => (
+        {(['generator', 'studio', 'gamer', 'templates'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -173,10 +174,18 @@ export default function Home() {
               ? 'Generátor'
               : t === 'studio'
                 ? 'Extra Stúdió'
-                : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
+                : t === 'gamer'
+                  ? 'Streamer & Gamer'
+                  : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
           </button>
         ))}
       </div>
+
+      {tab === 'gamer' && (
+        <section className="relative mx-auto max-w-6xl px-6 pb-24">
+          <GamerStudio />
+        </section>
+      )}
 
       {tab === 'studio' && (
         <section className="relative mx-auto max-w-6xl px-6 pb-24">
