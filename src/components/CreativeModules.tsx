@@ -21,6 +21,7 @@ export default function CreativeModules({tool,project,onProject,onCredits}:Props
  const [busy,setBusy]=useState(false);
  const [result,setResult]=useState<{url:string;title:string;meta:string}|null>(null);
  const [accepted,setAccepted]=useState(false);
+ const [error,setError]=useState('');
  const [brand,setBrand]=useState({name:'',industry:'',tone:'Premium',colors:['#0a0a0d','#c9a45c','#f4eee2']});
  const [social,setSocial]=useState({network:'Instagram',campaign:'',format:'1080 × 1080'});
  const [video,setVideo]=useState({concept:'',duration:'15 mp',scenes:4});
