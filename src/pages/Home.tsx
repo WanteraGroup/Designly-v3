@@ -1,10 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Loader2, Wand2, Download, Users, Check, Clock, ArrowLeft, LayoutTemplate } from 'lucide-react';
+import {
+  Sparkles,
+  Loader2,
+  Wand2,
+  Download,
+  Users,
+  Check,
+  Clock,
+  ArrowLeft,
+  LayoutTemplate,
+} from 'lucide-react';
 import { buildSite, refineSite, type SiteDocument } from '../lib/api';
 import { downloadSiteHtml } from '../lib/export-html';
 import { collectImageQueries, resolveImages, applyImages } from '../lib/images';
 import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
-import { planAgents, type AgentEntry } from '../lib/agents';
+import { planAgents, type AgentEntry, type AgentPlan } from '../lib/agents';
 import { CATEGORY_SPECS, specFor, briefFromTemplate } from '../lib/brief';
 import { getDesignlyTemplate, TEMPLATE_TOTAL } from '../lib/templates';
 import { templateCoverUrl } from '../lib/template-art';
@@ -381,7 +391,7 @@ export default function Home() {
  * generalasban, a `planned` pedig helyet jelol a kovetkezo koroknek. Egy
  * agent, ami a listan van, de nem fut, nem hazudik mukodest.
  */
-function AgentTeam({ plan }: { plan: ReturnType<typeof planAgents> }) {
+function AgentTeam({ plan }: { plan: AgentPlan }) {
   return (
     <aside className="vp-card h-fit p-5">
       <div className="mb-4 flex items-center gap-2">

@@ -14,6 +14,7 @@
 import { parseSite, type SiteDocument } from './site-schema';
 
 const GATEWAY = 'https://ai-gateway.vercel.sh/v1/chat/completions';
+const MODEL = 'openai/gpt-4o-mini';
 
 /**
  * A prompt, ami egy mondatbol kesz oldalt csinal.
@@ -65,8 +66,8 @@ Hard rules:
 - Order the blocks like a real page: hero first, footer last. Five to nine
   blocks. Never repeat a block type more than twice.
 - Write finished copy. No placeholders, no "Lorem ipsum", no bracketed blanks.
-  A plausible fictional business name, address and phone number is correct; an
-  empty field is not.
+  A plausible fictional business name, address and phone number is correct;
+  an empty field is not.
 - Choose the palette and the fonts from what the brief asks for. A dark,
   premium request gets dark mode and a restrained palette; a bright clinic
   gets light mode.
@@ -105,33 +106,48 @@ export class GatewayError extends Error {
 /**
  * Egy hivas, egy kesz dokumentum.
  *
+ * A `Authorization: Bearer <model>` fejlec NEM API-kulcs: a gateway a
+ * deployment sajat OIDC tokenjebol azonosit, es ebben a fejlecben a modell
+ * utvonalat varja. Enelkul a hivas 401-et ad, akkor is, ha a fiókon van
+ * egyenleg.
+ *
  * A 402 kulon ag, mert ez az a hiba, amibe egy friss deployment tenylegesen
  * belefut: a gateway elerheto es a token ervenyes, de a csapatnak nincs AI
- * kreditje. Ez szamlazasi allapot, nem hiba, ezert az uzenet ezt mondja ki,
- * nem egy generikus hibaszoveget, amin a felhasznalo nem tud valtoztatni.
+ * kreditje. Ez szamlazasi allapot, nem hiba, ezert az uzenet ezt mondja ki.
  *
  * A nyers modellkimenet a parseSite-en megy at, ami kidobja az allow-listen
  * kivuli blokktipusokat — igy egy hibas valasz rovidebb oldalt ad, nem omlik
  * ossze a DOM fele vezeto uton.
  */
 export async function generateSite(brief: string, language = 'hu'): Promise<SiteDocument> {
-  const res = await fetch(GATEWAY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
-      temperature: 0.75,
-      max_tokens: 8192,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `Write all copy in this language: ${language}\n\nBrief:\n${brief}`,
-        },
-      ],
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(GATEWAY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${MODEL}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.75,
+        max_tokens: 8192,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `Write all copy in this language: ${language}\n\nBrief:\n${brief}`,
+          },
+        ],
+      }),
+    });
+  } catch {
+    throw new GatewayError(
+      'A generalas nem erte el a szolgaltatast. Ellenorizd a kapcsolatot, es probald ujra.',
+      0,
+    );
+  }
 
   if (res.status === 402) {
     throw new GatewayError(
