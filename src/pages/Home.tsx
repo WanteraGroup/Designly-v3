@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Loader2, Wand2, Download, Users, Check, Clock } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Download, Users, Check, Clock, ArrowLeft } from 'lucide-react';
 import { buildSite, refineSite, type SiteDocument } from '../lib/api';
 import { downloadSiteHtml } from '../lib/export-html';
 import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
@@ -28,11 +28,6 @@ export default function Home() {
   const [reply, setReply] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const refineRef = useRef<HTMLInputElement>(null);
-
-  // Generalas utan a kovetkezo hasznos lepes a finomitas, ezert oda megy a fokusz.
-  useEffect(() => {
-    if (site) refineRef.current?.focus();
-  }, [site]);
 
   const plan = planAgents(brief);
   const categoryNames = Object.keys(CATEGORY_SPECS);
@@ -76,6 +71,14 @@ export default function Home() {
     }
   }
 
+  /**
+   * Generalas utan a kovetkezo hasznos lepes a finomitas, ezert oda megy a
+   * fokusz — de csak akkor, ha epp nem fut generalas, kulonben elkapja a kurzort.
+   */
+  useEffect(() => {
+    if (site && !busy) refineRef.current?.focus();
+  }, [site, busy]);
+
   /** Sablonbol inditas: a brief kitolti, de a generalast a felhasznalo inditja. */
   function useTemplate(index: number) {
     const tpl = getDesignlyTemplate(index);
@@ -87,40 +90,27 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <header className="relative mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <span className="font-display text-sm font-semibold tracking-[0.22em] text-ink-100">
-          DESIGNLY V3
-        </span>
-        <div className="flex items-center gap-4">
-          <label className="text-xs text-ink-300">
-            <span className="sr-only">Nyelv</span>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="border-none bg-transparent text-ink-200 outline-none"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code} className="bg-canvas">
-                  {l.flag}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <a href="/" className="flex items-center gap-2 text-sm tracking-[0.22em] text-ink-100">
+          <ArrowLeft className="h-4 w-4 text-ink-400" />
+          <span className="font-display">
+            DESIGNLY <span className="text-accent">V3</span>
+          </span>
+        </a>
+        <label className="text-xs text-ink-300">
+          <span className="sr-only">Nyelv</span>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="border-none bg-transparent text-ink-200 outline-none"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-canvas">
+                {l.flag}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
-
-      <section className="relative mx-auto max-w-3xl px-6 pb-12 pt-10 text-center">
-        <span className="mb-6 inline-block rounded-full border border-line px-4 py-1.5 text-[11px] tracking-[0.28em] text-accent">
-          AI KREATÍV OPERÁCIÓS RENDSZER
-        </span>
-        <h1 className="font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
-          Írd le egy mondatban.
-          <br />
-          <span className="text-accent">Megkapod a kész oldalt.</span>
-        </h1>
-        <p className="mx-auto mt-5 max-w-xl text-[15px] text-ink-300">
-          Nem sablont kapsz, hanem kész weboldalt — szöveggel, színekkel és szerkezettel együtt.
-        </p>
-      </section>
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
         {(['generator', 'templates'] as const).map((t) => (
@@ -134,7 +124,9 @@ export default function Home() {
                 : 'border-line text-ink-300 hover:text-ink-100'
             }`}
           >
-            {t === 'generator' ? 'Generátor' : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
+            {t === 'generator'
+              ? 'Generátor'
+              : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
           </button>
         ))}
       </div>
