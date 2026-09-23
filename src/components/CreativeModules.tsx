@@ -3,6 +3,7 @@ import { Check, Copy, Download, Image as ImageIcon, Loader2, Palette, Play, Spar
 import type { StudioProject } from '../lib/project-store';
 import { saveProject } from '../lib/project-store';
 import { DEFAULT_COSTS, getCredits, spend } from '../lib/credits';
+import { generateCreativeImage } from '../lib/creative-api';
 
 type Props={tool:string;project:StudioProject|null;onProject:(p:StudioProject)=>void;onCredits:(n:number)=>void};
 
@@ -44,11 +45,12 @@ export default function CreativeModules({tool,project,onProject,onCredits}:Props
 
  const generate=async()=>{
    if(busy)return;
-   setBusy(true);setAccepted(false);
-   await new Promise(r=>setTimeout(r,500));
+   setBusy(true);setAccepted(false);setError('');
+   try {
    if(tool==='image'){
      const title=prompt.trim()||'Premium Creative';
-     setResult({url:svgData(title,'AI VISUAL',' #9b7cff'.trim(),'image'),title,meta:'1080 × 1080'});
+     const generated=await generateCreativeImage(title,'1:1');
+     setResult({url:generated.url,title,meta:'AI kép · 1:1 · Nano Banana Pro'});
    }else if(tool==='social'){
      const title=social.campaign.trim()||prompt.trim()||'Új kampány';
      setResult({url:svgData(title,social.network,'#c9a45c','social'),title,meta:social.format+' · '+social.network});
@@ -59,7 +61,11 @@ export default function CreativeModules({tool,project,onProject,onCredits}:Props
      const title=video.concept.trim()||prompt.trim()||'Cinematic Campaign';
      setResult({url:svgData(title,video.duration,'#60a5fa','video'),title,meta:video.scenes+' jelenet · '+video.duration});
    }
-   setBusy(false);
+   } catch (e) {
+     setError(e instanceof Error ? e.message : 'A generálás nem sikerült.');
+   } finally {
+     setBusy(false);
+   }
  };
 
  const inputClass='w-full rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm outline-none placeholder:text-white/20';
@@ -72,7 +78,7 @@ export default function CreativeModules({tool,project,onProject,onCredits}:Props
       {tool==='social'&&<div className="mt-5 space-y-3"><input value={social.campaign} onChange={e=>setSocial({...social,campaign:e.target.value})} placeholder="Kampány neve / célja" className={inputClass}/><select value={social.network} onChange={e=>setSocial({...social,network:e.target.value})} className={inputClass}><option>Instagram</option><option>Facebook</option><option>LinkedIn</option><option>TikTok</option></select><select value={social.format} onChange={e=>setSocial({...social,format:e.target.value})} className={inputClass}><option>1080 × 1080</option><option>1080 × 1350</option><option>1080 × 1920</option><option>1200 × 628</option></select></div>}
       {tool==='video'&&<div className="mt-5 space-y-3"><textarea value={video.concept} onChange={e=>setVideo({...video,concept:e.target.value})} rows={5} placeholder="Videó koncepció…" className={inputClass+' resize-none'}/><div className="grid grid-cols-2 gap-3"><select value={video.duration} onChange={e=>setVideo({...video,duration:e.target.value})} className={inputClass}><option>10 mp</option><option>15 mp</option><option>30 mp</option><option>60 mp</option></select><select value={video.scenes} onChange={e=>setVideo({...video,scenes:Number(e.target.value)})} className={inputClass}><option value={3}>3 jelenet</option><option value={4}>4 jelenet</option><option value={6}>6 jelenet</option><option value={8}>8 jelenet</option></select></div></div>}
       <button onClick={()=>void generate()} disabled={busy} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-500 px-5 py-4 text-sm font-bold disabled:opacity-40">{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}{busy?'Generálás…':'Előnézet létrehozása'}</button>
-      <p className="mt-2 text-center text-[10px] text-white/30">Előnézet: 0 kredit · Elfogadás: {config.cost} kredit</p>
+      {error&&<p className="mt-3 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2 text-xs text-red-200">{error}</p>}<p className="mt-2 text-center text-[10px] text-white/30">Előnézet: 0 kredit · Elfogadás: {config.cost} kredit</p>
     </div>
    </div>
    <div className="rounded-3xl border border-white/10 bg-white/[.025] p-5">
