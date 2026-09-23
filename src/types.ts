@@ -1,12 +1,11 @@
 /**
- * Domain types.
+ * A kozos tipusok.
  *
- * A shape itt a semaval egyezik, nem a tablakkal: a Designly-v3 generatorkent
- * indul, adatbazis nelkul. A BrandKit es a Profile megvan, mert a kovetkezo
- * lepes az admin es a brand-kit — de addig nem hasznalja semmi.
+ * Ez a fajl az importok celpontja: a `brief.ts` es a `templates.ts` innen hozza
+ * a `DesignlyTemplate`-et, a `constants.ts` pedig a `Language`-t. Nelkule a
+ * `vite build` nem talalja a modult, es a build 1-es koddal all le — ez volt a
+ * hiba, amiert a deploy 12 masodperc alatt elhasalt.
  */
-
-export type AppRole = 'owner' | 'admin' | 'user';
 
 export interface Language {
   code: string;
@@ -14,43 +13,18 @@ export interface Language {
   flag: string;
 }
 
-export interface BrandKit {
-  id: string;
-  user_id: string;
-  name: string;
-  industry: string;
-  colors: string[];
-  fonts: { heading: string; body: string };
-  tone: string;
-  logo_url: string | null;
-  style_keywords: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Profile {
-  id: string;
-  email: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  phone: string | null;
-  role: AppRole;
-  created_at: string;
-}
-
-/** A template entry from the generated catalogue. */
+/**
+ * Egy sablon a katalogusban.
+ *
+ * A katalogus nagy (138 240 tetel), es nincs kepfajlja: minden sablon a sajat
+ * boritojat rajzolja az indexebol (lasd `template-art.ts`). Ezert itt szin-
+ * paletta es stilus van, nem kep URL.
+ */
 export interface DesignlyTemplate {
   id: string;
   name: string;
-  category: string;
-  type: string;
-  premium: boolean;
   description: string;
+  category: string;
   style: string;
-  effect: string;
   palette: string[];
-  layout: 'editorial' | 'bold' | 'minimal' | 'luxury' | 'corporate';
-  fontPair: string;
-  format: string;
-  variant: number;
 }
