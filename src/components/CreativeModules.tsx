@@ -52,7 +52,7 @@ export default function CreativeModules({tool,project,onProject,onCredits}:Props
    if(tool==='image'){
      const title=prompt.trim()||'Premium Creative';
      const generated=await generateCreativeImage(title,'1:1');
-     setResult({url:generated.url,title,meta:'AI kép · 1:1 · Pollinations / FLUX'});
+     setResult({url:generated.url,title,meta:'AI kép · 1:1 · Pollinations / Qwen Image'});
    }else if(tool==='social'){
      const title=social.campaign.trim()||prompt.trim()||'Új kampány';
      setResult({url:svgData(title,social.network,'#c9a45c','social'),title,meta:social.format+' · '+social.network});
