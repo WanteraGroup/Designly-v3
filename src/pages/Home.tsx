@@ -18,7 +18,10 @@ import { planAgents, type AgentEntry, type AgentPlan } from '../lib/agents';
 import { CATEGORY_SPECS, specFor, briefFromTemplate } from '../lib/brief';
 import { getDesignlyTemplate, TEMPLATE_TOTAL } from '../lib/templates';
 import { templateCoverUrl } from '../lib/template-art';
-import SitePreview from '../components/SitePreview';
+// NEVESITES import: a SitePreview.tsx `SiteRenderer`-t exportal, nem default-ot.
+// Egy default import itt rollup-hibat ad ("default is not exported"), es a build
+// 1-es koddal all le — ez volt a deploy hibaja.
+import { SiteRenderer } from '../components/SitePreview';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -272,7 +275,7 @@ export default function Home() {
                     <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
                   </div>
 
-                  <SitePreview document={site} />
+                  <SiteRenderer document={site} />
 
                   <div className="mt-5">
                     <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">

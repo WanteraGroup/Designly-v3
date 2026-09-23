@@ -49,6 +49,13 @@ export function SiteRenderer({ document: doc, embedded }: SiteRendererProps) {
   );
 }
 
+/**
+ * Default export is, hogy a `Home.tsx` barmelyik import-formaval mukodjon.
+ * A repoban korabban csak nevesites volt, es egy `import SitePreview from ...`
+ * emiatt rollup-hibat adott — a build 1-es koddal allt le.
+ */
+export default SiteRenderer;
+
 function Block({
   block,
   theme,
