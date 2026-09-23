@@ -89,6 +89,7 @@ export default function Home() {
       setRuntimeAgents(built.activeAgents);
       setSavedProjectId(null);
       setSavedNotice(false);
+      setEditorOpen(true);
       setRuntimeMode(built.runtimeMode);
       setBusy(false);
 
