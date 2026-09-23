@@ -4,6 +4,10 @@ import {
   Loader2,
   Wand2,
   Download,
+  Save,
+  FileJson,
+  Pencil,
+  RefreshCw,
   Users,
   Check,
   Clock,
@@ -25,6 +29,7 @@ import { SiteRenderer } from '../components/SitePreview';
 import HuginnAgent from '../components/HuginnAgent';
 import CreativeStudio from '../components/CreativeStudio';
 import GamerStudio from '../components/GamerStudio';
+import { createProject, saveProject } from '../lib/project-store';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -50,6 +55,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [runtimeAgents, setRuntimeAgents] = useState<string[]>([]);
   const [runtimeMode, setRuntimeMode] = useState<'ai' | 'fallback'>('fallback');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+  const [savedNotice, setSavedNotice] = useState(false);
   const refineRef = useRef<HTMLInputElement>(null);
 
   const plan = planAgents(brief);
@@ -79,6 +87,8 @@ export default function Home() {
       const built = await buildSite(composedBrief(), language);
       setSite(built.site);
       setRuntimeAgents(built.activeAgents);
+      setSavedProjectId(null);
+      setSavedNotice(false);
       setRuntimeMode(built.runtimeMode);
       setBusy(false);
 
@@ -107,6 +117,7 @@ export default function Home() {
     try {
       const result = await refineSite(site, instruction.trim(), language);
       setSite(result.site);
+      setSavedNotice(false);
       setReply(result.reply);
       setInstruction('');
     } catch (e) {
@@ -301,12 +312,57 @@ export default function Home() {
                     <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
                   </div>
 
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-panel/80 p-3">
+                    <button type="button" onClick={() => {
+                      const existing = savedProjectId;
+                      const project = existing
+                        ? saveProject({ id: existing, name: site.site.title || 'DESIGNLY projekt', updatedAt: Date.now(), brief, site, assets: [] })
+                        : saveProject(createProject(site.site.title || 'DESIGNLY projekt', brief));
+                      if (!existing) {
+                        const created = saveProject({ ...createProject(site.site.title || 'DESIGNLY projekt', brief), site });
+                        setSavedProjectId(created.id);
+                      } else {
+                        void project;
+                      }
+                      setSavedNotice(true);
+                      window.setTimeout(() => setSavedNotice(false), 1800);
+                    }} className="vp-btn">
+                      <Save className="h-4 w-4" /> Mentés
+                    </button>
+                    <button type="button" onClick={() => downloadSiteHtml(site, brief)} className="vp-btn-ghost">
+                      <Download className="h-4 w-4" /> HTML letöltés
+                    </button>
+                    <button type="button" onClick={() => {
+                      const blob = new Blob([JSON.stringify(site, null, 2)], { type: 'application/json;charset=utf-8' });
+                      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+                      a.href = url; a.download = (site.site.title || 'designly-site').toLowerCase().replace(/[^a-z0-9]+/gi, '-') + '.json'; a.click(); URL.revokeObjectURL(url);
+                    }} className="vp-btn-ghost">
+                      <FileJson className="h-4 w-4" /> JSON export
+                    </button>
+                    <button type="button" onClick={() => {
+                      setEditorOpen(true);
+                      window.setTimeout(() => refineRef.current?.focus(), 0);
+                    }} className={editorOpen ? "vp-btn" : "vp-btn-ghost"}>
+                      <Pencil className="h-4 w-4" /> Szerkesztés
+                    </button>
+                    <button type="button" onClick={() => {
+                      setSite(null); setInstruction(''); setReply(null); setSavedProjectId(null); setSavedNotice(false); setEditorOpen(false);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }} className="vp-btn-ghost">
+                      <RefreshCw className="h-4 w-4" /> Új projekt
+                    </button>
+                    {savedNotice && <span className="ml-auto flex items-center gap-1 text-xs text-emerald-300"><Check className="h-3.5 w-3.5" /> Elmentve</span>}
+                  </div>
+
                   <SiteRenderer document={site} />
 
-                  <div className="mt-5">
-                    <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
+                  <div className={editorOpen ? "mt-5 rounded-2xl border border-accent/20 bg-panel/40 p-4" : "mt-5"}>
+                    <button type="button" onClick={() => setEditorOpen(v => !v)} className="mb-3 flex items-center gap-2 text-xs text-ink-300 hover:text-ink-100">
+                      <Pencil className="h-3.5 w-3.5 text-accent" /> {editorOpen ? 'Szerkesztő bezárása' : 'Szerkesztő megnyitása'}
+                    </button>
+                    {editorOpen && <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
                       Változtass egy dolgot
-                    </label>
+                    </label>}
                     <div className="flex gap-3">
                       <input
                         id="refine"
@@ -342,7 +398,7 @@ export default function Home() {
 
                     <p className="mt-3 text-xs text-ink-400">
                       A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
-                    </p>
+                    </p>}
                   </div>
                 </div>
               )}
