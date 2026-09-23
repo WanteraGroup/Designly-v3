@@ -1,27 +1,29 @@
-import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Clock, Briefcase, Video, Languages, Mic } from 'lucide-react';
-import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
+import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Clock, Briefcase, Video, Languages } from 'lucide-react';
+import { LANGUAGES } from '../lib/constants';
 import { FULL_AGENT_TEAM, LIVE_AGENTS, PLANNED_AGENTS } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
 import { TEMPLATE_TOTAL } from '../lib/templates';
+import { templateCoverUrl } from '../lib/template-art';
 
 /**
  * A nyito oldal.
  *
- * Szandekosan nem a generalot teszi elore, hanem azt mutatja meg, mi a rendszer:
- * huszonnegy kategoria, tizenot agent, szazharmincnyolcezer sablon, tizenot
- * nyelv. A generalo egy kattintasra van, de elotte a felhasznalonak latnia kell,
- * mit kap — kulonben egy ures szovegdoboz az elso benyomas.
+ * Nem a generalot teszi elore, hanem azt mutatja meg, mi a rendszer: huszonnegy
+ * kategoria, huszonegy agent, szazharmincnyolcezer sablon, tiz nyelv. A generalo
+ * egy kattintasra van, de elotte latni kell, mit kap a felhasznalo — kulonben
+ * egy ures szovegdoboz az elso benyomas.
  */
-export default function Home() {
+export default function Landing() {
   const featureCount = Object.keys(CATEGORY_SPECS).length;
+  const categoryNames = Object.keys(CATEGORY_SPECS);
+  const featured = [0, 24, 48, 72, 96, 120];
 
   return (
     <div className="relative">
-      {/* ---------- fejlec ---------- */}
-      <header className="sticky top-0 z-40 border-b border-line bg-canvas/70 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-line bg-canvas/75 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <img src="/hero-bg.svg" alt="" className="h-8 w-8 rounded" />
+            <img src="/hero-bg.svg" alt="" className="h-8 w-8 rounded-md" />
             <span className="font-display text-sm tracking-[0.22em] text-ink-100">
               DESIGNLY <span className="text-accent">V3</span>
             </span>
@@ -29,7 +31,11 @@ export default function Home() {
 
           <nav className="hidden gap-7 text-sm text-ink-300 md:flex">
             {['Szolgáltatások', 'Agentek', 'Sablonok', 'Árak', 'Kapcsolat'].map((item) => (
-              <a key={item} href="#" className="transition hover:text-ink-100">
+              <a
+                key={item}
+                href={item === 'Agentek' ? '#agents' : item === 'Sablonok' ? '#templates' : '#'}
+                className="transition hover:text-ink-100"
+              >
                 {item}
               </a>
             ))}
@@ -47,14 +53,13 @@ export default function Home() {
                 </option>
               ))}
             </select>
-            <a href="#agents" className="vp-btn text-xs">
+            <a href="/app" className="vp-btn text-xs">
               Kezdj el
             </a>
           </div>
         </div>
       </header>
 
-      {/* ---------- hero ---------- */}
       <section className="mx-auto max-w-4xl px-6 pb-16 pt-20 text-center">
         <span className="mb-7 inline-block rounded-full border border-line px-4 py-1.5 text-[11px] tracking-[0.28em] text-accent">
           DESIGNLY V3 — AZ AI KREATÍV OPERÁCIÓS RENDSZER
@@ -73,7 +78,7 @@ export default function Home() {
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <a href="#generator" className="vp-btn">
+          <a href="/app" className="vp-btn">
             <Sparkles className="h-4 w-4" />
             Weboldal készítése
           </a>
@@ -84,7 +89,19 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ---------- szamok ---------- */}
+      <section className="mx-auto max-w-6xl px-6 pb-20">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {featured.map((i) => (
+            <img
+              key={i}
+              src={templateCoverUrl(i)}
+              alt=""
+              className="aspect-[4/3] w-full rounded-xl border border-line object-cover opacity-80 transition hover:opacity-100"
+            />
+          ))}
+        </div>
+      </section>
+
       <section className="border-y border-line bg-panel/40">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-10 lg:grid-cols-4">
           {[
@@ -103,18 +120,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ---------- modulok ---------- */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="mb-3 text-center font-display text-3xl text-ink-100">A rendszer</h2>
+        <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Mit kínálunk?</h2>
         <p className="mx-auto mb-12 max-w-xl text-center text-sm text-ink-300">
           Hat modul, egy folyamatban. Ami ma fut, és ami épül.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            { icon: Sparkles, name: 'Website Builder', desc: 'AI weboldalak természetes nyelvű briefből.', live: true },
-            { icon: LayoutTemplate, name: 'Sablon Galéria', desc: `${TEMPLATE_TOTAL.toLocaleString('hu-HU')} generált sablon, huszonnégy kategóriában.`, live: true },
-            { icon: Wand2, name: 'Design Editor', desc: 'Természetes nyelvű finomítás, diff-alapon — a szerkezet megmarad.', live: true },
+            { icon: Sparkles, name: 'Website Builder', desc: 'AI weboldalak természetes nyelvű briefből, kész szöveggel.', live: true },
+            { icon: LayoutTemplate, name: 'Sablon Galéria', desc: `${TEMPLATE_TOTAL.toLocaleString('hu-HU')} generált sablon, ${featureCount} kategóriában.`, live: true },
+            { icon: Wand2, name: 'Design Editor', desc: 'Természetes nyelvű finomítás diff-alapon — a szerkezet megmarad.', live: true },
             { icon: Users, name: 'Agent Team', desc: `${LIVE_AGENTS.length} aktív specialista, és ${PLANNED_AGENTS.length} épülőben.`, live: true },
             { icon: Briefcase, name: 'Brand Kit', desc: 'Színek, tipográfia és hangnem, minden generáláshoz kötve.', live: false },
             { icon: Video, name: 'Kampány Stúdió', desc: 'Hirdetések és social kreatívok a brand kit alapján.', live: false },
@@ -139,15 +155,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ---------- agentek ---------- */}
       <section id="agents" className="border-y border-line bg-panel/40">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Agent csapat</h2>
-          <p className="mx-auto mb-12 max-w-2xl text-center text-sm text-ink-300">
+          <p className="mx-auto mb-12 max-w-2xl text-center text-sm leading-relaxed text-ink-300">
             A Wantera projektcsalád tizenhét repójából összegyűjtött képességek. Az{' '}
-            <span className="text-accent">aktív</span> agent ma is fut a generálásban; a{' '}
-            <span className="text-ink-200">épülő</span> a következő körök munkája — és ezt
-            a felület ki is mondja, mert egy agent, ami nem fut, nem hazudik működést.
+            <span className="text-emerald-400">aktív</span> agent ma is fut a generálásban; az{' '}
+            <span className="text-ink-200">épülő</span> a következő körök munkája — és ezt a
+            felület ki is mondja, mert egy agent, ami nem fut, nem hazudik működést.
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -176,79 +191,95 @@ export default function Home() {
             ))}
           </div>
 
-          <p className="mt-10 text-center text-xs text-ink-400">
-            BRIEF → szakértők → ellenőrzés → eredmény
-          </p>
+          <div className="mx-auto mt-12 flex max-w-3xl flex-wrap items-center justify-center gap-3 text-xs text-ink-400">
+            {['BRIEF', 'szakértők', 'ellenőrzés', 'eredmény'].map((step, i, arr) => (
+              <span key={step} className="flex items-center gap-3">
+                <span className="rounded-full border border-line px-3 py-1 text-ink-200">
+                  {step}
+                </span>
+                {i < arr.length - 1 && <span className="text-accent">→</span>}
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ---------- generator ---------- */}
-      <section id="generator" className="mx-auto max-w-3xl px-6 py-20">
-        <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Generátor</h2>
-        <p className="mx-auto mb-10 max-w-xl text-center text-sm text-ink-300">
-          A generátor a külön oldalon fut, ahol a briefet írod és az eredményt látod.
+      <section id="templates" className="mx-auto max-w-6xl px-6 py-20">
+        <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Sablonok</h2>
+        <p className="mx-auto mb-10 max-w-2xl text-center text-sm leading-relaxed text-ink-300">
+          {TEMPLATE_TOTAL.toLocaleString('hu-HU')} sablon, {featureCount} kategóriában. A sablon
+          struktúra és hangnem, nem kész oldal — a generátor építi meg belőle a lapot.
         </p>
+
+        <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 40, 88, 130].map((i) => (
+            <div key={i} className="overflow-hidden rounded-2xl border border-line bg-panel">
+              <img src={templateCoverUrl(i)} alt="" className="aspect-[4/3] w-full object-cover" />
+              <div className="px-4 py-3">
+                <p className="text-xs text-ink-200">{categoryNames[i % featureCount]}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-8 flex flex-wrap justify-center gap-2">
+          {categoryNames.slice(0, 14).map((c) => (
+            <span key={c} className="rounded-full border border-line px-3 py-1 text-xs text-ink-300">
+              {c}
+            </span>
+          ))}
+        </div>
+
         <div className="text-center">
-          <a href="/app" className="vp-btn">
-            <Sparkles className="h-4 w-4" />
-            Generátor megnyitása
+          <a href="/app" className="vp-btn-ghost">
+            <LayoutTemplate className="h-4 w-4" />
+            Galéria megnyitása
           </a>
         </div>
       </section>
 
-      {/* ---------- sablonok ---------- */}
-      <section id="templates" className="border-y border-line bg-panel/40">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Sablonok</h2>
-          <p className="mx-auto mb-10 max-w-2xl text-center text-sm text-ink-300">
-            {TEMPLATE_TOTAL.toLocaleString('hu-HU')} sablon, {featureCount} kategóriában. A sablon
-            struktúra és hangnem, nem kész oldal — a generátor építi meg belőle a lapot.
+      <section className="border-y border-line bg-panel/40">
+        <div className="mx-auto max-w-3xl px-6 py-20">
+          <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Árak</h2>
+          <p className="mx-auto mb-10 max-w-xl text-center text-sm leading-relaxed text-ink-300">
+            A díjszabás a szerveren él, nem a kliensen — egy kliens, ami olyan számot tart,
+            amivel a szerver nem egyezik, elszámolási hiba.
           </p>
-          <div className="mb-8 flex flex-wrap justify-center gap-2">
-            {Object.keys(CATEGORY_SPECS)
-              .slice(0, 12)
-              .map((c) => (
-                <span
-                  key={c}
-                  className="rounded-full border border-line px-3 py-1 text-xs text-ink-300"
-                >
-                  {c}
-                </span>
-              ))}
-          </div>
-          <div className="text-center">
-            <a href="/app?tab=templates" className="vp-btn-ghost">
-              <LayoutTemplate className="h-4 w-4" />
-              Galéria megnyitása
+          <div className="vp-card mx-auto max-w-lg p-7 text-center">
+            <p className="font-display text-2xl text-accent">Kezdés ingyen</p>
+            <p className="mt-3 text-sm leading-relaxed text-ink-300">
+              Regisztráció után a generátor azonnal használható. A terhelés a
+              <span className="text-ink-100"> system_settings</span> sorban él, és a szerver
+              olvassa minden hívásnál.
+            </p>
+            <a href="/app" className="vp-btn mt-6">
+              Kezdj el most
             </a>
           </div>
         </div>
       </section>
 
-      {/* ---------- arak ---------- */}
-      <section className="mx-auto max-w-5xl px-6 py-20">
-        <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Árak</h2>
-        <p className="mx-auto mb-12 max-w-xl text-center text-sm text-ink-300">
-          A díjszabás a szerveren él, nem a kliensen — egy kliens, ami olyan számot tart,
-          amivel a szerver nem egyezik, elszámolási hiba.
+      <section className="mx-auto max-w-3xl px-6 py-20 text-center">
+        <p className="font-display text-3xl leading-snug text-ink-100 sm:text-4xl">
+          „A jövőt nem várjuk.
+          <br />
+          <span className="text-accent">Mi építjük.”</span>
         </p>
-        <div className="mx-auto max-w-lg vp-card p-6 text-center">
-          <p className="font-display text-2xl text-accent">Kezdés ingyen</p>
-          <p className="mt-3 text-sm text-ink-300">
-            Regisztráció után a generátor azonnal használható. A terhelés a
-            <span className="text-ink-100"> system_settings</span> sorban él, és a szerver
-            olvassa minden hívásnál.
-          </p>
-        </div>
+        <p className="mt-4 text-xs tracking-[0.2em] text-ink-400">— DESIGNLY AI</p>
+        <a href="/app" className="vp-btn mt-9">
+          <Sparkles className="h-4 w-4" />
+          Építsük meg a tiédet
+        </a>
       </section>
 
-      {/* ---------- labléc ---------- */}
       <footer className="border-t border-line bg-panel/40">
         <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/hero-bg.svg" alt="" className="h-7 w-7 rounded" />
-              <span className="font-display text-sm tracking-[0.2em] text-ink-100">DESIGNLY V3</span>
+              <img src="/hero-bg.svg" alt="" className="h-7 w-7 rounded-md" />
+              <span className="font-display text-sm tracking-[0.2em] text-ink-100">
+                DESIGNLY V3
+              </span>
             </div>
             <nav className="flex flex-wrap gap-6 text-xs text-ink-400">
               {['Szolgáltatások', 'Agentek', 'Sablonok', 'Árak', 'Kapcsolat'].map((i) => (
@@ -259,7 +290,7 @@ export default function Home() {
             </nav>
             <div className="flex items-center gap-3 text-ink-400">
               <Languages className="h-4 w-4" />
-              <Mic className="h-4 w-4" />
+              <Download className="h-4 w-4" />
             </div>
           </div>
           <p className="mt-8 text-center text-[11px] text-ink-400">
