@@ -1,385 +1,47 @@
-import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Loader2, Wand2, Download, Users, Check, Clock, ArrowLeft } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Download, Image, Layers3, Loader2, Sparkles, Wand2, Globe2, Palette, Video, LayoutTemplate } from 'lucide-react';
 import { buildSite, refineSite, type SiteDocument } from '../lib/api';
 import { downloadSiteHtml } from '../lib/export-html';
 import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
-import { planAgents, type AgentEntry } from '../lib/agents';
-import { CATEGORY_SPECS, specFor, briefFromTemplate } from '../lib/brief';
-import { getDesignlyTemplate, TEMPLATE_TOTAL } from '../lib/templates';
-import { templateCoverUrl } from '../lib/template-art';
 import SitePreview from '../components/SitePreview';
 
-const EXAMPLES = [
-  'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
-  'Modern étterem oldal, étlappal és nyitvatartással',
-  'Egy fitneszterem bemutatkozó oldala bérletárakkal',
-];
+const tools = [
+  ['site','Weboldal',Globe2,'AI weboldalépítő'],['image','Kép',Image,'Képgenerátor'],
+  ['brand','Arculat',Palette,'Brand studio'],['social','Social',Layers3,'Kreatív kampányok'],
+  ['video','Videó',Video,'Storyboard / video'],['templates','Sablonok',LayoutTemplate,'Layout könyvtár'],
+] as const;
 
-export default function Home() {
-  const [brief, setBrief] = useState('');
-  const [language, setLanguage] = useState('hu');
-  const [style, setStyle] = useState<string | null>(null);
-  const [category, setCategory] = useState('Business');
-  const [tab, setTab] = useState<'generator' | 'templates'>('generator');
-  const [site, setSite] = useState<SiteDocument | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [refining, setRefining] = useState(false);
-  const [instruction, setInstruction] = useState('');
-  const [reply, setReply] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const refineRef = useRef<HTMLInputElement>(null);
-
-  const plan = planAgents(brief);
-  const categoryNames = Object.keys(CATEGORY_SPECS);
-
-  /** A valasztott stilus a brief vegen megy: a modell egy szoveges briefet lat. */
-  function composedBrief(): string {
-    const base = brief.trim();
-    return style ? `${base} — stílus: ${style}` : base;
-  }
-
-  async function generate() {
-    if (!brief.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    setReply(null);
-
-    try {
-      setSite(await buildSite(composedBrief(), language));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function refine() {
-    if (!site || !instruction.trim() || refining) return;
-    setRefining(true);
-    setError(null);
-    setReply(null);
-
-    try {
-      const result = await refineSite(site, instruction.trim(), language);
-      setSite(result.site);
-      setReply(result.reply);
-      setInstruction('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRefining(false);
-    }
-  }
-
-  /**
-   * Generalas utan a kovetkezo hasznos lepes a finomitas, ezert oda megy a
-   * fokusz — de csak akkor, ha epp nem fut generalas, kulonben elkapja a kurzort.
-   */
-  useEffect(() => {
-    if (site && !busy) refineRef.current?.focus();
-  }, [site, busy]);
-
-  /** Sablonbol inditas: a brief kitolti, de a generalast a felhasznalo inditja. */
-  function useTemplate(index: number) {
-    const tpl = getDesignlyTemplate(index);
-    setBrief(briefFromTemplate(tpl));
-    setCategory(tpl.category);
-    setTab('generator');
-  }
-
-  return (
-    <div className="min-h-screen">
-      <header className="relative mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <a href="/" className="flex items-center gap-2 text-sm tracking-[0.22em] text-ink-100">
-          <ArrowLeft className="h-4 w-4 text-ink-400" />
-          <span className="font-display">
-            DESIGNLY <span className="text-accent">V3</span>
-          </span>
-        </a>
-        <label className="text-xs text-ink-300">
-          <span className="sr-only">Nyelv</span>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="border-none bg-transparent text-ink-200 outline-none"
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code} className="bg-canvas">
-                {l.flag}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-
-      <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
-        {(['generator', 'templates'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`rounded-full border px-4 py-1.5 text-xs transition ${
-              tab === t
-                ? 'border-accent/70 bg-accent/15 text-accent'
-                : 'border-line text-ink-300 hover:text-ink-100'
-            }`}
-          >
-            {t === 'generator'
-              ? 'Generátor'
-              : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'generator' && (
-        <section className="relative mx-auto max-w-5xl px-6 pb-24">
-          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div>
-              <div className="vp-card p-5">
-                <label htmlFor="brief" className="mb-2 block text-xs text-ink-400">
-                  Mit építsünk?
-                </label>
-                <textarea
-                  id="brief"
-                  rows={4}
-                  value={brief}
-                  onChange={(e) => setBrief(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void generate();
-                  }}
-                  placeholder="Például: Egy sötét, prémium fodrászszalon weboldala árakkal és foglalással."
-                  className="vp-input resize-none"
-                />
-
-                <div className="mt-5">
-                  <span className="mb-2 block text-xs text-ink-400">Stílus</span>
-                  <div className="flex flex-wrap gap-2">
-                    {DESIGN_STYLES.slice(0, 14).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setStyle(style === s ? null : s)}
-                        className={`rounded-full border px-3 py-1 text-xs transition ${
-                          style === s
-                            ? 'border-accent/70 bg-accent/15 text-accent'
-                            : 'border-line text-ink-300 hover:border-accent/50 hover:text-ink-100'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={generate}
-                    disabled={busy || !brief.trim()}
-                    className="vp-btn"
-                  >
-                    {busy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    {busy ? 'Építés…' : site ? 'Új oldal' : 'Oldal elkészítése'}
-                  </button>
-                  {site && (
-                    <button
-                      type="button"
-                      onClick={() => downloadSiteHtml(site, brief)}
-                      className="vp-btn-ghost"
-                    >
-                      <Download className="h-4 w-4" />
-                      HTML letöltése
-                    </button>
-                  )}
-                  <span className="text-xs text-ink-400">Cmd / Ctrl + Enter</span>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {EXAMPLES.map((ex) => (
-                    <button
-                      key={ex}
-                      type="button"
-                      onClick={() => setBrief(ex)}
-                      className="rounded-full border border-line px-3 py-1 text-xs text-ink-300 transition hover:border-accent/50 hover:text-ink-100"
-                    >
-                      {ex}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {busy && (
-                <div className="mt-5 flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-ink-300">
-                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                  A csapat megtervezi a szerkezetet, megírja a szövegeket és összeállítja az oldalt.
-                </div>
-              )}
-
-              {error && (
-                <p className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                  {error}
-                </p>
-              )}
-
-              {site && (
-                <div className="mt-8">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="font-display text-lg text-ink-100">{site.site.title}</h2>
-                    <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
-                  </div>
-
-                  <SitePreview document={site} />
-
-                  <div className="mt-5">
-                    <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
-                      Változtass egy dolgot
-                    </label>
-                    <div className="flex gap-3">
-                      <input
-                        id="refine"
-                        ref={refineRef}
-                        value={instruction}
-                        onChange={(e) => setInstruction(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void refine();
-                        }}
-                        placeholder="Pl. legyen világosabb a színvilág"
-                        className="vp-input flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={refine}
-                        disabled={refining || !instruction.trim()}
-                        className="vp-btn"
-                      >
-                        {refining ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="h-4 w-4" />
-                        )}
-                        {refining ? '…' : 'Alkalmaz'}
-                      </button>
-                    </div>
-
-                    {reply && (
-                      <p className="mt-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-ink-200">
-                        {reply}
-                      </p>
-                    )}
-
-                    <p className="mt-3 text-xs text-ink-400">
-                      A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <AgentTeam plan={plan} />
+export default function Home(){
+  const [tool,setTool]=useState('site'),[brief,setBrief]=useState(''),[language,setLanguage]=useState('hu');
+  const [style,setStyle]=useState<string|null>(null),[site,setSite]=useState<SiteDocument|null>(null);
+  const [busy,setBusy]=useState(false),[instruction,setInstruction]=useState(''),[error,setError]=useState(''),[reply,setReply]=useState('');
+  const ref=useRef<HTMLInputElement>(null);
+  const generate=async()=>{if(!brief.trim()||busy||tool!=='site')return;setBusy(true);setError('');try{setSite(await buildSite(style?brief+' — stílus: '+style:brief,language))}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}};
+  const refine=async()=>{if(!site||!instruction.trim()||busy)return;setBusy(true);try{const r=await refineSite(site,instruction,language);setSite(r.site);setReply(r.reply);setInstruction('')}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}};
+  useEffect(()=>{if(site)ref.current?.focus()},[site]);
+  return <div className="min-h-screen bg-[#07080c] text-white">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07080c]/90 px-5 py-4 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1500px] items-center justify-between"><b className="tracking-[.28em]">DESIGNLY <span className="text-violet-400">STUDIO</span></b>
+      <select value={language} onChange={e=>setLanguage(e.target.value)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs">{LANGUAGES.map(l=><option className="bg-slate-900" key={l.code} value={l.code}>{l.flag} {l.code.toUpperCase()}</option>)}</select></div>
+    </header>
+    <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[220px_1fr]">
+      <aside className="border-r border-white/10 p-4"><p className="px-3 pb-3 text-[10px] uppercase tracking-[.25em] text-white/35">Creative OS</p>
+        {tools.map(([id,label,Icon,desc])=><button key={id} onClick={()=>setTool(id)} className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${tool===id?'bg-violet-500/15 text-violet-300':'text-white/60 hover:bg-white/5 hover:text-white'}`}><Icon className="h-4 w-4"/><span><b className="block text-sm">{label}</b><small className="text-[10px] opacity-50">{desc}</small></span></button>)}
+        <div className="mt-7 rounded-2xl border border-white/10 bg-white/[.03] p-4 text-[11px] leading-5 text-white/45"><b className="text-white/80">Veyra AI</b><br/>Egy projektben kezeli a weboldalt, képeket, arculatot, social és videó munkákat.</div>
+      </aside>
+      <main className="min-w-0 p-5 md:p-8">
+      {tool==='site'?<><div className="mb-7"><div className="flex items-center gap-2 text-xs uppercase tracking-[.2em] text-violet-400"><Sparkles className="h-4 w-4"/> AI Website Builder</div><h1 className="mt-3 text-4xl font-black md:text-6xl">Mondd el. <span className="text-white/30">Mi felépítjük.</span></h1><p className="mt-4 max-w-2xl text-sm leading-6 text-white/45">Brief → struktúra → design → élő előnézet → természetes nyelvű szerkesztés → HTML export.</p></div>
+        <div className="grid gap-6 xl:grid-cols-[520px_minmax(0,1fr)]">
+          <section><div className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
+            <textarea value={brief} onChange={e=>setBrief(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))void generate()}} rows={7} placeholder="Pl. Építs egy prémium, sötét étterem weboldalt foglalással, étlappal és galériával…" className="w-full resize-none bg-transparent text-lg leading-8 outline-none placeholder:text-white/20"/>
+            <div className="mt-4 flex flex-wrap gap-2">{DESIGN_STYLES.slice(0,12).map(s=><button key={s} onClick={()=>setStyle(style===s?null:s)} className={`rounded-full border px-3 py-1 text-[11px] ${style===s?'border-violet-400/60 bg-violet-500/15 text-violet-300':'border-white/10 text-white/45'}`}>{s}</button>)}</div>
+            <button disabled={busy||!brief.trim()} onClick={()=>void generate()} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-500 px-5 py-4 text-sm font-bold disabled:opacity-40">{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}{busy?'Építés…':'Weboldal létrehozása'}</button>
           </div>
-        </section>
-      )}
-
-      {tab === 'templates' && (
-        <section className="relative mx-auto max-w-6xl px-6 pb-24">
-          <div className="mb-6 flex flex-wrap gap-2">
-            {categoryNames.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCategory(c)}
-                className={`rounded-full border px-3 py-1 text-xs transition ${
-                  category === c
-                    ? 'border-accent/70 bg-accent/15 text-accent'
-                    : 'border-line text-ink-300 hover:text-ink-100'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
-          <p className="mb-5 text-xs text-ink-400">
-            {specFor(category).label} kategória — a sablon struktúra és hangnem, nem kész oldal.
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 12 }, (_, i) => {
-              const index = categoryNames.indexOf(category) * 12 + i;
-              const tpl = getDesignlyTemplate(index);
-              return (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  onClick={() => useTemplate(index)}
-                  className="group overflow-hidden rounded-2xl border border-line bg-panel text-left transition hover:border-accent/50"
-                >
-                  <img
-                    src={templateCoverUrl(index)}
-                    alt=""
-                    className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                  />
-                  <div className="px-4 py-3">
-                    <h3 className="font-display text-sm text-ink-100">{tpl.name}</h3>
-                    <p className="mt-1 text-[11px] text-ink-400">{tpl.description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
+          {site&&<div className="mt-4 rounded-2xl border border-white/10 bg-white/[.025] p-4"><div className="mb-2 flex justify-between text-xs"><span>AI Editor</span><button onClick={()=>downloadSiteHtml(site,brief)}><Download className="h-4 w-4"/></button></div><div className="flex gap-2"><input ref={ref} value={instruction} onChange={e=>setInstruction(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void refine()}} placeholder="Pl. legyen luxusabb, adj FAQ-t…" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"/><button onClick={()=>void refine()} disabled={busy||!instruction.trim()} className="rounded-xl bg-white/10 px-4 disabled:opacity-30"><Wand2 className="h-4 w-4"/></button></div>{reply&&<p className="mt-2 text-xs text-emerald-300">{reply}</p>}</div>}
+          {error&&<div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-xs text-red-300">{error}</div>}</section>
+          <section>{site?<><div className="mb-2 text-[10px] text-white/35">LIVE PREVIEW · {site.blocks.length} SZEKCIÓ</div><SitePreview document={site}/></>:<div className="grid min-h-[580px] place-items-center rounded-3xl border border-dashed border-white/10"><div className="text-center text-white/35"><Sparkles className="mx-auto h-8 w-8"/><p className="mt-3 text-sm">Az oldal előnézete itt jelenik meg.</p></div></div>}</section>
+        </div></>:<div className="grid min-h-[70vh] place-items-center rounded-3xl border border-white/10 bg-white/[.025]"><div className="text-center"><Sparkles className="mx-auto h-9 w-9 text-violet-400"/><h2 className="mt-4 text-2xl font-bold">{tools.find(x=>x[0]===tool)?.[1]} Studio</h2><p className="mx-auto mt-3 max-w-md text-sm leading-6 text-white/45">A modul bekerült az új Creative OS munkaterületbe. A következő körben a saját generáló adapterét és a közös projekt/kredit réteget kötjük rá.</p></div></div>}
+      </main>
     </div>
-  );
-}
-
-/**
- * Az agent-panel: a brief alapjan kivalasztott specialistak.
- *
- * Ket allapot van, es a kulonbseg szamit: a `live` agent ma is fut a
- * generalasban, a `planned` pedig helyet jelol a kovetkezo koroknek. Egy
- * agent, ami a listan van, de nem fut, nem hazudik mukodest.
- */
-function AgentTeam({ plan }: { plan: ReturnType<typeof planAgents> }) {
-  return (
-    <aside className="vp-card h-fit p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <Users className="h-4 w-4 text-accent" />
-        <h2 className="font-display text-sm tracking-[0.14em] text-ink-100">AGENT TEAM</h2>
-      </div>
-
-      <ul className="space-y-2">
-        {plan.agents.map((agent: AgentEntry) => (
-          <li key={agent.id} className="rounded-xl border border-line bg-panel-hi/60 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold tracking-wider text-ink-100">
-                {agent.name}
-              </span>
-              {agent.status === 'live' ? (
-                <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                  <Check className="h-3 w-3" /> AKTÍV
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[10px] text-ink-400">
-                  <Clock className="h-3 w-3" /> HAMAROSAN
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-[11px] leading-snug text-ink-300">{agent.role}</p>
-            <p className="mt-1 text-[10px] text-ink-400">
-              {plan.reasons[agent.id] ?? agent.source}
-            </p>
-          </li>
-        ))}
-      </ul>
-
-      <p className="mt-4 text-[10px] leading-relaxed text-ink-400">
-        BRIEF → szakértők → ellenőrzés → eredmény
-      </p>
-    </aside>
-  );
+  </div>
 }
