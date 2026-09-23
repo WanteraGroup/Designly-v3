@@ -23,6 +23,7 @@ import { templateCoverUrl } from '../lib/template-art';
 // 1-es koddal all le — ez volt a deploy hibaja.
 import { SiteRenderer } from '../components/SitePreview';
 import HuginnAgent from '../components/HuginnAgent';
+import CreativeStudio from '../components/CreativeStudio';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -35,7 +36,7 @@ export default function Home() {
   const [language, setLanguage] = useState('hu');
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
-  const [tab, setTab] = useState<'generator' | 'templates'>('generator');
+  const [tab, setTab] = useState<'generator' | 'studio' | 'templates'>('generator');
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [imagesLoading, setImagesLoading] = useState(false);
@@ -154,7 +155,7 @@ export default function Home() {
       </header>
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
-        {(['generator', 'templates'] as const).map((t) => (
+        {(['generator', 'studio', 'templates'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -167,10 +168,18 @@ export default function Home() {
           >
             {t === 'generator'
               ? 'Generátor'
-              : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
+              : t === 'studio'
+                ? 'Extra Stúdió'
+                : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
           </button>
         ))}
       </div>
+
+      {tab === 'studio' && (
+        <section className="relative mx-auto max-w-6xl px-6 pb-24">
+          <CreativeStudio />
+        </section>
+      )}
 
       {tab === 'generator' && (
         <section className="relative mx-auto max-w-5xl px-6 pb-24">
