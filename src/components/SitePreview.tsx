@@ -37,7 +37,9 @@ export function SiteRenderer({ document: doc, embedded }: SiteRendererProps) {
         </span>
         <nav className="flex flex-wrap gap-5 text-sm opacity-70">
           {doc.site.nav.map((item) => (
-            <span key={item.label}>{item.label}</span>
+            <a key={item.label} href={item.href} className="transition hover:opacity-100">
+              {item.label}
+            </a>
           ))}
         </nav>
       </header>
@@ -74,7 +76,7 @@ function Block({
   switch (block.type) {
     case 'hero':
       return (
-        <section className="px-6 py-24 text-center">
+        <section id="top" className="px-6 py-24 text-center">
           <p className="text-xs uppercase tracking-[0.28em]" style={{ color: accent }}>
             {block.eyebrow}
           </p>
@@ -82,15 +84,15 @@ function Block({
             {block.headline}
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base opacity-70">{block.subheadline}</p>
-          <span className="mt-8 inline-block rounded-xl px-7 py-3 text-sm font-semibold" style={btn}>
+          <a href={block.cta.href} className="mt-8 inline-block rounded-xl px-7 py-3 text-sm font-semibold no-underline" style={btn}>
             {block.cta.label}
-          </span>
+          </a>
         </section>
       );
 
     case 'features':
       return (
-        <section className="px-6 py-16">
+        <section id="features" className="px-6 py-16">
           <h2 className="mb-10 text-center text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -109,7 +111,7 @@ function Block({
 
     case 'about':
       return (
-        <section className="px-6 py-16">
+        <section id="about" className="px-6 py-16">
           <h2 className="mb-4 text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -119,7 +121,7 @@ function Block({
 
     case 'services':
       return (
-        <section className="px-6 py-16">
+        <section id="services" className="px-6 py-16">
           <h2 className="mb-8 text-center text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -145,7 +147,7 @@ function Block({
 
     case 'pricing':
       return (
-        <section className="px-6 py-16">
+        <section id="pricing" className="px-6 py-16">
           <h2 className="mb-10 text-center text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -172,7 +174,7 @@ function Block({
 
     case 'gallery':
       return (
-        <section className="px-6 py-16">
+        <section id="gallery" className="px-6 py-16">
           <h2 className="mb-8 text-center text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -213,7 +215,7 @@ function Block({
 
     case 'testimonials':
       return (
-        <section className="px-6 py-16">
+        <section id="testimonials" className="px-6 py-16">
           <h2 className="mb-10 text-center text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -233,7 +235,7 @@ function Block({
 
     case 'faq':
       return (
-        <section className="px-6 py-16">
+        <section id="faq" className="px-6 py-16">
           <h2 className="mb-8 text-center text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -250,7 +252,7 @@ function Block({
 
     case 'contact':
       return (
-        <section className="px-6 py-16">
+        <section id="contact" className="px-6 py-16">
           <h2 className="mb-4 text-2xl" style={heading}>
             {block.heading}
           </h2>
@@ -265,27 +267,29 @@ function Block({
 
     case 'cta':
       return (
-        <section className="px-6 py-20 text-center">
+        <section id="cta" className="px-6 py-20 text-center">
           <h2 className="text-3xl" style={heading}>
             {block.headline}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm opacity-70">{block.subheadline}</p>
-          <span className="mt-8 inline-block rounded-xl px-7 py-3 text-sm font-semibold" style={btn}>
+          <a href={block.cta.href} className="mt-8 inline-block rounded-xl px-7 py-3 text-sm font-semibold no-underline" style={btn}>
             {block.cta.label}
-          </span>
+          </a>
         </section>
       );
 
     case 'footer':
       return (
-        <footer
+        <footer id="footer"
           className="px-6 py-10 text-xs opacity-60"
           style={{ borderTop: `1px solid ${accent}22` }}
         >
           <p>{block.text}</p>
           <ul className="mt-3 flex flex-wrap gap-4">
             {block.links.map((l) => (
-              <li key={l.label}>{l.label}</li>
+              <li key={l.label}>
+                <a href={l.href} className="transition hover:opacity-100">{l.label}</a>
+              </li>
             ))}
           </ul>
         </footer>
