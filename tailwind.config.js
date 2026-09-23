@@ -4,22 +4,27 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Vilagos alapon dolgozik a felulet: krem hatter, sotet szoveg.
-        // A `canvas` a lap hattere, a `panel` a kartyake — a kettot egyutt kell
-        // allitani, kulonben a kartyak eltunnek a hatterben.
-        canvas: '#f7f5f1',
-        panel: '#ffffff',
-        'panel-hi': '#f1eee8',
-        line: 'rgba(23,23,28,0.10)',
+        /*
+         * A hatterkepek miatt a felulet visszaall sotet ala: a canvas majdnem
+         * fekete, de nem tiszta #000 — a kep also harmadaban levo arany para
+         * adja a melyseget, es egy teljesen fekete alap elnyelne.
+         *
+         * A `panel` felig atlatszo fekete, mert a kartyaknak a hatterkep
+         * folott kell ulniuk, nem eltakarniuk.
+         */
+        canvas: '#060607',
+        panel: 'rgba(10, 10, 12, 0.72)',
+        'panel-hi': 'rgba(22, 22, 26, 0.82)',
+        line: 'rgba(201, 164, 92, 0.22)',
         ink: {
-          100: '#17171c',
-          200: '#33333d',
-          300: '#5b5b68',
-          400: '#8a8a97',
+          100: '#f2efe8',
+          200: '#d6d2c8',
+          300: '#a8a396',
+          400: '#78746a',
         },
         accent: {
-          DEFAULT: '#6d4aff',
-          strong: '#5a37f0',
+          DEFAULT: '#c9a45c',
+          strong: '#b8923f',
         },
       },
       fontFamily: {
@@ -27,7 +32,7 @@ export default {
       },
       backgroundImage: {
         'accent-glow':
-          'radial-gradient(circle at 50% 0%, rgba(109,74,255,0.10) 0%, transparent 60%)',
+          'radial-gradient(circle at 50% 0%, rgba(201,164,92,0.18) 0%, transparent 60%)',
       },
     },
   },

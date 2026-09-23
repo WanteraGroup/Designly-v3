@@ -6,22 +6,48 @@
   html {
     scroll-behavior: smooth;
   }
+
+  /*
+   * A lap hattere a public/hero-bg.svg — sotet alap, arany para az also
+   * harmadban, halvany kelta fonat. A kep fix, tehat gorgeteskor sem mozdul,
+   * es a `cover` minden kepernyoaranyt lefed ures sav nelkul.
+   *
+   * A szoveg olvashatosagat nem a kep adja, hanem a fenti atmenet: a kep
+   * onmagaban tul vilagos lenne a fekete szoveghez, ezert a gradient atveszi
+   * a kontrasztot ott, ahol a tartalom ul.
+   */
   body {
-    @apply bg-canvas text-ink-100 font-sans antialiased;
+    @apply text-ink-100 font-sans antialiased;
     margin: 0;
+    min-height: 100vh;
+    background-color: #060607;
+    background-image:
+      linear-gradient(
+        180deg,
+        rgba(6, 6, 7, 0.92) 0%,
+        rgba(6, 6, 7, 0.82) 45%,
+        rgba(6, 6, 7, 0.88) 100%
+      ),
+      url('/hero-bg.svg');
+    background-size: cover, cover;
+    background-position: center center, center center;
+    background-repeat: no-repeat, no-repeat;
+    background-attachment: fixed, fixed;
   }
+
   ::selection {
-    background: rgba(109, 74, 255, 0.22);
+    background: rgba(201, 164, 92, 0.28);
   }
 }
 
 @layer components {
   .vp-input {
-    @apply w-full rounded-xl border border-line bg-panel px-4 py-3 text-[15px] text-ink-100
-           outline-none transition placeholder:text-ink-400 focus:border-accent/70;
+    @apply w-full rounded-xl border border-line bg-panel/80 px-4 py-3 text-[15px] text-ink-100
+           outline-none backdrop-blur-sm transition placeholder:text-ink-400
+           focus:border-accent/70;
   }
   .vp-card {
-    @apply rounded-2xl border border-line bg-panel;
+    @apply rounded-2xl border border-line bg-panel/80 backdrop-blur-sm;
   }
   .vp-btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5
