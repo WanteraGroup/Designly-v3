@@ -36,7 +36,10 @@ export default function Home() {
   const [language, setLanguage] = useState('hu');
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
-  const [tab, setTab] = useState<'generator' | 'studio' | 'templates'>('generator');
+  const [tab, setTab] = useState<'generator' | 'studio' | 'templates'>(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    return requested === 'studio' || requested === 'templates' ? requested : 'generator';
+  });
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [imagesLoading, setImagesLoading] = useState(false);
