@@ -2,9 +2,11 @@
  * A kozos tipusok.
  *
  * Ez a fajl az importok celpontja: a `brief.ts` es a `templates.ts` innen hozza
- * a `DesignlyTemplate`-et, a `constants.ts` pedig a `Language`-t. Nelkule a
- * `vite build` nem talalja a modult, es a build 1-es koddal all le — ez volt a
- * hiba, amiert a deploy 12 masodperc alatt elhasalt.
+ * a `DesignlyTemplate`-et, a `constants.ts` pedig a `Language`-t.
+ *
+ * Fontos: a `DesignlyTemplate` mezoi PONTOSAN azok, amiket a `templates.ts`
+ * `templateAt()` visszaad. Egy itt nem szereplo mezo tipushiba, es a `vite
+ * build` 1-es koddal all le — ez volt a deploy hibaja.
  */
 
 export interface Language {
@@ -12,6 +14,9 @@ export interface Language {
   name: string;
   flag: string;
 }
+
+/** A sablon-elrendezes, amit a `LAYOUTS` lista felsorol. */
+export type TemplateLayout = 'luxury' | 'editorial' | 'minimal' | 'bold' | 'corporate';
 
 /**
  * Egy sablon a katalogusban.
@@ -25,6 +30,15 @@ export interface DesignlyTemplate {
   name: string;
   description: string;
   category: string;
+  /** A sablon tipusa: social, business_card, invitation, website, ... */
+  type: string;
+  premium: boolean;
   style: string;
+  effect: string;
   palette: string[];
+  layout: TemplateLayout;
+  fontPair: string;
+  /** Pl. '1080×1080' vagy 'Premium'. */
+  format: string;
+  variant: number;
 }
