@@ -1,13 +1,15 @@
 // vey-refine — applies a natural-language change to an existing page.
 //
-// The model returns a DIFF of dotted paths, never a new document. The client
-// applies it to its own copy, so a refinement cannot restructure a page the
-// user did not ask to restructure — and a hallucinated path is a no-op rather
-// than a corrupted page.
+// A modell DIFF-et ad vissza pontozott utvonalakon, soha nem uj dokumentumot.
+// A kliens a sajat peldanyan alkalmazza, tehat egy finomitas nem tudja atalakitani
+// azt a lapot, amit a felhasznalo nem kert — es egy kitalalt utvonal nem rontja
+// el az oldalt, hanem neman nem tortenik semmi.
 //
-// Like vey-generate, this runs on the Vercel AI Gateway: no API key, no
-// secret. Both functions must sit on the same provider, or the generator works
-// and the editor silently 500s — which is a confusing half-failure to debug.
+// Pontosan ugyanazt a provider-utat hasznalja, mint a vey-generate: ha a ket
+// fuggveny kulon providerre ulne, a generalas menne es a finomitas neman 500-at
+// adna — az a felig-mukodo allapot a legnehezebben kideritheto hiba.
+
+import { chat, ProviderError } from '../_shared/provider.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,8 +23,6 @@ function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
-
-const GATEWAY = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 
 const SYSTEM_PROMPT = `You are the editor of a generated website.
 
@@ -80,9 +80,10 @@ function parseJsonLoose(raw: string): Record<string, unknown> {
 }
 
 /**
- * The diff is only as safe as the paths it names, so the shape is checked
- * here: a path must be a non-empty string, and the list is capped at six. The
- * client re-checks every path against the document it holds before writing.
+ * A diff csak annyira biztonsagos, amennyire az utvonalak, amiket megnevez:
+ * az utvonal nem ures string kell legyen, es a lista legfeljebb hat elemet
+ * enged at. A kliens utana meg egyszer ellenőrzi mindegyiket a nala levo
+ * dokumentum ellen, mielott ir.
  */
 function normaliseEdits(raw: unknown): { path: string; value: unknown }[] {
   if (!Array.isArray(raw)) return [];
@@ -118,68 +119,40 @@ Deno.serve(async (req) => {
     return json({ error: 'Hiányzik az oldal, amit módosítani kell.' }, 400);
   }
 
-  const model = Deno.env.get('DESIGNLY_MODEL') ?? 'openai/gpt-4o-mini';
   const language = (body.language ?? 'hu').slice(0, 5);
-  const started = Date.now();
 
   try {
-    const res = await fetch(GATEWAY, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${model}`,
-      },
-      body: JSON.stringify({
-        model,
-        // Low temperature on purpose: an edit should be the change that was
-        // asked for, not a creative reinterpretation of it.
-        temperature: 0.25,
-        max_tokens: 2048,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: [
-              `Reply language: ${language}`,
-              '',
-              'Current design document:',
-              JSON.stringify(body.document),
-              '',
-              `Requested change: ${instruction}`,
-            ].join('\n'),
-          },
-        ],
-      }),
-    });
-
-    if (res.status === 402) {
-      return json(
+    const result = await chat(
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
         {
-          error:
-            'A Vercel AI Gateway egyenlege elfogyott. Egyenleg vagy fizetési mód kell a Vercel fiókon.',
+          role: 'user',
+          content: [
+            `Reply language: ${language}`,
+            '',
+            'Current design document:',
+            JSON.stringify(body.document),
+            '',
+            `Requested change: ${instruction}`,
+          ].join('\n'),
         },
-        402,
-      );
-    }
+      ],
+      // Alacsony homerseklet szandekos: egy szerkesztes az legyen, amit kertek,
+      // ne egy kreativ ujraertelmezes.
+      { temperature: 0.25, maxTokens: 2048 },
+    );
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      console.error('gateway error', res.status, detail.slice(0, 300));
-      return json({ error: `A finomítás nem sikerült (${res.status}).` }, 502);
-    }
-
-    const payload = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const result = parseJsonLoose(payload.choices?.[0]?.message?.content ?? '');
+    const parsed = parseJsonLoose(result.content);
 
     return json({
-      reply: typeof result.reply === 'string' ? result.reply : '',
-      edits: normaliseEdits(result.edits),
-      durationMs: Date.now() - started,
+      reply: typeof parsed.reply === 'string' ? parsed.reply : '',
+      edits: normaliseEdits(parsed.edits),
+      durationMs: result.durationMs,
     });
   } catch (e) {
+    if (e instanceof ProviderError) {
+      return json({ error: e.message }, e.status);
+    }
     const message = e instanceof Error ? e.message : String(e);
     console.error('vey-refine failed', message);
     return json({ error: message }, 500);

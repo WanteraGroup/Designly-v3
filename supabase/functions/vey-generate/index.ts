@@ -1,17 +1,16 @@
 // vey-generate — turns a one-sentence brief into a finished site document.
 //
-// The model runs on the Vercel AI Gateway. Why the gateway and not a provider
-// SDK: the gateway authenticates through the deployment's own OIDC token, so
-// there is no API key to store and no secret to set — which is exactly the
-// step that kept failing on this project (the CLI account cannot write edge
-// function secrets). Vercel resolves the model and bills it against the team's
-// AI Gateway usage, so an unfunded account returns 402 rather than an auth
-// error — and that distinction is surfaced below rather than flattened into a
-// generic 500.
+// A modell egy valodi provider-kulccsal megy (Groq vagy OpenAI), amit Supabase
+// secretkent tarolunk. A korabbi verzio a Vercel AI Gateway-t probalta hivni a
+// modell nevével a hitelesitesi fejlecben — az nem hitelesites, es a Supabase
+// fuggvenynek nincs OIDC tokenje a gatewayhez. Ez volt a nema hiba oka: minden
+// build zold volt, minden fuggveny ACTIVE, es a generalas megis elhasalt.
 //
-// The model returns a block list, never markup. The client renderer owns every
-// element that reaches the page, so generated text can only arrive as a text
-// node. The prompt lives here, server-side, where the browser cannot rewrite it.
+// A modell blokklistat ad vissza, soha nem markupot. A renderelo birtokol minden
+// elemet, ami a lapra kerul, tehat a generalt szoveg csak szoveges csomopontkent
+// erkezhet. A prompt itt el, szerveroldalon, ahonnan a bongeszo nem irhatja at.
+
+import { chat, ProviderError } from '../_shared/provider.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,8 +24,6 @@ function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
-
-const GATEWAY = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 
 const SYSTEM_PROMPT = `You are a website generator. You receive a one-sentence brief and you return a finished website as an ordered list of blocks.
 
@@ -115,57 +112,24 @@ Deno.serve(async (req) => {
     return json({ error: 'A leírás túl hosszú — 2000 karakter alatt tartsd.' }, 400);
   }
 
-  // No key to read: the gateway authenticates the deployment itself. The one
-  // header it wants is the model's routing hint, sent as a bearer token.
-  const model = Deno.env.get('DESIGNLY_MODEL') ?? 'openai/gpt-4o-mini';
-  const started = Date.now();
-
   try {
-    const res = await fetch(GATEWAY, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${model}`,
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.75,
-        max_tokens: 8192,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: `Write all copy in this language: ${language}\n\nBrief:\n${brief}`,
-          },
-        ],
-      }),
-    });
-
-    if (res.status === 402) {
-      return json(
+    const result = await chat(
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
         {
-          error:
-            'A Vercel AI Gateway egyenlege elfogyott. Egyenleg vagy fizetési mód kell a Vercel fiókon, különben a generálás nem indul.',
+          role: 'user',
+          content: `Write all copy in this language: ${language}\n\nBrief:\n${brief}`,
         },
-        402,
-      );
-    }
+      ],
+      { temperature: 0.75, maxTokens: 8192 },
+    );
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      console.error('gateway error', res.status, detail.slice(0, 300));
-      return json({ error: `A generálás nem sikerült (${res.status}).` }, 502);
-    }
-
-    const payload = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-
-    const document = parseJsonLoose(payload.choices?.[0]?.message?.content ?? '');
-
-    return json({ document, durationMs: Date.now() - started });
+    const document = parseJsonLoose(result.content);
+    return json({ document, durationMs: result.durationMs });
   } catch (e) {
+    if (e instanceof ProviderError) {
+      return json({ error: e.message }, e.status);
+    }
     const message = e instanceof Error ? e.message : String(e);
     console.error('vey-generate failed', message);
     return json({ error: message }, 500);
