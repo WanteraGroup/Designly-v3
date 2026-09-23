@@ -123,7 +123,7 @@ export default function Landing() {
       <section className="mx-auto max-w-6xl px-6 py-20">
         <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Mit kínálunk?</h2>
         <p className="mx-auto mb-12 max-w-xl text-center text-sm text-ink-300">
-          Hat modul, egy folyamatban. Ami ma fut, és ami épül.
+          Website, Brand Kit, kampány és a klasszikus DESIGNLY extra műhelyek egy folyamatban.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -132,8 +132,9 @@ export default function Landing() {
             { icon: LayoutTemplate, name: 'Sablon Galéria', desc: `${TEMPLATE_TOTAL.toLocaleString('hu-HU')} generált sablon, ${featureCount} kategóriában.`, live: true },
             { icon: Wand2, name: 'Design Editor', desc: 'Természetes nyelvű finomítás diff-alapon — a szerkezet megmarad.', live: true },
             { icon: Users, name: 'Agent Team', desc: `${LIVE_AGENTS.length} aktív specialista, és ${PLANNED_AGENTS.length} épülőben.`, live: true },
-            { icon: Briefcase, name: 'Brand Kit', desc: 'Színek, tipográfia és hangnem, minden generáláshoz kötve.', live: false },
-            { icon: Video, name: 'Kampány Stúdió', desc: 'Hirdetések és social kreatívok a brand kit alapján.', live: false },
+            { icon: Briefcase, name: 'Brand Kit', desc: 'Színek, tipográfia és hangnem, minden kreatívhoz köthető.', live: true },
+            { icon: Video, name: 'Kampány Stúdió', desc: 'Poster, flyer, social és hirdetés egy közös kampányból.', live: true },
+            { icon: Wand2, name: 'Extra Design Studio', desc: 'Névjegy, meghívó, flyer, poszter, Tattoo, Planner és CNC CAM egy helyen.', live: true },
           ].map((m) => (
             <div key={m.name} className="vp-card p-6">
               <div className="mb-4 flex items-center justify-between">
