@@ -39,6 +39,11 @@ export function collectImageQueries(doc: SiteDocument): string[] {
  *
  * Hiba eseten ures tombot ad vissza, nem dob: a generalas akkor is mukodik, ha a
  * kepkereso nem elerheto — a galeria ilyenkor a szoveges helyorzot mutatja.
+ *
+ * A hiba OKA viszont nem veszhet el: ha a funkcio 500-at ad (pl. hianyzik az
+ * UNSPLASH_ACCESS_KEY secret), azt a konzolba irjuk. Enelkul a felhasznalo csak
+ * annyit lat, hogy nincs kep, es nem tudja megkulonboztetni a „nincs talalat”
+ * es a „nincs beallitva” esetet.
  */
 export async function resolveImages(queries: string[]): Promise<ResolvedImage[]> {
   if (queries.length === 0) return [];
@@ -54,11 +59,16 @@ export async function resolveImages(queries: string[]): Promise<ResolvedImage[]>
       body: JSON.stringify({ queries, perQuery: 3 }),
     });
 
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const detail = (await res.json().catch(() => null)) as { error?: string } | null;
+      console.warn('vey-images nem adott kepet:', res.status, detail?.error ?? '');
+      return [];
+    }
 
     const body = (await res.json()) as { images?: ResolvedImage[] };
     return Array.isArray(body.images) ? body.images : [];
-  } catch {
+  } catch (e) {
+    console.warn('vey-images nem elerheto:', e instanceof Error ? e.message : e);
     return [];
   }
 }
@@ -69,6 +79,10 @@ export async function resolveImages(queries: string[]): Promise<ResolvedImage[]>
  * Egy kereses tobb talalatot ad, es egy galeria tobb kepe ugyanazt a kifejezest
  * is hasznalhatja — ezert kifejezesenkent egy kurzor megy vegig a talalatokon, es
  * a galeria elemei sorban kapjak oket. Ha elfogynak, a helyorzo marad.
+ *
+ * A `source` (a fotos Unsplash-profilja) is atkerul: az Unsplash API-eloiras
+ * szerint a megjelenitett kephez a fotos neve ES a profiljara mutato link kell.
+ * Enelkul a beagyazas nem felel meg a licencnek.
  */
 export function applyImages(doc: SiteDocument, images: ResolvedImage[]): SiteDocument {
   if (images.length === 0) return doc;
@@ -95,7 +109,13 @@ export function applyImages(doc: SiteDocument, images: ResolvedImage[]): SiteDoc
           const hit = pool[index];
           if (!hit) return img;
           cursor.set(img.query, index + 1);
-          return { ...img, url: hit.url, alt: hit.alt, author: hit.author };
+          return {
+            ...img,
+            url: hit.url,
+            alt: hit.alt,
+            author: hit.author,
+            source: hit.source,
+          };
         }),
       };
     }),

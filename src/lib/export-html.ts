@@ -5,6 +5,10 @@
  * file opens from disk, from an email attachment, or from a static host with
  * no build step. The input is the same allow-listed block list the preview
  * renders, so the export and the on-screen result cannot drift apart.
+ *
+ * A galeria KEpet es attribuciot is visz: a korabbi valtozat mindig helyorzot
+ * irt, tehat a letoltott HTML-ben nem volt foto, mikozben a preview-ban igen.
+ * Ez volt az egyik legzavarobb elteres a ket kimenet kozott.
  */
 
 import type { SiteDocument, SiteBlock } from './site-schema';
@@ -65,15 +69,27 @@ function renderBlock(b: SiteBlock): string {
 </section>`;
 
     case 'gallery':
+      /*
+       * Van kep: valodi foto, attribucioval. Nincs kep: helyorzo a
+       * keresokifejezessel. Ugyanaz a ket eset, amit a preview is mutat —
+       * a ket kimenet nem terhet el egymastol.
+       */
       return `<section>
   <h2>${esc(b.heading)}</h2>
   <div class="grid">${b.images
-    .map(
-      (i) =>
-        `<figure><div class="ph">${esc(i.query)}</div><figcaption>${esc(
-          i.caption,
-        )}</figcaption></figure>`,
-    )
+    .map((i) => {
+      const media = i.url
+        ? `<img src="${esc(i.url)}" alt="${esc(i.alt ?? i.caption ?? '')}" loading="lazy" />`
+        : `<div class="ph">${esc(i.query)}</div>`;
+      const credit = i.author
+        ? `<span class="credit">${
+            i.source
+              ? `<a href="${esc(i.source)}" target="_blank" rel="noopener noreferrer">${esc(i.author)}</a>`
+              : esc(i.author)
+          }</span>`
+        : '';
+      return `<figure>${media}<figcaption><span>${esc(i.caption)}</span>${credit}</figcaption></figure>`;
+    })
     .join('')}</div>
 </section>`;
 
@@ -83,7 +99,7 @@ function renderBlock(b: SiteBlock): string {
   <div class="grid">${b.items
     .map(
       (i) =>
-        `<blockquote><p>“${esc(i.quote)}”</p><footer>${esc(i.author)}${
+        `<blockquote><p>&ldquo;${esc(i.quote)}&rdquo;</p><footer>${esc(i.author)}${
           i.role ? ` — ${esc(i.role)}` : ''
         }</footer></blockquote>`,
     )
@@ -173,8 +189,11 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   .plain { list-style: none; padding: 0; font-size: .9375rem; }
   .ph { display: grid; place-items: center; aspect-ratio: 4/3; font-size: .75rem; opacity: .4;
         border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: .5rem; }
-  figure { margin: 0; }
-  figcaption { font-size: .75rem; opacity: .6; margin-top: .5rem; }
+  figure { margin: 0; overflow: hidden; border-radius: .5rem; }
+  figure img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+  figcaption { display: flex; justify-content: space-between; gap: .75rem;
+               font-size: .75rem; opacity: .6; margin-top: .5rem; padding: 0 .25rem; }
+  .credit a { text-decoration: underline; text-underline-offset: 2px; }
   footer { border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); font-size: .8rem; opacity: .65; }
   @media (max-width: 640px) { section, footer { padding: 3rem 1.25rem; } }
 </style>
