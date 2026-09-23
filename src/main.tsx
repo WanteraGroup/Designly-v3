@@ -1,26 +1,54 @@
-import { StrictMode, lazy, Suspense } from 'react';
+import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles.css';
 
-// Egy lazy import route-onkent: a nyito lap ne fizesse meg a generalo teljes
-// dependency-grafjat, mielott kirajzolodna.
 const Landing = lazy(() => import('./pages/Landing'));
 const Home = lazy(() => import('./pages/Home'));
 
 function Fallback() {
   return (
-    <div className="grid min-h-screen place-items-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-accent" />
+    <div className="grid min-h-screen place-items-center bg-[#07080c] text-white">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-violet-400" />
     </div>
   );
+}
+
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('DESIGNLY runtime error', error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <div className="min-h-screen bg-[#07080c] px-6 py-16 text-white">
+        <div className="mx-auto max-w-2xl rounded-3xl border border-red-400/20 bg-red-400/5 p-6">
+          <h1 className="text-xl font-bold">DESIGNLY betöltési hiba</h1>
+          <p className="mt-2 text-sm text-white/60">
+            Az oldal egy kliensoldali hibát kapott. Frissítsd az oldalt; a hiba részlete alább látható.
+          </p>
+          <pre className="mt-4 overflow-auto rounded-xl bg-black/30 p-4 text-xs text-red-200">
+            {this.state.error.message}
+          </pre>
+        </div>
+      </div>
+    );
+  }
 }
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root not found');
 
 createRoot(root).render(
-  <StrictMode>
+  <AppErrorBoundary>
     <BrowserRouter>
       <Suspense fallback={<Fallback />}>
         <Routes>
@@ -30,5 +58,5 @@ createRoot(root).render(
         </Routes>
       </Suspense>
     </BrowserRouter>
-  </StrictMode>,
+  </AppErrorBoundary>,
 );
