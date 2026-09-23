@@ -1,8 +1,9 @@
 /**
- * Domain types for the platform.
+ * Domain types.
  *
- * The shape mirrors the tables in the schema, so a form field and a column
- * name never drift apart.
+ * A shape itt a semaval egyezik, nem a tablakkal: a Designly-v3 generatorkent
+ * indul, adatbazis nelkul. A BrandKit es a Profile megvan, mert a kovetkezo
+ * lepes az admin es a brand-kit — de addig nem hasznalja semmi.
  */
 
 export type AppRole = 'owner' | 'admin' | 'user';

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Loader2, Wand2, Download, RotateCcw } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Download } from 'lucide-react';
 import { buildSite, refineSite, type SiteDocument } from '../lib/api';
 import { downloadSiteHtml } from '../lib/export-html';
+import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
 import SitePreview from '../components/SitePreview';
 
 const EXAMPLES = [
@@ -12,6 +13,8 @@ const EXAMPLES = [
 
 export default function Home() {
   const [brief, setBrief] = useState('');
+  const [language, setLanguage] = useState('hu');
+  const [style, setStyle] = useState<string | null>(null);
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [refining, setRefining] = useState(false);
@@ -26,6 +29,14 @@ export default function Home() {
     if (site) refineRef.current?.focus();
   }, [site]);
 
+  /** A valasztott stilus a brief vegen megy, nem kulon parameterkent: a modell
+   *  egy szoveges briefet lat, es a stilust ugyanabban a mondatban kell
+   *  ertelmeznie, mint a tobbi kereset. */
+  function composedBrief(): string {
+    const base = brief.trim();
+    return style ? `${base} — stílus: ${style}` : base;
+  }
+
   async function generate() {
     if (!brief.trim() || busy) return;
     setBusy(true);
@@ -33,7 +44,7 @@ export default function Home() {
     setReply(null);
 
     try {
-      setSite(await buildSite(brief.trim(), 'hu'));
+      setSite(await buildSite(composedBrief(), language));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -48,7 +59,7 @@ export default function Home() {
     setReply(null);
 
     try {
-      const result = await refineSite(site, instruction.trim(), 'hu');
+      const result = await refineSite(site, instruction.trim(), language);
       setSite(result.site);
       setReply(result.reply);
       setInstruction('');
@@ -61,17 +72,36 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-96 bg-accent-glow" aria-hidden />
-
       <header className="relative mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <span className="text-sm font-semibold tracking-[0.2em] text-ink-100">DESIGNLY V3</span>
-        <a href="#build" className="text-sm text-ink-300 transition hover:text-ink-100">
-          Kezdés
-        </a>
+        <span className="font-display text-sm font-semibold tracking-[0.22em] text-ink-100">
+          DESIGNLY V3
+        </span>
+        <div className="flex items-center gap-4">
+          <label className="text-xs text-ink-300">
+            <span className="sr-only">Nyelv</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="border-none bg-transparent text-ink-200 outline-none"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code} className="bg-canvas">
+                  {l.flag}
+                </option>
+              ))}
+            </select>
+          </label>
+          <a href="#build" className="text-sm text-ink-300 transition hover:text-ink-100">
+            Kezdés
+          </a>
+        </div>
       </header>
 
-      <section className="relative mx-auto max-w-3xl px-6 pb-16 pt-14 text-center">
-        <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
+      <section className="relative mx-auto max-w-3xl px-6 pb-16 pt-10 text-center">
+        <span className="mb-6 inline-block rounded-full border border-line px-4 py-1.5 text-[11px] tracking-[0.28em] text-accent">
+          AI KREATÍV OPERÁCIÓS RENDSZER
+        </span>
+        <h1 className="font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
           Írd le egy mondatban.
           <br />
           <span className="text-accent">Megkapod a kész oldalt.</span>
@@ -98,7 +128,28 @@ export default function Home() {
             className="vp-input resize-none"
           />
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          {/* A 24 design stilus a katalogusbol jon, nem kezzel irt lista. */}
+          <div className="mt-5">
+            <span className="mb-2 block text-xs text-ink-400">Stílus</span>
+            <div className="flex flex-wrap gap-2">
+              {DESIGN_STYLES.slice(0, 14).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStyle(style === s ? null : s)}
+                  className={`rounded-full border px-3 py-1 text-xs transition ${
+                    style === s
+                      ? 'border-accent/70 bg-accent/15 text-accent'
+                      : 'border-line text-ink-300 hover:border-accent/50 hover:text-ink-100'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={generate}
@@ -131,7 +182,7 @@ export default function Home() {
                 key={ex}
                 type="button"
                 onClick={() => setBrief(ex)}
-                className="rounded-full border border-line px-3 py-1 text-xs text-ink-300 transition hover:border-accent/60 hover:text-ink-100"
+                className="rounded-full border border-line px-3 py-1 text-xs text-ink-300 transition hover:border-accent/50 hover:text-ink-100"
               >
                 {ex}
               </button>
@@ -155,7 +206,7 @@ export default function Home() {
         {site && (
           <div className="mt-8">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-medium text-white">{site.site.title}</h2>
+              <h2 className="font-display text-lg text-ink-100">{site.site.title}</h2>
               <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
             </div>
 
@@ -198,8 +249,7 @@ export default function Home() {
                 </p>
               )}
 
-              <p className="mt-3 flex items-center gap-2 text-xs text-ink-400">
-                <RotateCcw className="h-3.5 w-3.5" />
+              <p className="mt-3 text-xs text-ink-400">
                 A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
               </p>
             </div>
