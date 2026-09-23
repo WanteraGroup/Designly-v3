@@ -3,8 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles.css';
 
-// Egy lazy import route-onkent: a nyito lap ne fizesse meg az osszes tobbi
-// kepernyo dependency-grafjat, mielott kirajzolodna.
+// Egy lazy import route-onkent: a nyito lap ne fizesse meg a generalo teljes
+// dependency-grafjat, mielott kirajzolodna.
+const Landing = lazy(() => import('./pages/Landing'));
 const Home = lazy(() => import('./pages/Home'));
 
 function Fallback() {
@@ -23,8 +24,9 @@ createRoot(root).render(
     <BrowserRouter>
       <Suspense fallback={<Fallback />}>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="*" element={<Home />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/app" element={<Home />} />
+          <Route path="*" element={<Landing />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
