@@ -4,6 +4,10 @@ import {
   Loader2,
   Wand2,
   Download,
+  Save,
+  FileJson,
+  Pencil,
+  RefreshCw,
   Users,
   Check,
   Clock,
@@ -24,6 +28,8 @@ import { templateCoverUrl } from '../lib/template-art';
 import { SiteRenderer } from '../components/SitePreview';
 import HuginnAgent from '../components/HuginnAgent';
 import CreativeStudio from '../components/CreativeStudio';
+import GamerStudio from '../components/GamerStudio';
+import { createProject, saveProject } from '../lib/project-store';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -36,9 +42,9 @@ export default function Home() {
   const [language, setLanguage] = useState('hu');
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
-  const [tab, setTab] = useState<'generator' | 'studio' | 'templates'>(() => {
+  const [tab, setTab] = useState<'generator' | 'studio' | 'gamer' | 'templates'>(() => {
     const requested = new URLSearchParams(window.location.search).get('tab');
-    return requested === 'studio' || requested === 'templates' ? requested : 'generator';
+    return requested === 'studio' || requested === 'gamer' || requested === 'templates' ? requested : 'generator';
   });
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +55,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [runtimeAgents, setRuntimeAgents] = useState<string[]>([]);
   const [runtimeMode, setRuntimeMode] = useState<'ai' | 'fallback'>('fallback');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+  const [savedNotice, setSavedNotice] = useState(false);
   const refineRef = useRef<HTMLInputElement>(null);
 
   const plan = planAgents(brief);
@@ -78,6 +87,9 @@ export default function Home() {
       const built = await buildSite(composedBrief(), language);
       setSite(built.site);
       setRuntimeAgents(built.activeAgents);
+      setSavedProjectId(null);
+      setSavedNotice(false);
+      setEditorOpen(true);
       setRuntimeMode(built.runtimeMode);
       setBusy(false);
 
@@ -106,6 +118,7 @@ export default function Home() {
     try {
       const result = await refineSite(site, instruction.trim(), language);
       setSite(result.site);
+      setSavedNotice(false);
       setReply(result.reply);
       setInstruction('');
     } catch (e) {
@@ -158,7 +171,7 @@ export default function Home() {
       </header>
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
-        {(['generator', 'studio', 'templates'] as const).map((t) => (
+        {(['generator', 'studio', 'gamer', 'templates'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -173,10 +186,18 @@ export default function Home() {
               ? 'Generátor'
               : t === 'studio'
                 ? 'Extra Stúdió'
-                : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
+                : t === 'gamer'
+                  ? 'Streamer & Gamer'
+                  : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
           </button>
         ))}
       </div>
+
+      {tab === 'gamer' && (
+        <section className="relative mx-auto max-w-6xl px-6 pb-24">
+          <GamerStudio />
+        </section>
+      )}
 
       {tab === 'studio' && (
         <section className="relative mx-auto max-w-6xl px-6 pb-24">
@@ -292,49 +313,104 @@ export default function Home() {
                     <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
                   </div>
 
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-panel/80 p-3">
+                    <button type="button" onClick={() => {
+                      const existing = savedProjectId;
+                      if (existing) {
+                        saveProject({ id: existing, name: site.site.title || 'DESIGNLY projekt', updatedAt: Date.now(), brief, site, assets: [] });
+                      } else {
+                        const created = createProject(site.site.title || 'DESIGNLY projekt', brief);
+                        created.site = site;
+                        saveProject(created);
+                        setSavedProjectId(created.id);
+                      }
+                      setSavedNotice(true);
+                      window.setTimeout(() => setSavedNotice(false), 1800);
+                    }} className="vp-btn">
+                      <Save className="h-4 w-4" /> Mentés
+                    </button>
+                    <button type="button" onClick={() => downloadSiteHtml(site, brief)} className="vp-btn-ghost">
+                      <Download className="h-4 w-4" /> HTML letöltés
+                    </button>
+                    <button type="button" onClick={() => {
+                      const blob = new Blob([JSON.stringify(site, null, 2)], { type: 'application/json;charset=utf-8' });
+                      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+                      a.href = url; a.download = (site.site.title || 'designly-site').toLowerCase().replace(/[^a-z0-9]+/gi, '-') + '.json'; a.click(); URL.revokeObjectURL(url);
+                    }} className="vp-btn-ghost">
+                      <FileJson className="h-4 w-4" /> JSON export
+                    </button>
+                    <button type="button" onClick={() => {
+                      setEditorOpen(true);
+                      window.setTimeout(() => refineRef.current?.focus(), 0);
+                    }} className={editorOpen ? "vp-btn" : "vp-btn-ghost"}>
+                      <Pencil className="h-4 w-4" /> Szerkesztés
+                    </button>
+                    <button type="button" onClick={() => {
+                      setSite(null); setInstruction(''); setReply(null); setSavedProjectId(null); setSavedNotice(false); setEditorOpen(false);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }} className="vp-btn-ghost">
+                      <RefreshCw className="h-4 w-4" /> Új projekt
+                    </button>
+                    {savedNotice && <span className="ml-auto flex items-center gap-1 text-xs text-emerald-300"><Check className="h-3.5 w-3.5" /> Elmentve</span>}
+                  </div>
+
                   <SiteRenderer document={site} />
 
-                  <div className="mt-5">
-                    <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
-                      Változtass egy dolgot
-                    </label>
-                    <div className="flex gap-3">
-                      <input
-                        id="refine"
-                        ref={refineRef}
-                        value={instruction}
-                        onChange={(e) => setInstruction(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void refine();
-                        }}
-                        placeholder="Pl. legyen világosabb a színvilág"
-                        className="vp-input flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={refine}
-                        disabled={refining || !instruction.trim()}
-                        className="vp-btn"
-                      >
-                        {refining ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="h-4 w-4" />
+                  <div className="mt-5 rounded-2xl border border-line bg-panel/40 p-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditorOpen((v) => !v);
+                        window.setTimeout(() => {
+                          if (!editorOpen) refineRef.current?.focus();
+                        }, 0);
+                      }}
+                      className="flex items-center gap-2 text-xs text-ink-300 hover:text-ink-100"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-accent" />
+                      {editorOpen ? 'Szerkesztő bezárása' : 'Szerkesztő megnyitása'}
+                    </button>
+
+                    {editorOpen && (
+                      <div className="mt-4">
+                        <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
+                          Változtass egy dolgot
+                        </label>
+                        <div className="flex gap-3">
+                          <input
+                            id="refine"
+                            ref={refineRef}
+                            value={instruction}
+                            onChange={(e) => setInstruction(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void refine();
+                            }}
+                            placeholder="Pl. legyen világosabb a színvilág"
+                            className="vp-input flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={refine}
+                            disabled={refining || !instruction.trim()}
+                            className="vp-btn"
+                          >
+                            {refining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                            {refining ? 'Módosítás…' : 'Alkalmaz'}
+                          </button>
+                        </div>
+
+                        {reply && (
+                          <p className="mt-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-ink-200">
+                            {reply}
+                          </p>
                         )}
-                        {refining ? '…' : 'Alkalmaz'}
-                      </button>
-                    </div>
 
-                    {reply && (
-                      <p className="mt-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-ink-200">
-                        {reply}
-                      </p>
+                        <p className="mt-3 text-xs text-ink-400">
+                          A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
+                        </p>
+                      </div>
                     )}
-
-                    <p className="mt-3 text-xs text-ink-400">
-                      A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
-                    </p>
-                  </div>
+                  </div></div>
                 </div>
               )}
             </div>
