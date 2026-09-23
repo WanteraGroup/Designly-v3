@@ -1,11 +1,7 @@
 /**
- * The site document contract.
- *
- * These types are the allow-list the generator writes against. The renderer
- * switches on `type`, so a block outside this union is dropped rather than
- * rendered — generated output cannot introduce a new shape.
+ * DESIGNLY V3 — strict site document contract.
+ * Renderer output is limited to the allow-listed block types below.
  */
-
 export interface SiteTheme {
   mode: 'dark' | 'light';
   palette: string[];
@@ -25,17 +21,6 @@ interface CtaLink {
   href: string;
 }
 
-/**
- * Egy galeriaelem.
- *
- * A modell csak `query`-t es `caption`-t ad: egy rovid angol keresokifejezest,
- * nem URL-t. A `url` es tarsai a `vey-images` funkciobol kerulnek bele utolag —
- * ezert mind opcionalis. Ha nincs URL, a renderelo helyorzot rajzol.
- *
- * A `source` a fotos Unsplash-profilja. Az Unsplash API-eloiras szerint a
- * megjelenitett kephez a nevre MUTATO LINK is kell, nem eleg a nev onmagaban —
- * ezert taroljuk kulon.
- */
 export interface GalleryImage {
   query: string;
   caption: string;
@@ -45,180 +30,237 @@ export interface GalleryImage {
   source?: string;
 }
 
-/**
- * Az agent-registry bejegyzese, ahogy a generalasba bekerul.
- *
- * Az agentek NEM kulon futo szolgaltatasok: a `live` jeloles azt jelenti, hogy
- * a generalas egy adott szakaszat ma is egy szabaly vagy modellhivas adja. A
- * `planned` pedig helyet jelol — egy agent, ami a listan van, de nem fut, nem
- * hazudik mukodest.
- *
- * Az `ancestor` az eredeti Wantera-projekt, ahonnan a kepesseg szarmazik. Ez
- * azert kell, mert a csalad tobb repobol all (Designity, nexora-ai, Trenova,
- * VEYRA, Mira), es egy agent viselkedeset a szarmazasa magyarazza.
- */
-export interface AgentEntry {
-  id: string;
-  name: string;
-  role: string;
-  capabilities: string[];
-  ancestor: string;
-  status: 'live' | 'planned';
-}
-
-/**
- * A generalt oldal dokumentuma: a metaadatok es a szekciok listaja.
- */
-export interface SiteDocument {
-  site: SiteMeta;
-  blocks: SiteBlock[];
-}
-
-/** A blokkok unioja. A renderelo ezen a `type` mezon kapcsol. */
 export type SiteBlock =
   | { type: 'hero'; eyebrow: string; headline: string; subheadline: string; cta: CtaLink }
   | { type: 'features'; heading: string; items: { title: string; text: string }[] }
   | { type: 'about'; heading: string; body: string }
   | { type: 'services'; heading: string; items: { name: string; text: string; price: string }[] }
-  | {
-      type: 'pricing';
-      heading: string;
-      tiers: { name: string; price: string; period: string; features: string[] }[];
-    }
+  | { type: 'pricing'; heading: string; tiers: { name: string; price: string; period: string; features: string[] }[] }
   | { type: 'gallery'; heading: string; images: GalleryImage[] }
   | { type: 'testimonials'; heading: string; items: { quote: string; author: string; role: string }[] }
   | { type: 'faq'; heading: string; items: { q: string; a: string }[] }
-  | { type: 'contact'; heading: string; body: string }
+  | { type: 'contact'; heading: string; body: string; email: string; phone: string; address: string }
   | { type: 'cta'; headline: string; subheadline: string; cta: CtaLink }
-  | { type: 'footer'; text: string; links: CtaLink[] };
+  | { type: 'footer'; text: string; links: { label: string; href: string }[] };
 
-/** A pontozott utvonalon erkezo szerkesztes, ahogy a vey-refine adja. */
+export interface SiteDocument {
+  site: SiteMeta;
+  blocks: SiteBlock[];
+}
+
 export interface SiteEdit {
   path: string;
   value: unknown;
 }
 
-/** A blokktipusok allow-listaja. A `parseSite` ezt hasznalja szurkent. */
-const ALLOWED_BLOCKS: ReadonlySet<string> = new Set([
-  'hero',
-  'features',
-  'about',
-  'services',
-  'pricing',
-  'gallery',
-  'testimonials',
-  'faq',
-  'contact',
-  'cta',
-  'footer',
-]);
+export const BLOCK_TYPES = [
+  'hero','features','about','services','pricing','gallery','testimonials','faq','contact','cta','footer',
+] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+const ALLOWED = new Set<string>(BLOCK_TYPES);
+
+function text(v: unknown, fallback = ''): string {
+  return typeof v === 'string' ? v.slice(0, 8000) : fallback;
 }
 
-/**
- * A nyers modellkimenet szurese.
- *
- * Ez a fuggveny az allow-list: a modell egy blokklistat ad vissza, es ami nincs
- * a listan, az kimarad. Egy felig hibas valasz igy rovidebb oldalt ad, nem
- * osszeomlast — a DOM fele nem kerul olyan blokk, amit a renderelo nem ismer.
- *
- * A `site` blokk hianyaban sincs baj: a hivas egy ures metaadattal ter vissza,
- * es a hivo a sajat cimet hasznalja helyette.
- */
-export function parseSite(raw: unknown): SiteDocument | null {
-  if (!isRecord(raw)) return null;
-
-  const siteRaw = isRecord(raw.site) ? raw.site : {};
-  const themeRaw = isRecord(siteRaw.theme) ? siteRaw.theme : {};
-
-  const mode = themeRaw.mode === 'light' ? 'light' : 'dark';
-  const palette = Array.isArray(themeRaw.palette)
-    ? themeRaw.palette.filter((c): c is string => typeof c === 'string').slice(0, 4)
-    : [];
-
-  const site: SiteMeta = {
-    title: typeof siteRaw.title === 'string' ? siteRaw.title : 'Kész oldal',
-    language: typeof siteRaw.language === 'string' ? siteRaw.language : 'hu',
-    theme: {
-      mode,
-      palette: palette.length > 0 ? palette : ['#0f172a', '#f8fafc'],
-      heading_font: typeof themeRaw.heading_font === 'string' ? themeRaw.heading_font : 'Inter',
-      body_font: typeof themeRaw.body_font === 'string' ? themeRaw.body_font : 'Inter',
-    },
-    nav: Array.isArray(siteRaw.nav)
-      ? siteRaw.nav
-          .filter(isRecord)
-          .filter((n) => typeof n.label === 'string')
-          .map((n) => ({
-            label: n.label as string,
-            href: typeof n.href === 'string' ? n.href : '#',
-          }))
-          .slice(0, 6)
-      : [],
+function link(v: unknown, fallbackLabel = 'Link', fallbackHref = '#'): CtaLink {
+  const x = v && typeof v === 'object' ? v as Record<string, unknown> : {};
+  return {
+    label: text(x.label, fallbackLabel).slice(0, 160),
+    href: text(x.href, fallbackHref).slice(0, 320),
   };
+}
 
-  const blocks = Array.isArray(raw.blocks)
-    ? raw.blocks
-        .filter(isRecord)
-        .filter((b) => typeof b.type === 'string' && ALLOWED_BLOCKS.has(b.type))
-        .slice(0, 20)
+function objectArray(v: unknown): Record<string, unknown>[] {
+  return Array.isArray(v)
+    ? v.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
     : [];
-
-  if (blocks.length === 0) return null;
-
-  return { site, blocks: blocks as unknown as SiteBlock[] };
 }
 
-/**
- * A pontozott utvonal feloldasa egy letezo ertekre.
- *
- * Csak LETEZO utvonalat ad vissza: ha barmelyik szegmens nem talalhato, a
- * fuggveny null-t ad, es a hivo kihagyja a szerkesztest. Ez az, ami egy
- * kitalalt utvonalat neman nem-re fordit a dokumentum rongalasa helyett.
- */
-function resolvePath(
-  root: unknown,
-  path: string,
-): { parent: Record<string, unknown> | unknown[]; key: string } | null {
-  const parts = path.split('.').filter(Boolean);
-  if (parts.length === 0) return null;
+function stringArray(v: unknown, max = 12): string[] {
+  return Array.isArray(v)
+    ? v.filter((item): item is string => typeof item === 'string').slice(0, max).map((item) => item.slice(0, 800))
+    : [];
+}
 
-  let current: unknown = root;
-  for (let i = 0; i < parts.length - 1; i += 1) {
-    if (!isRecord(current) && !Array.isArray(current)) return null;
-    const container = current as Record<string, unknown>;
-    if (!(parts[i] in container)) return null;
-    current = container[parts[i]];
+function normalizeBlock(raw: unknown): SiteBlock | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  const type = b.type;
+  if (typeof type !== 'string' || !ALLOWED.has(type)) return null;
+
+  switch (type) {
+    case 'hero':
+      return {
+        type,
+        eyebrow: text(b.eyebrow),
+        headline: text(b.headline, 'Create.'),
+        subheadline: text(b.subheadline),
+        cta: link(b.cta, 'Contact', '#contact'),
+      };
+    case 'features':
+      return {
+        type,
+        heading: text(b.heading, 'Features'),
+        items: objectArray(b.items).slice(0, 8).map((x) => ({
+          title: text(x.title, 'Feature'),
+          text: text(x.text),
+        })),
+      };
+    case 'about':
+      return { type, heading: text(b.heading, 'About'), body: text(b.body) };
+    case 'services':
+      return {
+        type,
+        heading: text(b.heading, 'Services'),
+        items: objectArray(b.items).slice(0, 8).map((x) => ({
+          name: text(x.name, 'Service'),
+          text: text(x.text),
+          price: text(x.price, '—').slice(0, 120),
+        })),
+      };
+    case 'pricing':
+      return {
+        type,
+        heading: text(b.heading, 'Pricing'),
+        tiers: objectArray(b.tiers).slice(0, 6).map((x) => ({
+          name: text(x.name, 'Plan'),
+          price: text(x.price, '—').slice(0, 120),
+          period: text(x.period).slice(0, 80),
+          features: stringArray(x.features, 10),
+        })),
+      };
+    case 'gallery': {
+      const images = objectArray(b.images).slice(0, 8).map((x) => ({
+        query: text(x.query, 'modern design').slice(0, 240),
+        caption: text(x.caption).slice(0, 400),
+        ...(text(x.url) ? { url: text(x.url, '').slice(0, 4000) } : {}),
+        ...(text(x.alt) ? { alt: text(x.alt, '').slice(0, 400) } : {}),
+        ...(text(x.author) ? { author: text(x.author, '').slice(0, 200) } : {}),
+        ...(text(x.source) ? { source: text(x.source, '').slice(0, 4000) } : {}),
+      }));
+      return { type, heading: text(b.heading, 'Gallery'), images };
+    }
+    case 'testimonials':
+      return {
+        type,
+        heading: text(b.heading, 'Testimonials'),
+        items: objectArray(b.items).slice(0, 8).map((x) => ({
+          quote: text(x.quote),
+          author: text(x.author, 'Client').slice(0, 160),
+          role: text(x.role).slice(0, 160),
+        })),
+      };
+    case 'faq':
+      return {
+        type,
+        heading: text(b.heading, 'FAQ'),
+        items: objectArray(b.items).slice(0, 10).map((x) => ({
+          q: text(x.q, 'Question').slice(0, 400),
+          a: text(x.a).slice(0, 1200),
+        })),
+      };
+    case 'contact':
+      return {
+        type,
+        heading: text(b.heading, 'Contact'),
+        body: text(b.body),
+        email: text(b.email).slice(0, 240),
+        phone: text(b.phone).slice(0, 120),
+        address: text(b.address).slice(0, 400),
+      };
+    case 'cta':
+      return {
+        type,
+        headline: text(b.headline, 'Let us build it.'),
+        subheadline: text(b.subheadline),
+        cta: link(b.cta, 'Start', '#contact'),
+      };
+    case 'footer':
+      return {
+        type,
+        text: text(b.text, 'DESIGNLY STUDIO'),
+        links: objectArray(b.links).slice(0, 10).map((x) => ({
+          label: text(x.label, 'Link').slice(0, 160),
+          href: text(x.href, '#').slice(0, 320),
+        })),
+      };
+    default:
+      return null;
   }
-
-  if (!isRecord(current) && !Array.isArray(current)) return null;
-  const container = current as Record<string, unknown>;
-  const key = parts[parts.length - 1];
-  if (!(key in container)) return null;
-
-  return { parent: container, key };
 }
 
-/**
- * A diff alkalmazasa a kliens sajat peldanyan.
- *
- * Minden utvonal kulon forditodik le: ami nem letezik, az kimarad, a tobbi
- * viszont ervenyesul. Igy egy hat utvonalbol allo diff reszlegesen is hasznos,
- * es egy elgepelt utvonal nem viszi magaval a tobbi valtoztatast.
- */
-export function applyEdits(site: SiteDocument, edits: SiteEdit[]): SiteDocument {
-  if (!Array.isArray(edits) || edits.length === 0) return site;
+export function parseSite(raw: unknown): SiteDocument | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const doc = raw as Partial<SiteDocument>;
+  if (!doc.site || !Array.isArray(doc.blocks)) return null;
 
-  const next = structuredClone(site) as unknown as Record<string, unknown>;
+  const theme = (doc.site.theme ?? {}) as Partial<SiteTheme>;
+
+  return {
+    site: {
+      title: typeof doc.site.title === 'string' && doc.site.title.trim() ? doc.site.title.slice(0, 200) : 'DESIGNLY',
+      language: typeof doc.site.language === 'string' && doc.site.language.trim() ? doc.site.language.slice(0, 12) : 'hu',
+      theme: {
+        mode: theme.mode === 'light' ? 'light' : 'dark',
+        palette: Array.isArray(theme.palette) && theme.palette.length
+          ? theme.palette.filter((v): v is string => typeof v === 'string').slice(0, 8)
+          : ['#c9a45c'],
+        heading_font: typeof theme.heading_font === 'string' && theme.heading_font ? theme.heading_font.slice(0, 120) : 'Marcellus',
+        body_font: typeof theme.body_font === 'string' && theme.body_font ? theme.body_font.slice(0, 120) : 'Inter',
+      },
+      nav: Array.isArray(doc.site.nav)
+        ? doc.site.nav
+            .filter((item): item is {label: string; href: string} =>
+              !!item && typeof item.label === 'string' && typeof item.href === 'string')
+            .slice(0, 8)
+        : [],
+    },
+    blocks: doc.blocks
+      .map(normalizeBlock)
+      .filter((b): b is SiteBlock => b !== null),
+  };
+}
+
+export function applyEdits(doc: SiteDocument, edits: SiteEdit[]): SiteDocument {
+  const next = structuredClone(doc) as unknown as Record<string, unknown>;
 
   for (const edit of edits) {
-    if (!edit || typeof edit.path !== 'string') continue;
-    const resolved = resolvePath(next, edit.path);
-    if (!resolved) continue;
-    (resolved.parent as Record<string, unknown>)[resolved.key] = edit.value;
+    if (!edit || typeof edit.path !== 'string' || !edit.path.trim()) continue;
+    const parts = edit.path.split('.').filter(Boolean);
+    if (!parts.length) continue;
+
+    let cursor: Record<string, unknown> = next;
+    let ok = true;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const step = cursor[parts[i]];
+      if (step && typeof step === 'object') cursor = step as Record<string, unknown>;
+      else {
+        ok = false;
+        break;
+      }
+    }
+
+    if (!ok) continue;
+    const last = parts[parts.length - 1];
+    if (!(last in cursor)) continue;
+
+    const current = cursor[last];
+    const value = edit.value;
+
+    if (typeof current === 'string') {
+      if (typeof value === 'string') cursor[last] = value.slice(0, 8000);
+    } else if (Array.isArray(current) && Array.isArray(value)) {
+      cursor[last] = value;
+    } else if (
+      current && typeof current === 'object' &&
+      value && typeof value === 'object' &&
+      !Array.isArray(current) && !Array.isArray(value)
+    ) {
+      cursor[last] = value;
+    }
   }
 
-  return next as unknown as SiteDocument;
+  return parseSite(next) ?? doc;
 }
