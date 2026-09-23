@@ -1,89 +1,72 @@
-/**
- * A generator kliens-oldali belepesi pontja.
- *
- * MIERT NEM KÖZVETLENUL A GATEWAYT HÍVJUK:
- * a bongeszobol inditott keres egy masik domainre megy (ai-gateway.vercel.sh),
- * es a gateway nem engedelyezi a cross-origin hívást — a `fetch` el sem indul,
- * es a felhasznalo annyit lat, hogy „nem erte el a szolgaltatast". Ez nem
- * hitelesitesi hiba, hanem CORS: a keres el sem hagyja a bongeszot.
- *
- * Ezert a keres a sajat Edge Functionunkon megy at (`vey-generate`), amely
- * szerveroldalon hivja a gatewayt. Ott nincs CORS, es a gateway a deployment
- * OIDC tokenjevel azonosit — igy tovabbra sem kell API-kulcs a bongeszoben.
- */
-
 import { parseSite, type SiteDocument } from './site-schema';
 
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+export interface SiteGenerationResult {
+  site: SiteDocument;
+  activeAgents: string[];
+  boss: string;
+  master: string;
+  runtimeMode: 'ai' | 'fallback';
+  orchestration?: {
+    agents: string[];
+    capabilities: string[];
+    reasons: Record<string, string>;
+    teamExecuted: boolean;
+  };
+}
 
 export class GatewayError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
+  constructor(message: string, readonly status: number) {
     super(message);
     this.name = 'GatewayError';
   }
 }
 
-/**
- * Brief -> kesz oldal.
- *
- * A funkcio a nyers modellkimenetet adja vissza (`document`), amit itt a
- * `parseSite` szur at: az allow-listen kivuli blokktipusok kimaradnak, tehat
- * egy hibas valasz rovidebb oldalt ad, nem omlik ossze a DOM fele vezeto uton.
- */
-export async function generateSite(brief: string, language = 'hu'): Promise<SiteDocument> {
+export async function generateSite(brief: string, language = 'hu'): Promise<SiteGenerationResult> {
+  if (!brief.trim()) throw new GatewayError('A brief nem lehet üres.', 400);
+  if (!import.meta.env.VITE_SUPABASE_URL) {
+    throw new GatewayError('A Supabase kapcsolat nincs beállítva ebben a buildben.', 0);
+  }
+
   let res: Response;
   try {
-    res = await fetch(`${FUNCTIONS_URL}/vey-generate`, {
+    res = await fetch(`${FUNCTIONS_URL}/designly-v3-agent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${ANON_KEY}`,
-        apikey: ANON_KEY,
+        ...(ANON_KEY ? { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY } : {}),
       },
-      body: JSON.stringify({ brief, language }),
+      body: JSON.stringify({ brief: brief.slice(0, 4000), language }),
     });
   } catch {
-    throw new GatewayError(
-      'A generálás nem érte el a szervert. Ellenőrizd a kapcsolatot, és próbáld újra.',
-      0,
-    );
+    throw new GatewayError('A VYRON CORE szerver nem érhető el. Ellenőrizd a Supabase kapcsolatot.', 0);
   }
 
-  const body = (await res.json().catch(() => ({}))) as {
+  const body = await res.json().catch(() => ({})) as {
     document?: unknown;
     error?: string;
+    message?: string;
+    activeAgents?: string[];
+    boss?: string;
+    master?: string;
+    diagnostics?: { runtimeMode?: 'ai' | 'fallback' };
+    orchestration?: SiteGenerationResult['orchestration'];
   };
 
-  if (res.status === 404) {
-    throw new GatewayError(
-      'A generáló funkció (vey-generate) nincs telepítve ezen a Supabase projekten.',
-      404,
-    );
-  }
-
-  if (res.status === 402) {
-    throw new GatewayError(
-      body.error ??
-        'A Vercel AI Gateway egyenlege elfogyott. Egyenleg vagy fizetési mód kell a Vercel fiókon, különben a generálás nem indul.',
-      402,
-    );
-  }
-
-  if (!res.ok) {
-    throw new GatewayError(
-      body.error ?? `A generálás nem sikerült (${res.status}).`,
-      res.status,
-    );
-  }
+  if (res.status === 429) throw new GatewayError(body.message || 'Túl sok kérés rövid idő alatt.', 429);
+  if (!res.ok) throw new GatewayError(body.message || body.error || `A VYRON CORE hibát adott (${res.status}).`, res.status);
 
   const site = parseSite(body.document);
-  if (!site) {
-    throw new GatewayError('A válasz nem tartalmazott felhasználható oldalt.', 0);
-  }
+  if (!site) throw new GatewayError('A VYRON CORE válasza nem tartalmazott használható oldalt.', 0);
 
-  return site;
+  return {
+    site,
+    activeAgents: Array.isArray(body.activeAgents) ? body.activeAgents : [],
+    boss: body.boss || 'core',
+    master: body.master || 'master',
+    runtimeMode: body.diagnostics?.runtimeMode === 'ai' ? 'ai' : 'fallback',
+    orchestration: body.orchestration,
+  };
 }
