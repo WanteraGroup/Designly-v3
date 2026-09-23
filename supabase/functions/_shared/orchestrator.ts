@@ -15,6 +15,10 @@ const RULES:Array<{id:string;terms:RegExp[];reason:string}>=
 {id:"web-architect",terms:[/weboldal/i,/website/i,/honlap/i,/webshop/i,/site/i],reason:"weboldal-architektúra"},
 {id:"ux-ui",terms:[/weboldal/i,/website/i,/honlap/i,/ui/i,/ux/i,/interakció/i],reason:"UX/UI"},
 {id:"seo-content",terms:[/weboldal/i,/website/i,/honlap/i,/seo/i,/google/i,/kereső/i],reason:"SEO"},
+  {id:"template",terms:[/sablon/i,/template/i],reason:"sablonillesztés és variációs irány"},
+  {id:"social-publisher",terms:[/közzététel/i,/publish/i,/publikál/i,/posztol/i],reason:"engedélyezett social publishing workflow"},
+  {id:"web-qa",terms:[/teszt/i,/qa/i,/hibakeres/i,/ellenőrz/i],reason:"végső web QA és acceptance"},
+  {id:"mira",terms:[/mira/i,/asszisztens/i,/emlékeztet/i,/reminder/i],reason:"személyi AI asszisztens réteg"},
 ];
 export function buildOrchestrationPlan(brief:string,requestedOutputs:string[]=[]):OrchestrationPlan{
  const text=[brief,...requestedOutputs].join("\n");
