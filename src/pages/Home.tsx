@@ -315,14 +315,13 @@ export default function Home() {
                   <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-panel/80 p-3">
                     <button type="button" onClick={() => {
                       const existing = savedProjectId;
-                      const project = existing
-                        ? saveProject({ id: existing, name: site.site.title || 'DESIGNLY projekt', updatedAt: Date.now(), brief, site, assets: [] })
-                        : saveProject(createProject(site.site.title || 'DESIGNLY projekt', brief));
-                      if (!existing) {
-                        const created = saveProject({ ...createProject(site.site.title || 'DESIGNLY projekt', brief), site });
-                        setSavedProjectId(created.id);
+                      if (existing) {
+                        saveProject({ id: existing, name: site.site.title || 'DESIGNLY projekt', updatedAt: Date.now(), brief, site, assets: [] });
                       } else {
-                        void project;
+                        const created = createProject(site.site.title || 'DESIGNLY projekt', brief);
+                        created.site = site;
+                        saveProject(created);
+                        setSavedProjectId(created.id);
                       }
                       setSavedNotice(true);
                       window.setTimeout(() => setSavedNotice(false), 1800);
@@ -356,50 +355,61 @@ export default function Home() {
 
                   <SiteRenderer document={site} />
 
-                  <div className={editorOpen ? "mt-5 rounded-2xl border border-accent/20 bg-panel/40 p-4" : "mt-5"}>
-                    <button type="button" onClick={() => setEditorOpen(v => !v)} className="mb-3 flex items-center gap-2 text-xs text-ink-300 hover:text-ink-100">
-                      <Pencil className="h-3.5 w-3.5 text-accent" /> {editorOpen ? 'Szerkesztő bezárása' : 'Szerkesztő megnyitása'}
+                  <div className="mt-5 rounded-2xl border border-line bg-panel/40 p-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditorOpen((v) => !v);
+                        window.setTimeout(() => {
+                          if (!editorOpen) refineRef.current?.focus();
+                        }, 0);
+                      }}
+                      className="flex items-center gap-2 text-xs text-ink-300 hover:text-ink-100"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-accent" />
+                      {editorOpen ? 'Szerkesztő bezárása' : 'Szerkesztő megnyitása'}
                     </button>
-                    {editorOpen && <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
-                      Változtass egy dolgot
-                    </label>}
-                    <div className="flex gap-3">
-                      <input
-                        id="refine"
-                        ref={refineRef}
-                        value={instruction}
-                        onChange={(e) => setInstruction(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void refine();
-                        }}
-                        placeholder="Pl. legyen világosabb a színvilág"
-                        className="vp-input flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={refine}
-                        disabled={refining || !instruction.trim()}
-                        className="vp-btn"
-                      >
-                        {refining ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="h-4 w-4" />
+
+                    {editorOpen && (
+                      <div className="mt-4">
+                        <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
+                          Változtass egy dolgot
+                        </label>
+                        <div className="flex gap-3">
+                          <input
+                            id="refine"
+                            ref={refineRef}
+                            value={instruction}
+                            onChange={(e) => setInstruction(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void refine();
+                            }}
+                            placeholder="Pl. legyen világosabb a színvilág"
+                            className="vp-input flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={refine}
+                            disabled={refining || !instruction.trim()}
+                            className="vp-btn"
+                          >
+                            {refining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                            {refining ? 'Módosítás…' : 'Alkalmaz'}
+                          </button>
+                        </div>
+
+                        {reply && (
+                          <p className="mt-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-ink-200">
+                            {reply}
+                          </p>
                         )}
-                        {refining ? '…' : 'Alkalmaz'}
-                      </button>
-                    </div>
 
-                    {reply && (
-                      <p className="mt-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-ink-200">
-                        {reply}
-                      </p>
+                        <p className="mt-3 text-xs text-ink-400">
+                          A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
+                        </p>
+                      </div>
                     )}
-
-                    <p className="mt-3 text-xs text-ink-400">
-                      A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
-                    </p>}
-                  </div>
+                  </div></div>
                 </div>
               )}
             </div>
