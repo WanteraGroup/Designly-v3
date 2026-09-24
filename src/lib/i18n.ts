@@ -13,7 +13,7 @@ export const LANGUAGE_CODES = ['hu', 'en', 'de', 'fr', 'es', 'it', 'pl', 'uk', '
  *
  * Az `uk` kulcsai szandekosan hianyoznak meg — azt kulon korben potoljuk.
  */
-export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
+export const TRANSLATIONS: Partial<Record<LanguageCode, Record<string, string>>> = {
   hu: {
     'nav.services': 'Szolgáltatások',
     'nav.agents': 'Agentek',
