@@ -236,52 +236,135 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number,lin
 }
 
 async function guideSheet(blob:Blob,opts:{grid:boolean;center:boolean;mirror:boolean}):Promise<Blob>{
-  const bitmap=await createImageBitmap(blob); const w=bitmap.width,h=bitmap.height;
-  const marginX=Math.max(180,Math.round(w*0.20)),marginY=Math.max(180,Math.round(h*0.16));
+  const bitmap=await createImageBitmap(blob);
+  const w=bitmap.width,h=bitmap.height;
+
+  // Dedicated salon worksheet: the stencil is centered on an opaque white technical sheet.
+  const marginX=Math.max(220,Math.round(w*0.24));
+  const marginY=Math.max(220,Math.round(h*0.20));
   const W=w+marginX*2,H=h+marginY*2;
-  const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
-  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('A munkalap export nem indult.');
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const canvas=document.createElement('canvas');
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw new Error('A munkalap export nem indult.');
+
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,W,H);
+
   const frameX=marginX,frameY=marginY;
-  ctx.drawImage(bitmap,frameX,frameY);bitmap.close();
+
+  // White stencil field.
+  ctx.drawImage(bitmap,frameX,frameY,w,h);
+  bitmap.close();
 
   ctx.save();
-  ctx.strokeStyle='#333';ctx.fillStyle='#333';ctx.lineWidth=2;ctx.setLineDash([]);
+  ctx.strokeStyle='#222';
+  ctx.fillStyle='#222';
+  ctx.lineWidth=2;
+  ctx.setLineDash([]);
+
+  // Main technical frame.
   ctx.strokeRect(frameX,frameY,w,h);
 
-  const crop=42,gap=12;
-  for(const [x,y,sx,sy] of [[frameX,frameY,1,1],[frameX+w,frameY,-1,1],[frameX,frameY+h,1,-1],[frameX+w,frameY+h,-1,-1]] as Array<[number,number,number,number]>){
-    ctx.beginPath();ctx.moveTo(x+sx*gap,y);ctx.lineTo(x+sx*(gap+crop),y);ctx.moveTo(x,y+sy*gap);ctx.lineTo(x,y+sy*(gap+crop));ctx.stroke();
+  // Corner crop marks.
+  const crop=52,gap=14;
+  const corners:Array<[number,number,number,number]>=[
+    [frameX,frameY,1,1],[frameX+w,frameY,-1,1],
+    [frameX,frameY+h,1,-1],[frameX+w,frameY+h,-1,-1],
+  ];
+  for(const [x,y,sx,sy] of corners){
+    ctx.beginPath();
+    ctx.moveTo(x+sx*gap,y);ctx.lineTo(x+sx*(gap+crop),y);
+    ctx.moveTo(x,y+sy*gap);ctx.lineTo(x,y+sy*(gap+crop));
+    ctx.stroke();
   }
 
-  const cross=(cx:number,cy:number)=>{
-    const size=Math.max(24,Math.round(Math.min(W,H)*0.016)),ring=Math.max(6,Math.round(size*.22));
-    ctx.beginPath();ctx.moveTo(cx-size,cy);ctx.lineTo(cx+size,cy);ctx.moveTo(cx,cy-size);ctx.lineTo(cx,cy+size);ctx.stroke();
-    ctx.beginPath();ctx.arc(cx,cy,ring,0,Math.PI*2);ctx.stroke();
+  // Large registration crosses: four corners + four side centers + page center.
+  const cross=(cx:number,cy:number,size:number,label:string)=>{
+    ctx.strokeStyle='#111';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(cx-size,cy);ctx.lineTo(cx+size,cy);
+    ctx.moveTo(cx,cy-size);ctx.lineTo(cx,cy+size);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx,cy,Math.max(7,size*.22),0,Math.PI*2);
+    ctx.stroke();
+    ctx.font='700 '+Math.max(10,Math.round(size*.62))+'px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(label,cx,cy+size*1.85);
   };
-  const off=Math.max(60,Math.round(Math.min(marginX,marginY)*.52));
-  cross(frameX-off,frameY-off);cross(frameX+w+off,frameY-off);cross(frameX-off,frameY+h+off);cross(frameX+w+off,frameY+h+off);
+  const off=Math.max(72,Math.round(Math.min(marginX,marginY)*.58));
+  const size=Math.max(26,Math.round(Math.min(W,H)*.017));
+  cross(frameX-off,frameY-off,size,'REG');
+  cross(frameX+w+off,frameY-off,size,'REG');
+  cross(frameX-off,frameY+h+off,size,'REG');
+  cross(frameX+w+off,frameY+h+off,size,'REG');
+  cross(frameX-off, H/2,size,'REG');
+  cross(frameX+w+off, H/2,size,'REG');
+  cross(W/2,frameY-off,size,'REG');
+  cross(W/2,frameY+h+off,size,'REG');
+  cross(W/2,H/2,size*.78,'CENTER');
 
-  ctx.lineWidth=1.5;
-  if(opts.center){ctx.setLineDash([14,10]);ctx.beginPath();ctx.moveTo(frameX,H/2);ctx.lineTo(frameX+w,H/2);ctx.stroke();ctx.beginPath();ctx.moveTo(W/2,frameY);ctx.lineTo(W/2,frameY+h);ctx.stroke();}
-  if(opts.mirror){ctx.setLineDash([5,7]);ctx.beginPath();ctx.moveTo(W/2-5,frameY);ctx.lineTo(W/2-5,frameY+h);ctx.stroke();ctx.beginPath();ctx.moveTo(W/2+5,frameY);ctx.lineTo(W/2+5,frameY+h);ctx.stroke();}
-  if(opts.grid){
-    ctx.setLineDash([]);ctx.strokeStyle='rgba(60,60,60,.16)';ctx.lineWidth=1;
-    for(let i=1;i<10;i++){const x=frameX+w*i/10,y=frameY+h*i/10;ctx.beginPath();ctx.moveTo(x,frameY);ctx.lineTo(x,frameY+h);ctx.stroke();ctx.beginPath();ctx.moveTo(frameX,y);ctx.lineTo(frameX+w,y);ctx.stroke();}
+  // Alignment axes.
+  if(opts.center){
+    ctx.setLineDash([18,12]);
+    ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(frameX,H/2);ctx.lineTo(frameX+w,H/2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W/2,frameY);ctx.lineTo(W/2,frameY+h);ctx.stroke();
+  }
+  if(opts.mirror){
+    ctx.setLineDash([7,9]);
+    ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(W/2-6,frameY);ctx.lineTo(W/2-6,frameY+h);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W/2+6,frameY);ctx.lineTo(W/2+6,frameY+h);ctx.stroke();
   }
 
-  ctx.setLineDash([]);ctx.fillStyle='#222';ctx.textAlign='left';
-  ctx.font='700 '+Math.max(18,Math.round(Math.min(W,H)*.018))+'px sans-serif';
-  ctx.fillText('DESIGNLY TATTOO · STENCIL MASTER',Math.max(24,Math.round(marginX*.20)),Math.max(40,Math.round(marginY*.30)));
-  ctx.font='500 '+Math.max(10,Math.round(Math.min(W,H)*.009))+'px sans-serif';
-  ctx.fillText('PRINT 100% · DO NOT FIT TO PAGE · REGISTRATION MARKS · ALIGNMENT GUIDES',Math.max(24,Math.round(marginX*.20)),Math.max(60,Math.round(marginY*.48)));
+  // 10×10 technical grid only inside the stencil field.
+  if(opts.grid){
+    ctx.setLineDash([]);
+    ctx.strokeStyle='rgba(30,30,30,.16)';
+    ctx.lineWidth=1;
+    for(let i=1;i<10;i++){
+      const x=frameX+w*i/10;
+      const y=frameY+h*i/10;
+      ctx.beginPath();ctx.moveTo(x,frameY);ctx.lineTo(x,frameY+h);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(frameX,y);ctx.lineTo(frameX+w,y);ctx.stroke();
+    }
+  }
 
-  const bar=Math.max(120,Math.round(W*.08)),bx=W-bar-Math.max(24,Math.round(marginX*.20)),by=H-Math.max(24,Math.round(marginY*.28));
-  ctx.textAlign='right';ctx.font='500 '+Math.max(10,Math.round(Math.min(W,H)*.008))+'px sans-serif';ctx.fillText('REFERENCE 50 mm',bx+bar,by-10);
-  ctx.strokeStyle='#222';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+bar,by);ctx.stroke();ctx.beginPath();ctx.moveTo(bx,by-8);ctx.lineTo(bx,by+8);ctx.stroke();ctx.beginPath();ctx.moveTo(bx+bar,by-8);ctx.lineTo(bx+bar,by+8);ctx.stroke();
+  // Print / production information.
+  ctx.setLineDash([]);
+  ctx.fillStyle='#111';
+  ctx.textAlign='left';
+  ctx.font='700 '+Math.max(18,Math.round(Math.min(W,H)*.018))+'px sans-serif';
+  ctx.fillText('DESIGNLY TATTOO · STENCIL MASTER',Math.max(28,Math.round(marginX*.16)),Math.max(42,Math.round(marginY*.34)));
+  ctx.font='600 '+Math.max(11,Math.round(Math.min(W,H)*.009))+'px sans-serif';
+  ctx.fillText('PRINT 100% · NO FIT TO PAGE · REGISTRATION CROSSES · CROP MARKS',Math.max(28,Math.round(marginX*.16)),Math.max(65,Math.round(marginY*.54)));
+
+  // Orientation markers.
+  ctx.textAlign='center';
+  ctx.font='700 '+Math.max(12,Math.round(Math.min(W,H)*.010))+'px sans-serif';
+  ctx.fillText('TOP',W/2,Math.max(22,Math.round(marginY*.15)));
+  ctx.fillText('BOTTOM',W/2,H-Math.max(14,Math.round(marginY*.09)));
+
+  // Scale reference.
+  const bar=Math.max(140,Math.round(W*.09));
+  const bx=W-bar-Math.max(28,Math.round(marginX*.16));
+  const by=H-Math.max(34,Math.round(marginY*.25));
+  ctx.textAlign='right';
+  ctx.font='600 '+Math.max(10,Math.round(Math.min(W,H)*.008))+'px sans-serif';
+  ctx.fillText('REFERENCE 50 mm',bx+bar,by-12);
+  ctx.strokeStyle='#111';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+bar,by);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx,by-9);ctx.lineTo(bx,by+9);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx+bar,by-9);ctx.lineTo(bx+bar,by+9);ctx.stroke();
+
   ctx.restore();
 
-  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Munkalap export hiba.')),'image/png'));
+  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
+    b=>b?resolve(b):reject(new Error('Munkalap export hiba.')),'image/png'
+  ));
 }
 
 export default function TattooStudio({language='hu'}:{language?:string}){
@@ -460,6 +543,13 @@ export default function TattooStudio({language='hu'}:{language?:string}){
         <div className='relative min-h-[560px] overflow-hidden rounded-2xl border border-line' style={{backgroundImage:'linear-gradient(45deg,#171717 25%,transparent 25%),linear-gradient(-45deg,#171717 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#171717 75%),linear-gradient(-45deg,transparent 75%,#171717 75%)',backgroundSize:'28px 28px',backgroundPosition:'0 0,0 14px,14px -14px,-14px 0'}}>
           {resultUrl?<div className='flex h-full min-h-[560px] items-center justify-center p-6'><img src={resultUrl} alt='Isolated tattoo stencil' className='max-h-[620px] max-w-full object-contain'/></div>:<div className='flex min-h-[560px] flex-col items-center justify-center text-center text-sm text-ink-500'><Layers3 className='mb-3 h-10 w-10'/>{t(language,'empty')}</div>}
         </div>
+
+        {sheet&&<div className='mt-4 rounded-xl border border-accent/25 bg-white p-3'>
+          <div className='mb-2 flex items-center justify-between text-[10px] tracking-widest text-black/60'>
+            <span>PRO SALON WORKSHEET</span><span>REG · CROP · AXIS</span>
+          </div>
+          <img src={URL.createObjectURL(sheet)} alt='Salon stencil worksheet preview' className='max-h-[520px] w-full object-contain' />
+        </div>}
 
         {(sourcePreview||resultUrl)&&<div className='mt-4 grid gap-3 sm:grid-cols-2'>
           {sourcePreview&&<div className='rounded-xl border border-line bg-canvas/30 p-2'><div className='mb-2 flex items-center justify-between text-[10px] tracking-widest text-ink-500'><span>{t(language,'uploadedSource')}</span><span>{sourceMode==='upload'?'ORIGINAL':'AI SOURCE'}</span></div><img src={sourcePreview} alt='Uploaded source' className='max-h-48 w-full object-contain'/></div>}
