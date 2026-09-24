@@ -49,7 +49,7 @@ function compilePrompt(input: string): string {
   ].join("\n");
 }
 
-const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\\/$/, "");
+const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\/$/, "");
 const ENGINE_KEY = Deno.env.get("DESIGNLY_IMAGE_ENGINE_KEY") ?? "";
 const ALLOW_PUBLIC_FALLBACK = (Deno.env.get("DESIGNLY_IMAGE_ALLOW_PUBLIC_FALLBACK") ?? "false").toLowerCase() === "true";
 
@@ -254,16 +254,40 @@ Deno.serve(async (req) => {
   if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
 
   try {
-    const imageUrl = await runQwen(compilePrompt(prompt));
+    const compiledPrompt = compilePrompt(prompt);
+
+    if (ENGINE_URL && ENGINE_KEY) {
+      try {
+        const generated = await runDesignlyEngine(compiledPrompt, requestedAspectRatio);
+        const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
+        return json({
+          url: imageUrl,
+          width: generated.width,
+          height: generated.height,
+          requestedAspectRatio,
+          outputAspectRatio: requestedAspectRatio,
+          description: "Designly saját GPU Image Engine",
+          model: generated.model,
+          provider: "Designly Image Engine",
+          seed: generated.seed || undefined,
+          steps: Number(Deno.env.get("DESIGNLY_IMAGE_STEPS") || "40"),
+        });
+      } catch (engineError) {
+        console.error("designly-image private engine error", engineError);
+        if (!ALLOW_PUBLIC_FALLBACK) throw engineError;
+      }
+    }
+
+    const imageUrl = await runQwen(compiledPrompt);
     return json({
       url: imageUrl,
       width: 2048,
       height: 2048,
       requestedAspectRatio,
       outputAspectRatio: "1:1",
-      description: "Qwen-Image-2.1 közvetlen Hugging Face ZeroGPU inference",
+      description: "Ideiglenes publikus Qwen fallback",
       model: "Qwen-Image-2.1",
-      provider: "Hugging Face Space",
+      provider: "Hugging Face public fallback",
       steps: 28,
     });
   } catch (error) {
