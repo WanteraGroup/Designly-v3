@@ -21,15 +21,8 @@ const SPECIALIST_ROLES:Record<string,string>={
 "marketing":"Define campaign, ad and funnel messaging requirements.",
 "template":"Recommend the most appropriate template structure and reusable patterns.",
 "product":"Define product concept, MVP scope, feature priorities and offer structure.",
-"tiktok-shop":"Define social-commerce listing, product creative and shop workflow requirements.",
 "video":"Define hooks, short-form video structure, storyboard and UGC direction.",
 "sales":"Define offer framing, sales messaging and follow-up requirements.",
-"voice":"Define voice UX, speech input/output and interaction requirements.",
-"translator":"Define multilingual and spoken translation requirements.",
-"mira":"Define assistant, memory, reminder and user-guidance requirements.",
-"procurement":"Define B2B procurement workflow, supplier intelligence and data needs.",
-"recruitment":"Define recruitment, job matching, candidate workflow and talent needs.",
-"social-publisher":"Define approval, OAuth, publishing and audit requirements.",
 "web-qa":"Define link, form, responsive and acceptance test requirements."
 };
 
