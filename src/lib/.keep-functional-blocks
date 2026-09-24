@@ -1,0 +1,6 @@
+/*
+ * A tool schema bovitese a P0 javitasokhoz tartozo fallback-kommunikacioval.
+ * A reszletes funkcionalis blokk-sema kulon fajlban van:
+ * `src/lib/functional-blocks.ts` — igy a jelenlegi parseSite valtozatlan
+ * marad, es a bovites egy onallo, tesztelheto egyseg.
+ */
