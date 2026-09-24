@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Users,
   Check,
-  Clock,
   ArrowLeft,
   LayoutTemplate,
 } from 'lucide-react';
