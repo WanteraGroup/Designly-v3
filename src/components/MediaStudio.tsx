@@ -23,6 +23,7 @@ export default function MediaStudio(){
  const [error,setError]=useState('');
  const [videoFile,setVideoFile]=useState<File|null>(null);
  const [videoProvider,setVideoProvider]=useState<VideoProvider>('wan');
+ const [videoMode,setVideoMode]=useState<'t2v'|'i2v'>('t2v');
  const [videoDuration,setVideoDuration]=useState<5|10>(5);
  const [videoStatus,setVideoStatus]=useState<VideoGenerationStatus|null>(null);
  const [videoUrl,setVideoUrl]=useState<string|null>(null);
@@ -31,10 +32,18 @@ export default function MediaStudio(){
  function createPlan(){setError('');setStoryboard(buildStoryboard(brief,style));setKeyframe(null);}
  async function createKeyframe(){if(!brief.trim()||busy)return;setBusy(true);setError('');try{const r=await generateCreativeImage('Cinematic video keyframe for: '+brief+'. Style: '+style+'. Premium production design, clean composition, strong subject, suitable as a video storyboard frame.','16:9');setKeyframe(r.url);}catch(e){setError(e instanceof Error?e.message:'A keyframe generálása sikertelen.');}finally{setBusy(false);}}
  async function createVideo(){
-  if((!videoFile&&!keyframe)||!brief.trim()||videoBusy)return;
+  const canStart=(videoMode==='t2v'||!!videoFile||!!keyframe);
+  if(!canStart||!brief.trim()||videoBusy)return;
   setVideoBusy(true);setError('');setVideoUrl(null);setVideoStatus(null);
   try{
-   const status=await generateVideo({image:videoFile||undefined,imageUrl:videoFile?undefined:keyframe||undefined,prompt:brief.trim()+'. Motion direction: cinematic, natural movement, coherent subject and camera motion. Style: '+style,provider:videoProvider,duration:videoDuration},setVideoStatus);
+   const status=await generateVideo({
+    image:videoMode==='i2v'?(videoFile||undefined):undefined,
+    imageUrl:videoMode==='i2v'&&!videoFile?(keyframe||undefined):undefined,
+    prompt:brief.trim()+'. Motion direction: cinematic, natural movement, coherent subject and camera motion. Style: '+style,
+    provider:videoProvider,
+    mode:videoMode,
+    duration:videoDuration
+   },setVideoStatus);
    setVideoUrl(status.url||null);
   }catch(e){setError(e instanceof Error?e.message:'A videógenerálás sikertelen.');}
   finally{setVideoBusy(false);}
@@ -48,20 +57,21 @@ export default function MediaStudio(){
   {keyframe&&<div className='mt-5 overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={keyframe} alt='AI video keyframe' draggable={false} className='w-full object-contain'/><div className='flex justify-end p-3'><a href={keyframe} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Play className='h-4 w-4'/>Megnyitás</a></div></div>}
   <div className='mt-5 rounded-2xl border border-line bg-canvas/50 p-4'>
    <div className='text-xs font-semibold text-ink-100'>AI videógenerálás · RunPod</div>
-   <p className='mt-1 text-xs text-ink-400'>Tölts fel egy referencia-képet, vagy használd a fenti AI keyframe-et. A videó közvetlenül RunPod I2V modellen készül.</p>
-   <div className='mt-3 grid gap-3 md:grid-cols-3'>
-    <div>
-     <label className='text-[11px] text-ink-400'>Referencia-kép</label>
-     <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input mt-1' onChange={e=>{setVideoFile(e.target.files?.[0]||null);setVideoUrl(null);setError('');}}/>
-     {videoFile&&<LocalImage file={videoFile} alt='Videó referencia' className='mt-2 max-h-40 w-full rounded-xl object-contain'/>}
-     {!videoFile&&keyframe&&<div className='mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2 text-[11px] text-emerald-300'>AI keyframe lesz a referencia-kép.</div>}
-    </div>
-    <label className='text-[11px] text-ink-400'>Provider<select className='vp-input mt-1' value={videoProvider} onChange={e=>setVideoProvider(e.target.value as VideoProvider)}><option value='wan'>Wan 2.2 I2V 720p</option><option value='kling'>Kling v2.1 I2V Pro</option></select></label>
+   <p className='mt-1 text-xs text-ink-400'>Promptból közvetlenül videót készíthetsz, vagy referencia-képpel image-to-video módot használhatsz.</p>
+   <div className='mt-3 grid gap-3 md:grid-cols-4'>
+    <label className='text-[11px] text-ink-400'>Mód<select className='vp-input mt-1' value={videoMode} onChange={e=>{const m=e.target.value as 't2v'|'i2v';setVideoMode(m);setVideoUrl(null);setError('');}}><option value='t2v'>Prompt → Video (Wan 2.2)</option><option value='i2v'>Kép → Video (I2V)</option></select></label>
+    <label className='text-[11px] text-ink-400'>Provider<select className='vp-input mt-1' value={videoProvider} onChange={e=>setVideoProvider(e.target.value as VideoProvider)}><option value='wan'>Wan 2.2</option><option value='kling' disabled={videoMode==='t2v'}>Kling v2.1 I2V Pro</option></select></label>
     <label className='text-[11px] text-ink-400'>Időtartam<select className='vp-input mt-1' value={videoDuration} onChange={e=>setVideoDuration(Number(e.target.value)===10?10:5)}><option value={5}>5 mp</option><option value={10}>10 mp</option></select></label>
+    <div className='text-[11px] text-ink-400'>
+     {videoMode==='t2v'?'Csak a fenti prompt szükséges.': 'Referencia-kép kötelező.'}
+     {videoMode==='i2v'&&<input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input mt-1' onChange={e=>{setVideoFile(e.target.files?.[0]||null);setVideoUrl(null);setError('');}}/>}
+     {videoMode==='i2v'&&videoFile&&<LocalImage file={videoFile} alt='Videó referencia' className='mt-2 max-h-32 w-full rounded-xl object-contain'/>}
+     {videoMode==='i2v'&&!videoFile&&keyframe&&<div className='mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2 text-[11px] text-emerald-300'>AI keyframe lesz a referencia.</div>}
+    </div>
    </div>
    <div className='mt-3 flex flex-wrap items-center gap-2'>
-    <button type='button' className='vp-btn' disabled={videoBusy||!brief.trim()||(!videoFile&&!keyframe)} onClick={createVideo}><Play className='h-4 w-4'/>{videoBusy?'Videó készül…':'AI videó készítése'}</button>
-    {videoStatus&&<span className='text-xs text-ink-400'>{videoStatus.status==='COMPLETED'?'Kész':videoStatus.status==='FAILED'?'Sikertelen':'Feldolgozás alatt…'} · {videoStatus.provider||videoProvider}</span>}
+    <button type='button' className='vp-btn' disabled={videoBusy||!brief.trim()||(videoMode==='i2v'&&!videoFile&&!keyframe)} onClick={createVideo}><Play className='h-4 w-4'/>{videoBusy?'Videó készül…':videoMode==='t2v'?'PROMPT → VIDEO':'KÉP → VIDEO'}</button>
+    {videoStatus&&<span className='text-xs text-ink-400'>{videoStatus.status==='COMPLETED'?'Kész':videoStatus.status==='FAILED'?'Sikertelen':'Feldolgozás alatt…'} · {videoStatus.provider||videoProvider} · {videoStatus.mode||videoMode}</span>}
    </div>
    {videoUrl&&<div className='mt-4 overflow-hidden rounded-2xl border border-accent/20 bg-black'><video src={videoUrl} controls playsInline className='w-full' /><div className='flex items-center justify-between gap-3 p-3'><span className='text-xs text-ink-400'>{videoStatus?.model||'RunPod video'}</span><a href={videoUrl} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Videó megnyitása</a></div></div>}
   </div>
