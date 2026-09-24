@@ -88,7 +88,38 @@ const RATIO_SIZES: Record<string, [number, number]> = {
   "3:2": [1584, 1056],
   "2:3": [1056, 1584],
   "21:9": [1664, 714],
+  "4:5": [1088, 1360],
 };
+
+/*
+ * A RunPod Public Endpoint valaszabol a kep URL-je `output.result` kulcs alatt
+ * jon, nem `image` vagy `image_url` neven. A playground valaszabol ellenorizve
+ * (2026-09-24):
+ *
+ *   {"delayTime":484,"executionTime":17903,"id":"sync-...",
+ *    "output":{"cost":0.02,"result":"https://...jpeg"},"status":"COMPLETED"}
+ *
+ * A korabbi valtozat csak az `image_url` es `image` kulcsot kereste, ezert a
+ * `result`-ot nem talalta, es "RunPod did not return an image URL" hibat dobott
+ * — amit a vegpont 502-nek adott tovabb. Ez volt az oka, hogy a Studio nem
+ * tudott kepet generalni.
+ *
+ * A tobbi kulcsnev mas RunPod modellekhez kell (FLUX, Nano Banana), ezert
+ * mindegyik marad az unios keresben.
+ */
+function extractImageUrl(output: unknown): string {
+  const first = Array.isArray(output) ? output[0] : output;
+  if (!first || typeof first !== "object") return "";
+  const o = first as Record<string, unknown>;
+  for (const key of ["result", "image", "image_url", "url"]) {
+    const value = o[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) {
+      return value[0].trim();
+    }
+  }
+  return "";
+}
 
 async function runNanoBanana2Edit(images: string[], prompt: string, resolution: NanoBananaEditResolution, aspectRatio: string): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; costUsd: number }> {
   if (!RUNPOD_KEY) throw new Error("RUNPOD_NOT_CONFIGURED");
@@ -110,20 +141,25 @@ async function runNanoBanana2Edit(images: string[], prompt: string, resolution: 
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`Nano Banana 2 Edit HTTP ${response.status}: ${text.slice(0, 500)}`);
-  let payload: { status?: string; output?: { image_url?: string; cost?: number }; error?: string };
+  let payload: { status?: string; output?: unknown; error?: string };
   try { payload = JSON.parse(text); } catch { throw new Error("Nano Banana 2 Edit response is not JSON"); }
-  if (payload.status !== "COMPLETED" || !payload.output?.image_url) {
-    throw new Error(`Nano Banana 2 Edit failed: ${payload.error ?? "no image returned"}`);
+  if (payload.status !== "COMPLETED") {
+    throw new Error(`Nano Banana 2 Edit failed: ${payload.error ?? payload.status ?? "unknown"}`);
   }
-  const image = await fetch(payload.output.image_url, { signal: AbortSignal.timeout(60_000) });
+  const imageUrl = extractImageUrl(payload.output);
+  if (!imageUrl) throw new Error("Nano Banana 2 Edit did not return an image URL");
+  const image = await fetch(imageUrl, { signal: AbortSignal.timeout(60_000) });
   if (!image.ok) throw new Error(`Nano Banana 2 Edit image download failed (${image.status})`);
   const [width, height] = RATIO_SIZES[aspectRatio] ?? RATIO_SIZES["1:1"];
+  const cost = (payload.output && typeof payload.output === "object")
+    ? Number((payload.output as Record<string, unknown>).cost ?? 0)
+    : 0;
   return {
     bytes: await image.arrayBuffer(),
     model: "Google Nano Banana 2 Edit",
     width,
     height,
-    costUsd: Number(payload.output.cost ?? 0),
+    costUsd: cost,
   };
 }
 
@@ -217,18 +253,15 @@ async function extractRunpodImage(
 ): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
   if (payload.status === "FAILED") throw new Error(`RunPod job failed: ${payload.error ?? "unknown error"}`);
 
-  const output = Array.isArray(payload.output) ? payload.output[0] : payload.output;
-  const imageUrl = output && typeof output === "object"
-    ? ((output as Record<string, unknown>).image_url ?? (output as Record<string, unknown>).image)
-    : undefined;
-
-  if (typeof imageUrl !== "string" || !imageUrl) {
-    throw new Error("RunPod did not return an image URL");
+  const imageUrl = extractImageUrl(payload.output);
+  if (!imageUrl) {
+    throw new Error(`RunPod did not return an image URL: ${JSON.stringify(payload.output).slice(0, 300)}`);
   }
 
   const image = await fetch(imageUrl, { signal: AbortSignal.timeout(60_000) });
   if (!image.ok) throw new Error(`RunPod image download failed (${image.status})`);
 
+  const output = Array.isArray(payload.output) ? payload.output[0] : payload.output;
   return {
     bytes: await image.arrayBuffer(),
     model: "Qwen Image (RunPod)",
