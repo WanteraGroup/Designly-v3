@@ -151,7 +151,7 @@ export function translate(
   key: string,
   vars?: Record<string, string>,
 ): string {
-  const template = dict[key] ?? TRANSLATIONS.hu[key] ?? key;
+  const template = dict[key] ?? TRANSLATIONS.hu?.[key] ?? key;
   if (!vars) return template;
   return Object.entries(vars).reduce(
     (acc, [name, value]) => acc.replaceAll('{' + name + '}', value),
