@@ -48,7 +48,7 @@ function generateGcode(op:Operation, feed:number, plunge:number, spindle:number,
   return out.join('\n');
 }
 
-export default function CncPromptStudio(){
+export default function CncPromptStudio({ language='hu' }: { language?: string }){
   const [prompt,setPrompt]=useState(() => localizedCncExample(language));
   const [parsed,setParsed]=useState<ReturnType<typeof parsePrompt>|null>(null);
   const [controller,setController]=useState<Controller>('GRBL');
@@ -82,9 +82,9 @@ export default function CncPromptStudio(){
     {gcode&&<pre className='max-h-96 overflow-auto rounded-2xl border border-line bg-black p-4 text-[11px] leading-5 text-ink-200'>{gcode}</pre>}
     {gcode&&<div className='flex flex-wrap items-center gap-2'>
       <button type='button' className='vp-btn' onClick={()=>download('designly-prompt-cnc.nc',gcode,'text/plain;charset=utf-8')}><Download className='h-4 w-4'/{studioT(language,'exportG')}</button>
-      <button type='button' className='vp-btn-ghost' onClick={()=>setConfirmed(v=>!v)}><ShieldCheck className='h-4 w-4'/>{confirmed?'Ellenőrzés rögzítve':'Szimuláció / ellenőrzés elvégezve'}</button>
+      <button type='button' className='vp-btn-ghost' onClick={()=>setConfirmed(v=>!v)}><ShieldCheck className='h-4 w-4'/>{confirmed?studioT(language,'checked'):studioT(language,'check')}</button>
     </div>}
-    {gcode&&<div className={'rounded-xl border p-3 text-xs '+(confirmed?'border-emerald-500/30 bg-emerald-500/10 text-emerald-200':'border-amber-500/30 bg-amber-500/10 text-amber-200')}>{confirmed?'A felhasználó jelezte, hogy ellenőrizte a pályát. Ettől a kód még nem tekintendő gépbiztosnak.':'NE indítsd gépen közvetlenül. Ellenőrizd a koordinátarendszert, nullpontot, szerszámot, munkadarabot, előtolást, fordulatot, Z-biztonságot és vezérlő-kompatibilitást.'}</div>}
+    {gcode&&<div className={'rounded-xl border p-3 text-xs '+(confirmed?'border-emerald-500/30 bg-emerald-500/10 text-emerald-200':'border-amber-500/30 bg-amber-500/10 text-amber-200')}>{confirmed?studioT(language,'checkedMsg'):studioT(language,'warning')}</div>}
   </section>;
 }
 
