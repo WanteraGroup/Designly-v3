@@ -8,6 +8,8 @@ import type { SiteDocument } from './site-schema';
 
 import { authHeaders, SUPABASE_URL } from './supabase-client';
 
+const FUNCTIONS_URL = SUPABASE_URL + '/functions/v1';
+
 export interface ResolvedImage {
   query: string;
   url: string;
