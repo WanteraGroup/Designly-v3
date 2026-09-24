@@ -5,11 +5,14 @@ import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 type Lang = 'hu'|'en'|'de'|'fr'|'es'|'it'|'pl'|'uk'|'ro'|'nl';
 type SourceMode = 'upload'|'ai';
 type Format = 'portrait'|'square'|'landscape';
+type StencilEngine = 'outline'|'fineLine'|'realism'|'tonalMap'|'fullDetail';
 
 const UI: Record<Lang, Record<string,string>> = {
   hu: {
     title:'PRO TATTOO STUDIO', desc:'Feltöltött képből vagy AI-generálásból készíts izolált, 2D tattoo stencil mintát.',
-    source:'Forrás', upload:'Kép feltöltése', ai:'AI generálás', uploadHint:'Húzd ide a képet, vagy válaszd ki a gépről.', formats:'Kimeneti formátum',
+    source:'Forrás', upload:'Kép feltöltése', ai:'AI generálás', uploadHint:'Húzd ide a képet, vagy válaszd ki a gépről.',
+    engine:'Stencil motor', outline:'Outline', fineLine:'Fine Line', realism:'Realism', tonalMap:'Tonal Map', fullDetail:'Full Detail',
+    lineColor:'Stencil vonalszín', opacity:'Stencil átlátszóság', copy:'Másolás / Procreate', prepare:'Nyomtatás előkészítése', formats:'Kimeneti formátum',
     portrait:'Álló 2:3', square:'Négyzet 1:1', landscape:'Fekvő 3:2', concept:'AI tattoo koncepció',
     conceptPlaceholder:'Pl. Odin két hollóval, kelta fonatokkal, csak fekete tattoo vonalmunka.',
     removeBody:'Testrész / mockup eltávolítása', removeBodyHint:'A végső minta önálló legyen, bőr és test nélkül.', ink:'Stencil vonal / tinta',
@@ -21,7 +24,9 @@ const UI: Record<Lang, Record<string,string>> = {
   },
   en: {
     title:'PRO TATTOO STUDIO', desc:'Create an isolated 2D tattoo stencil from an uploaded image or an AI-generated concept.',
-    source:'Source', upload:'Upload image', ai:'AI generate', uploadHint:'Drop an image here or choose a file.', formats:'Output format',
+    source:'Source', upload:'Upload image', ai:'AI generate', uploadHint:'Drop an image here or choose a file.',
+    engine:'Stencil engine', outline:'Outline', fineLine:'Fine Line', realism:'Realism', tonalMap:'Tonal Map', fullDetail:'Full Detail',
+    lineColor:'Stencil line color', opacity:'Stencil opacity', copy:'Copy / Procreate', prepare:'Prepare for print', formats:'Output format',
     portrait:'Portrait 2:3', square:'Square 1:1', landscape:'Landscape 3:2', concept:'AI tattoo concept',
     conceptPlaceholder:'e.g. Odin with two ravens and Celtic knotwork, black tattoo linework only.', removeBody:'Remove body / mockup',
     removeBodyHint:'The final artwork must be standalone, with no skin or body.', ink:'Stencil line / ink', fine:'Fine', standard:'Standard', bold:'Bold',
@@ -140,7 +145,7 @@ async function fileToPreview(file:File):Promise<string>{
   });
 }
 
-async function isolateInkPng(url:string,transparent:boolean,threshold:number):Promise<Blob>{
+async function isolateInkPng(url:string,transparent:boolean,threshold:number,lineColor:string='#000000',opacity=1):Promise<Blob>{
   const response=await fetch(url);
   if(!response.ok) throw new Error('A stencil forrása nem tölthető be.');
   const blob=await response.blob();
@@ -219,7 +224,10 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number):Pr
   for(let y=0;y<outH;y++) for(let x=0;x<outW;x++){
     const si=(by0+y)*w+(bx0+x),di=(y*outW+x)*4,ink=kept[si]===1;
     const v=ink?0:255;
-    out.data[di]=v;out.data[di+1]=v;out.data[di+2]=v;out.data[di+3]=transparent?(ink?255:0):255;
+    if(ink){
+      const r=parseInt(lineColor.slice(1,3),16)||0,g=parseInt(lineColor.slice(3,5),16)||0,b=parseInt(lineColor.slice(5,7),16)||0;
+      out.data[di]=r;out.data[di+1]=g;out.data[di+2]=b;out.data[di+3]=transparent?Math.round(255*opacity):255;
+    }else{ out.data[di]=v;out.data[di+1]=v;out.data[di+2]=v;out.data[di+3]=transparent?0:255; }
   }
   ctx.putImageData(out,0,0);
   return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
@@ -282,6 +290,9 @@ export default function TattooStudio({language='hu'}:{language?:string}){
   const [sourcePreview,setSourcePreview]=useState<string|null>(null);
   const [concept,setConcept]=useState('Kelta fonatos koszorú, Odin két hollója, önálló fekete tattoo vonalmunka, tiszta negatív tér.');
   const [format,setFormat]=useState<Format>('portrait');
+  const [engine,setEngine]=useState<StencilEngine>('fineLine');
+  const [lineColor,setLineColor]=useState('#000000');
+  const [opacity,setOpacity]=useState(1);
   const [inkLevel,setInkLevel]=useState(145);
   const [removeBody,setRemoveBody]=useState(true);
   const [grid,setGrid]=useState(true),[center,setCenter]=useState(true),[mirror,setMirror]=useState(false);
@@ -301,6 +312,14 @@ export default function TattooStudio({language='hu'}:{language?:string}){
   async function chooseFile(e:ChangeEvent<HTMLInputElement>){ if(e.target.files?.[0]) await setSource(e.target.files[0]); }
   async function dropFile(e:DragEvent<HTMLLabelElement>){ e.preventDefault(); const f=e.dataTransfer.files?.[0]; if(f) await setSource(f); }
 
+  const enginePrompt = {
+    outline: 'Use clean outer contours and essential internal lines; simplify tiny details for a transfer stencil.',
+    fineLine: 'Use precise fine-line tattoo contours with controlled internal linework and generous negative space.',
+    realism: 'Translate realistic tonal information into tattooable contour and controlled black/grey stencil information; no skin or photo.',
+    tonalMap: 'Convert values into clean mapped black/grey regions with intentional negative space and clear tattoo shading boundaries.',
+    fullDetail: 'Preserve maximum useful tattoo detail while keeping every line traceable and transfer-friendly.',
+  }[engine];
+
   async function generate(){
     if(busy) return;
     if(sourceMode==='upload'&&!file){setError(t(language,'uploadHint'));return;}
@@ -312,7 +331,7 @@ export default function TattooStudio({language='hu'}:{language?:string}){
         const edited=await editCreativeImage({
           files:[file!],
           prompt:(removeBody?'Convert the uploaded image into a PURE 2D TATTOO STENCIL. Remove ALL skin, arm, leg, hand, shoulder, chest, torso, face, person, clothing, body, background, poster, frame, scenery, props and mockup elements. ': 'Do not create a body mockup. ')
-            +'Keep ONLY the tattoo motif. No 3D, no photorealism, no cinematic lighting, no shadows, no gradients. Reconstruct as clean black tattoo linework with crisp outer contours, controlled solid black stencil areas, clean negative space and traceable shapes. No text unless the requested letter is part of the tattoo motif. Plain white background only.',
+            +'Keep ONLY the tattoo motif. No 3D, no photorealism, no cinematic lighting, no shadows, no gradients. Reconstruct as clean black tattoo linework with crisp outer contours, controlled solid black stencil areas, clean negative space and traceable shapes. No text unless the requested letter is part of the tattoo motif. Plain white background only. '+enginePrompt,
           aspectRatio:ratio,resolution:'1k'
         });
         workingUrl=edited.url;
@@ -323,20 +342,27 @@ export default function TattooStudio({language='hu'}:{language?:string}){
           'NO body, skin, arm, leg, hand, shoulder, chest, torso, face, person, mannequin or clothing.',
           'NO poster, paper, mockup, scenery, environment, frame, border or props.',
           'NO 3D, no photorealism, no perspective, no cinematic lighting, no shadows, no gradients.',
-          'Flat black tattoo linework, clean contour hierarchy, solid stencil areas, white negative space, connected traceable shapes.',
+          'Flat black tattoo linework, clean contour hierarchy, solid stencil areas, white negative space, connected traceable shapes. '+enginePrompt,
           'No presentation text, captions, logos or watermark. A requested monogram may be an integral part of the tattoo motif.',
           'Concept: '+concept.trim()
         ].join(' '),ratio);
         workingUrl=generated.url;
       }
 
-      const alpha=await isolateInkPng(workingUrl,true,inkLevel);
-      const st=await isolateInkPng(workingUrl,false,inkLevel);
+      const alpha=await isolateInkPng(workingUrl,true,inkLevel,lineColor,opacity);
+      const st=await isolateInkPng(workingUrl,false,inkLevel,lineColor,opacity);
       const sh=await guideSheet(st,{grid,center,mirror});
       setTransparent(alpha);setStencil(st);setSheet(sh);setResultUrl(URL.createObjectURL(alpha));
     }catch(e){
       setError(e instanceof Error?e.message:t(language,'error'));
     }finally{setBusy(false);}
+  }
+
+  async function copyToProcreate(blob:Blob){
+    try{
+      const item=new ClipboardItem({'image/png':blob});
+      await navigator.clipboard.write([item]);
+    }catch{ setError(t(language,'copy')); }
   }
 
   async function share(blob:Blob,name:string){
@@ -377,6 +403,23 @@ export default function TattooStudio({language='hu'}:{language?:string}){
             <textarea rows={8} className='vp-input mt-1' value={concept} onChange={e=>setConcept(e.target.value)} placeholder={t(language,'conceptPlaceholder')}/>
           </label>
         )}
+
+        <div>
+          <div className='mb-2 text-xs text-ink-400'>{t(language,'engine')}</div>
+          <div className='grid grid-cols-2 gap-2 sm:grid-cols-5'>
+            {(['outline','fineLine','realism','tonalMap','fullDetail'] as StencilEngine[]).map((key)=><button key={key} type='button' onClick={()=>setEngine(key)} className={'rounded-xl border px-3 py-3 text-left text-xs '+(engine===key?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}><div className='font-semibold'>{t(language,key)}</div><div className='mt-1 text-[9px] opacity-60'>{key==='outline'?'Kontúr':key==='fineLine'?'Finom vonal':key==='realism'?'Tónus':key==='tonalMap'?'Térkép':'Részletes'}</div></button>)}
+          </div>
+        </div>
+
+        <div className='grid gap-3 sm:grid-cols-3'>
+          <label className='text-xs text-ink-400'>{t(language,'lineColor')}
+            <div className='mt-1 flex gap-2'><input type='color' value={lineColor} onChange={e=>setLineColor(e.target.value)} className='h-10 w-14 cursor-pointer rounded-lg border border-line bg-black p-1'/><input className='vp-input flex-1' value={lineColor} onChange={e=>/^#[0-9a-f]{6}$/i.test(e.target.value)&&setLineColor(e.target.value)} /></div>
+          </label>
+          <label className='text-xs text-ink-400'>{t(language,'opacity')} · {Math.round(opacity*100)}%
+            <input className='mt-4 w-full accent-[var(--accent)]' type='range' min='0.4' max='1' step='0.01' value={opacity} onChange={e=>setOpacity(Number(e.target.value))}/>
+          </label>
+          <div className='text-xs text-ink-500'>STENCIL MASTER<div className='mt-1 text-[10px]'>2D · isolated · transfer-ready</div></div>
+        </div>
 
         <div className='grid gap-3 sm:grid-cols-2'>
           <label className='text-xs text-ink-400'>{t(language,'formats')}
@@ -419,7 +462,7 @@ export default function TattooStudio({language='hu'}:{language?:string}){
         </div>
 
         {(sourcePreview||resultUrl)&&<div className='mt-4 grid gap-3 sm:grid-cols-2'>
-          {sourcePreview&&<div className='rounded-xl border border-line bg-canvas/30 p-2'><div className='mb-2 text-[10px] tracking-widest text-ink-500'>{t(language,'uploadedSource')}</div><img src={sourcePreview} alt='Uploaded source' className='max-h-48 w-full object-contain'/></div>}
+          {sourcePreview&&<div className='rounded-xl border border-line bg-canvas/30 p-2'><div className='mb-2 flex items-center justify-between text-[10px] tracking-widest text-ink-500'><span>{t(language,'uploadedSource')}</span><span>{sourceMode==='upload'?'ORIGINAL':'AI SOURCE'}</span></div><img src={sourcePreview} alt='Uploaded source' className='max-h-48 w-full object-contain'/></div>}
           {resultUrl&&<div className='rounded-xl border border-line bg-white p-2'><div className='mb-2 text-[10px] tracking-widest text-black/60'>{t(language,'result')}</div><img src={resultUrl} alt='Stencil result' className='max-h-48 w-full object-contain'/></div>}
         </div>}
 
