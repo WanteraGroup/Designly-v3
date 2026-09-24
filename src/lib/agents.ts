@@ -21,7 +21,6 @@ export const LIVE_AGENTS: AgentEntry[] = [
 ];
 
 export const PLANNED_AGENTS: AgentEntry[] = [
-  {id:'muninn',name:'MUNINN',role:'Memória- és kontextusréteg',capabilities:['context-memory','knowledge-summary','handoff'],source:'Designity',status:'live'},
   {id:'web-architect',name:'WEB ARCHITECT',role:'Teljes információs architektúra',capabilities:['site-architecture','multi-page','navigation','user-flow'],source:'Designity',status:'live'},
   {id:'ux-ui',name:'UX/UI AGENT',role:'Interakció, komponensek és hozzáférhetőség',capabilities:['ux','ui','components','interactions','accessibility'],source:'Designity',status:'live'},
   {id:'seo-content',name:'SEO CONTENT AGENT',role:'SEO és konverziós tartalom',capabilities:['seo','metadata','conversion'],source:'Designity',status:'live'},
