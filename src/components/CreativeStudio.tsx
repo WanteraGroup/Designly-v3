@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { BadgeCheck, BriefcaseBusiness, Brush, CalendarDays, Check, Download, FileText, Image as ImageIcon, Layers3, LayoutDashboard, Megaphone, PenTool, Ruler, Save, Settings2, Sparkles, Target, Wand2, Wrench, X } from 'lucide-react';
 import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 
-type ToolId = 'brand'|'campaign'|'ai_edit'|'business_card'|'invitation'|'flyer'|'poster'|'advertisement'|'brochure'|'menu'|'pricelist'|'social'|'banner'|'presentation'|'tattoo'|'planner'|'cnc';
+type ToolId = 'brand'|'campaign'|'product'|'ai_edit'|'business_card'|'invitation'|'flyer'|'poster'|'advertisement'|'brochure'|'menu'|'pricelist'|'social'|'banner'|'presentation'|'tattoo'|'planner'|'cnc';
 type Tool = { id: ToolId; label: string; desc: string; icon: typeof Sparkles; kind: 'visual'|'system' };
 const TOOLS: Tool[] = [
   {id:'ai_edit',label:'AI Image Edit',desc:'Nano Banana 2: képszerkesztés és több referencia összeillesztése.',icon:Wand2,kind:'visual'},
   {id:'brand',label:'Brand Kit',desc:'Színek, tipográfia, hangnem és márkaalap.',icon:BriefcaseBusiness,kind:'system'},
   {id:'campaign',label:'Kampány Stúdió',desc:'Egy briefből több kreatív formátum.',icon:Megaphone,kind:'visual'},
+  {id:'product',label:'AI Product Studio',desc:'Termékfotóból prémium reklám- és lifestyle jelenetek.',icon:ImageIcon,kind:'visual'},
   {id:'business_card',label:'Névjegy',desc:'Modern névjegy koncepció.',icon:BadgeCheck,kind:'visual'},
   {id:'invitation',label:'Meghívó',desc:'Esemény- és rendezvénymeghívó.',icon:CalendarDays,kind:'visual'},
   {id:'flyer',label:'Flyer / Szórólap',desc:'Nyomdai és digitális szórólap.',icon:FileText,kind:'visual'},
@@ -49,12 +50,15 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
  const [editImage,setEditImage]=useState<string|null>(null);
  const [editHistory,setEditHistory]=useState<string[]>([]);
  const [editCompare,setEditCompare]=useState(50);
+ const [productFile,setProductFile]=useState<File|null>(null);
+ const [productPrompt,setProductPrompt]=useState('Hozd létre a termék prémium lifestyle reklámfotóját természetes fényekkel, realisztikus anyagokkal és finom árnyékokkal. A termék formáját, logóját és arányait tartsd változatlanul.');
+ const [productResult,setProductResult]=useState<string|null>(null);
  const [brand,setBrand]=useState<Brand>(DEFAULT_BRAND);
  const [brandSaved,setBrandSaved]=useState(false);
  const [cnc,setCnc]=useState({w:80,h:50,depth:4,feed:700,plunge:250,spindle:12000,controller:'GRBL'});
  const [planner,setPlanner]=useState({w:200,h:100,label:'Alaprajz / gyártási terv'});
  const current=useMemo(()=>TOOLS.find(t=>t.id===tool)!,[tool]);
- const select=(id:ToolId)=>{setTool(id);setImage(null);setLogoImage(null);setCampaign([]);setEditImage(null);setEditHistory([]);setError('');};
+ const select=(id:ToolId)=>{setTool(id);setImage(null);setLogoImage(null);setCampaign([]);setEditImage(null);setEditHistory([]);setProductResult(null);setError('');};
  useEffect(()=>()=>{editFiles.forEach((file)=>{ /* object URLs are created only for previews below */ void file; });},[editFiles]);
  const loadBrand=()=>{
   try{
@@ -96,6 +100,15 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
   }catch(e){setError(e instanceof Error?e.message:'Az AI Edit sikertelen.');}
   finally{setBusy(false);}
  }
+ async function generateProduct(){
+  if(!productFile||!productPrompt.trim()||busy)return;
+  setBusy(true);setError('');setProductResult(null);
+  try{
+    const result=await editCreativeImage({files:[productFile],prompt:productPrompt.trim(),aspectRatio:editAspectRatio,resolution:editResolution});
+    setProductResult(result.url);
+  }catch(e){setError(e instanceof Error?e.message:'A Product Studio generálása sikertelen.');}
+  finally{setBusy(false);}
+ }
  async function generateCampaign(){if(!brief.trim()||busy)return;setBusy(true);setError('');setCampaign([]);const formats=['poster','flyer','social','advertisement'];const out:{label:string;url:string}[]=[];try{for(const fmt of formats){const label=TOOLS.find(t=>t.id===fmt)?.label||fmt;const result=await generateCreativeImage('Campaign creative for '+brief+'. Format: '+label+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Keep the same identity and preserve the requested format composition.',RATIO[fmt]||'1:1');out.push({label,url:result.url});setCampaign([...out]);}}catch(e){setError(e instanceof Error?e.message:'A kampány generálása sikertelen.');}finally{setBusy(false);}}
  const gcode=cncGcode(cnc.w,cnc.h,cnc.depth,cnc.feed,cnc.plunge,cnc.spindle,cnc.controller);
  const psvg=plannerSvg(planner.w,planner.h,planner.label);
@@ -113,6 +126,27 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
      {tool==='brand' && <section className='space-y-4'><div className='grid gap-4 md:grid-cols-2'><input className='vp-input' value={brand.name} onChange={e=>setBrand({...brand,name:e.target.value})} placeholder='Márkanév'/><input className='vp-input' value={brand.tone} onChange={e=>setBrand({...brand,tone:e.target.value})} placeholder='Hangnem / stílus'/><input className='vp-input' value={brand.heading} onChange={e=>setBrand({...brand,heading:e.target.value})} placeholder='Címbetű'/><input className='vp-input' value={brand.body} onChange={e=>setBrand({...brand,body:e.target.value})} placeholder='Törzsszöveg betű'/></div><div className='flex flex-wrap gap-2'>{brand.colors.map((c,i)=><input key={i} type='color' value={c} onChange={e=>{const colors=[...brand.colors];colors[i]=e.target.value;setBrand({...brand,colors});}} className='h-11 w-14 rounded-lg border border-line bg-panel'/>)}</div><div className='grid gap-3 md:grid-cols-4'>{brand.colors.map((c,i)=><div key={i} className='h-20 rounded-xl border border-line' style={{background:c}} title={'Szín '+(i+1)+' '+c}/>)}</div><div className='flex flex-wrap items-center gap-3'><button type='button' onClick={generateLogo} disabled={busy||!brand.name.trim()} className='vp-btn'><Sparkles className='h-4 w-4'/>Logó koncepció</button><button type='button' onClick={saveBrand} className='vp-btn'><Save className='h-4 w-4'/>Brand Kit mentése</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>Mentett betöltése</button>{brandSaved&&<span className='text-xs text-emerald-300'><Check className='inline h-4 w-4'/> Elmentve</span>}</div>{logoImage&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={logoImage} alt='Logó koncepció' draggable={false} className='max-h-[420px] w-full object-contain'/><div className='flex justify-end p-3'><a href={logoImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Logó megnyitása / mentése</a></div></div>}</section>}
      {tool==='cnc' && <section className='space-y-4'><div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>{(['w','h','depth','feed','plunge','spindle'] as const).map(k=><label key={k} className='text-xs text-ink-400'>{k}<input type='number' min='0.1' value={cnc[k]} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))setCnc({...cnc,[k]:Math.max(0.1,n)});}} className='vp-input mt-1'/></label>)}<label className='text-xs text-ink-400'>Vezérlő<select value={cnc.controller} onChange={e=>setCnc({...cnc,controller:e.target.value})} className='vp-input mt-1'>{['GRBL','LinuxCNC','Mach3','Fanuc','Haas','Siemens'].map(v=><option key={v}>{v}</option>)}</select></label></div><pre className='max-h-80 overflow-auto rounded-2xl border border-line bg-black p-4 text-[11px] leading-5 text-ink-200'>{gcode}</pre><button type='button' onClick={()=>download('designly-cnc.nc',gcode,'text/plain;charset=utf-8')} className='vp-btn'><Download className='h-4 w-4'/>G-kód export</button></section>}
      {tool==='planner' && <section className='space-y-4'><div className='grid gap-3 md:grid-cols-3'><input type='number' min='1' className='vp-input' value={planner.w} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))setPlanner({...planner,w:Math.max(1,n)});}}/><input type='number' min='1' className='vp-input' value={planner.h} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))setPlanner({...planner,h:Math.max(1,n)});}}/><input className='vp-input' value={planner.label} onChange={e=>setPlanner({...planner,label:e.target.value})}/></div><img src={'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(psvg)} alt='Planner előnézet' className='w-full rounded-2xl border border-line'/><button type='button' onClick={()=>download('designly-planner.svg',psvg,'image/svg+xml;charset=utf-8')} className='vp-btn'><Download className='h-4 w-4'/>SVG export</button></section>}
+     {tool==='product' && <section className='space-y-4'>
+      <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'><div className='font-semibold text-ink-100'>AI Product Studio</div><p className='mt-1'>Tölts fel egy termékfotót, válassz jelenetet, majd készíts reklám- vagy webshop-kompatibilis képet. A meglévő AI Edit motor használja a referenciát.</p></div>
+      <div className='grid gap-4 md:grid-cols-2'>
+       <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
+        <div className='mb-2 text-xs font-semibold text-ink-200'>1. Termékfotó</div>
+        <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input' onChange={e=>{setProductFile(e.target.files?.[0]||null);setProductResult(null);setError('');}}/>
+        {productFile&&<img src={URL.createObjectURL(productFile)} alt='Termék referencia' className='mt-3 max-h-80 w-full rounded-xl object-contain'/>}
+       </div>
+       <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
+        <div className='mb-2 text-xs font-semibold text-ink-200'>2. Jelenet / irány</div>
+        <textarea rows={7} className='vp-input' value={productPrompt} onChange={e=>setProductPrompt(e.target.value)}/>
+        <div className='mt-3 flex flex-wrap gap-2'>{['Luxus stúdiófotó fekete háttérrel','Minimal fehér webshop háttér','Modern lifestyle jelenet','Prémium social reklámkép','Sötét cinematic termékfotó'].map(p=><button key={p} type='button' onClick={()=>setProductPrompt(p+'. A termék formáját, logóját és arányait tartsd változatlanul.')} className='rounded-full border border-line px-3 py-1.5 text-[10px] text-ink-300 hover:border-accent/50 hover:text-accent'>{p}</button>)}</div>
+       </div>
+      </div>
+      <div className='grid gap-3 sm:grid-cols-3'>
+       <label className='text-xs text-ink-400'>Felbontás<select className='vp-input mt-1' value={editResolution} onChange={e=>setEditResolution(e.target.value as '1k'|'2k'|'4k')}><option value='1k'>1K · 10 kredit</option><option value='2k'>2K · 15 kredit</option><option value='4k'>4K · 20 kredit</option></select></label>
+       <label className='text-xs text-ink-400'>Képarány<select className='vp-input mt-1' value={editAspectRatio} onChange={e=>setEditAspectRatio(e.target.value)}>{['1:1','16:9','9:16','3:2','4:5','4:3','3:4','2:3'].map(v=><option key={v}>{v}</option>)}</select></label>
+       <div className='flex items-end'><button type='button' disabled={busy||!productFile||!productPrompt.trim()} onClick={generateProduct} className='vp-btn w-full'><Sparkles className='h-4 w-4'/>{busy?'Termékkép készül…':'Termékjelenet generálása'}</button></div>
+      </div>
+      {productResult&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={productResult} alt='AI Product Studio eredmény' className='max-h-[720px] w-full object-contain'/><div className='flex justify-end p-3'><a href={productResult} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Eredmény megnyitása</a></div></div>}
+     </section>}
      {tool==='ai_edit' && <section className='space-y-4'>
       <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'>
        <div className='font-semibold text-ink-100'>AI Image Editor 2.0</div>
