@@ -29,7 +29,7 @@ import HuginnAgent from '../components/HuginnAgent';
 import CreativeStudio from '../components/CreativeStudio';
 import GamerStudio from '../components/GamerStudio';
 import MediaStudio from '../components/MediaStudio';
-import { createProject, listProjects, saveProject, type StudioProject } from '../lib/project-store';
+import { createProject, hydrateProjects, listProjects, saveProject, saveProjectCloud, type StudioProject } from '../lib/project-store';
 import AuthGate from '../components/AuthGate';
 
 const EXAMPLES = [
@@ -81,7 +81,11 @@ function HomeWorkspace() {
   const [savedProjects, setSavedProjects] = useState<StudioProject[]>(() => listProjects());
   const refineRef = useRef<HTMLInputElement>(null);
 
-    const categoryNames = Object.keys(CATEGORY_SPECS);
+  useEffect(() => {
+    void hydrateProjects().then(setSavedProjects);
+  }, []);
+
+  const categoryNames = Object.keys(CATEGORY_SPECS);
 
   /** A valasztott stilus a brief vegen megy: a modell egy szoveges briefet lat. */
   function composedBrief(): string {
@@ -392,15 +396,18 @@ function HomeWorkspace() {
                   <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-panel/80 p-3">
                     <button type="button" onClick={() => {
                       const existing = savedProjectId;
-                      if (existing) {
-                        saveProject({ id: existing, name: site.site.title || 'DESIGNLY projekt', updatedAt: Date.now(), brief, site, assets: [] });
-                      } else {
-                        const created = createProject(site.site.title || 'DESIGNLY projekt', brief);
-                        created.site = site;
-                        saveProject(created);
-                        setSavedProjectId(created.id);
-                      }
+                      const project = existing
+                        ? saveProject({ id: existing, name: site.site.title || 'DESIGNLY projekt', updatedAt: Date.now(), brief, site, assets: [] })
+                        : (() => {
+                            const created = createProject(site.site.title || 'DESIGNLY projekt', brief);
+                            created.site = site;
+                            return saveProject(created);
+                          })();
+                      setSavedProjectId(project.id);
                       setSavedProjects(listProjects());
+                      void saveProjectCloud(project).catch((e) => {
+                        setError(e instanceof Error ? e.message : 'A projekt felhőmentése nem sikerült.');
+                      });
                       setSavedNotice(true);
                       window.setTimeout(() => setSavedNotice(false), 1800);
                     }} className="vp-btn">
