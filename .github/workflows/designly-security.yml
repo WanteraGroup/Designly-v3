@@ -2,9 +2,9 @@ name: DESIGNLY Security
 
 on:
   push:
-    branches: [main, fix/provider-auth]
+    branches: [main]
   pull_request:
-    branches: [main, fix/provider-auth]
+    branches: [main]
   schedule:
     - cron: '30 3 * * 1'
 
