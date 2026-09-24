@@ -40,6 +40,10 @@ export function SiteRenderer({ document: doc, embedded }: SiteRendererProps) {
         background: light ? '#fdfbf7' : '#0a0a12',
         color: light ? '#141417' : '#f2efe8',
         fontFamily: bodyFont,
+        backgroundImage: theme.background_image ? `linear-gradient(${light ? 'rgba(253,251,247,.72)' : 'rgba(10,10,18,.55)'}, ${light ? 'rgba(253,251,247,.88)' : 'rgba(10,10,18,.78)'}), url("${theme.background_image}")` : undefined,
+        backgroundSize: theme.background_image ? 'cover' : undefined,
+        backgroundPosition: theme.background_image ? 'center' : undefined,
+        backgroundAttachment: theme.background_image ? 'fixed' : undefined,
       }}
     >
       <header
