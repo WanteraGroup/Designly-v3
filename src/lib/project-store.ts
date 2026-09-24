@@ -1,4 +1,4 @@
-import type { SiteDocument } from './site-schema';
+import { parseSite, type SiteDocument } from './site-schema';
 
 export interface StudioProject {
   id: string;
@@ -39,7 +39,7 @@ function isProject(value: unknown): value is StudioProject {
     typeof x.name === 'string' &&
     typeof x.updatedAt === 'number' &&
     typeof x.brief === 'string' &&
-    (x.site === null || typeof x.site === 'object') &&
+    (x.site === null || (typeof x.site === 'object' && parseSite(x.site) !== null)) &&
     Array.isArray(x.assets) &&
     x.assets.every(isAsset)
   );
