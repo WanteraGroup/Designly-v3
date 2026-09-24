@@ -9,9 +9,18 @@
  * A galeria KEpet es attribuciot is visz: a korabbi valtozat mindig helyorzot
  * irt, tehat a letoltott HTML-ben nem volt foto, mikozben a preview-ban igen.
  * Ez volt az egyik legzavarobb elteres a ket kimenet kozott.
+ *
+ * A FUNKCIONALIS blokkok (urlap, foglalas, hirlevel) az exportban is mukodnek:
+ * a form `action`-ja a sajat fogado vegpont, es a `fetch` + JSON a lapban
+ * marad. Ket dolog, amire figyelni kell:
+ *   1. Az `endpoint`-ot ABSZOLUT URL-kent kell kiirni. Ha relativ maradna, a
+ *      letoltott fajl a helyi gepre kuldene az adatot, ahol nincs fogado.
+ *   2. Az export NEM tartalmaz kulso scriptet: a bekuldes inline `fetch`, tehat
+ *      a fajl `file://`-bol is mukodik anelkul, hogy barmit betoltene.
  */
 
 import type { SiteDocument, SiteBlock } from './site-schema';
+import { FUNCTIONS_URL } from './supabase-client';
 
 export function esc(text: string): string {
   return String(text)
@@ -39,7 +48,43 @@ function safeFont(value: string, fallback: string): string {
   return /^[A-Za-z0-9 _.,'\-]{1,80}$/.test(font) ? font : fallback;
 }
 
-function renderBlock(b: SiteBlock): string {
+/** Rohid vegpontnev -> abszolut URL. A `parseSite` mar kiszurte a kulso cimeket. */
+function endpointUrl(endpoint: string): string {
+  const v = String(endpoint ?? '').trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith('/')) return v;
+  return `${FUNCTIONS_URL}/${v.replace(/^\/+/, '')}`;
+}
+
+/** Stabil, cimbol szarmazo azonosito — ugyanaz, mint a kliens rendereloben. */
+function siteKey(title: string): string {
+  let h = 0x811c9dc5;
+  const t = String(title ?? 'designly');
+  for (let i = 0; i < t.length; i++) {
+    h ^= t.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `site_${h.toString(16)}`;
+}
+
+function fieldHtml(
+  f: { name: string; label: string; type: string; required: boolean; options?: string[]; placeholder?: string },
+): string {
+  const label = `${esc(f.label)}${f.required ? ' *' : ''}`;
+  const req = f.required ? ' required' : '';
+  const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '';
+  if (f.type === 'textarea') {
+    return `<label>${label}<textarea name="${esc(f.name)}" rows="4"${req}${ph}></textarea></label>`;
+  }
+  if (f.type === 'select') {
+    const opts = (f.options ?? []).map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+    return `<label>${label}<select name="${esc(f.name)}"${req}><option value="">Válassz…</option>${opts}</select></label>`;
+  }
+  const type = ['text', 'email', 'tel', 'date', 'time'].includes(f.type) ? f.type : 'text';
+  return `<label>${label}<input type="${type}" name="${esc(f.name)}"${req}${ph} /></label>`;
+}
+
+function renderBlock(b: SiteBlock, siteTitle: string): string {
   switch (b.type) {
     case 'hero':
       return `<section class="hero">
@@ -153,6 +198,87 @@ function renderBlock(b: SiteBlock): string {
   <p>${esc(b.text)}</p>
   <ul class="plain">${b.links.map((l) => `<li><a href="${esc(safeHref(l.href))}">${esc(l.label)}</a></li>`).join('')}</ul>
 </footer>`;
+
+    /*
+     * Az urlap az exportban is ugyanazt a JSON-t kuldja, amit a preview: a
+     * `<form>` sajat `submit` kezelot kap, es a mezoket `FormData`-bol szedjuk.
+     * Ezzel egy kodtomod van a ket kimenetre, es a fogado vegpont nem tudja
+     * megkulonboztetni, hogy melyikbol jott a keres.
+     */
+    case 'form':
+      return `<section id="form">
+  <h2>${esc(b.heading)}</h2>
+  ${b.body ? `<p class="lead">${esc(b.body)}</p>` : ''}
+  <form class="dl-form" data-endpoint="${esc(endpointUrl(b.endpoint))}" data-site="${esc(siteKey(siteTitle))}" data-form-id="${esc(b.heading)}" data-success="${esc(b.successMessage)}">
+    ${b.fields.map(fieldHtml).join('')}
+    <input type="text" name="_hp" tabindex="-1" autocomplete="off" aria-hidden="true" class="dl-hp" />
+    <button type="submit" class="btn">${esc(b.submitLabel)}</button>
+    <p class="dl-status" aria-live="polite"></p>
+  </form>
+</section>`;
+
+    case 'booking':
+      return `<section id="booking">
+  <h2>${esc(b.heading)}</h2>
+  ${b.body ? `<p class="lead">${esc(b.body)}</p>` : ''}
+  ${
+    b.availability.length
+      ? `<div class="dl-hours"><p><b>Nyitvatartás</b></p><ul>${b.availability
+          .map((a) => `<li><span>${esc(a.day)}</span><span>${esc(a.from)}–${esc(a.to)}</span></li>`)
+          .join('')}</ul></div>`
+      : ''
+  }
+  <form class="dl-form" data-endpoint="${esc(endpointUrl(b.endpoint))}" data-site="${esc(siteKey(siteTitle))}" data-kind="booking" data-availability="${esc(JSON.stringify(b.availability))}" data-success="${esc(b.successMessage)}">
+    <label>Szolgáltatás<select name="service" required>${b.services
+      .map((s) => `<option value="${esc(s.name)}">${esc(s.name)}${s.duration !== '—' ? ` · ${esc(s.duration)}` : ''}${s.price !== '—' ? ` · ${esc(s.price)}` : ''}</option>`)
+      .join('')}</select></label>
+    <label>Dátum<input type="date" name="date" required /></label>
+    <label>Időpont<input type="time" name="time" required /></label>
+    <label>Név<input type="text" name="name" required /></label>
+    <label>Email vagy telefon<input type="text" name="contact" required /></label>
+    <input type="text" name="_hp" tabindex="-1" autocomplete="off" aria-hidden="true" class="dl-hp" />
+    <button type="submit" class="btn">Foglalás elküldése</button>
+    <p class="dl-status" aria-live="polite"></p>
+  </form>
+</section>`;
+
+    case 'product-grid':
+      return `<section id="products">
+  <h2>${esc(b.heading)}</h2>
+  ${b.body ? `<p class="lead">${esc(b.body)}</p>` : ''}
+  <div class="grid">${b.products
+    .map((p) => {
+      const media = p.imageUrl
+        ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.name)}" loading="lazy" />`
+        : `<div class="ph">${esc(p.imageQuery)}</div>`;
+      return `<article>${media}<h3>${esc(p.name)}</h3><p>${esc(p.description)}</p><p class="price">${esc(p.price)}</p></article>`;
+    })
+    .join('')}</div>
+</section>`;
+
+    case 'map':
+      return `<section id="map">
+  <h2>${esc(b.heading)}</h2>
+  ${
+    b.address
+      ? b.mode === 'embed'
+        ? `<iframe title="${esc(b.heading)}" src="https://www.google.com/maps?q=${encodeURIComponent(b.address)}&output=embed" loading="lazy" class="dl-map"></iframe><p class="plain">${esc(b.address)}</p>`
+        : `<p><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}" target="_blank" rel="noopener noreferrer">${esc(b.address)}</a></p>`
+      : ''
+  }
+</section>`;
+
+    case 'newsletter':
+      return `<section id="newsletter">
+  <h2>${esc(b.heading)}</h2>
+  ${b.body ? `<p class="lead">${esc(b.body)}</p>` : ''}
+  <form class="dl-form dl-inline" data-endpoint="${esc(endpointUrl(b.endpoint))}" data-site="${esc(siteKey(siteTitle))}" data-form-id="newsletter" data-success="${esc(b.successMessage)}">
+    <label class="sr-only">Email<input type="email" name="email" required placeholder="${esc(b.placeholder)}" /></label>
+    <input type="text" name="_hp" tabindex="-1" autocomplete="off" aria-hidden="true" class="dl-hp" />
+    <button type="submit" class="btn">${esc(b.submitLabel)}</button>
+    <p class="dl-status" aria-live="polite"></p>
+  </form>
+</section>`;
   }
 }
 
@@ -164,6 +290,9 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   const bodyFont = safeFont(theme.body_font, 'Inter');
   const bg = light ? '#ffffff' : '#0a0a12';
   const fg = light ? '#14141c' : '#eef0f6';
+  const hasForm = doc.blocks.some((b) =>
+    b.type === 'form' || b.type === 'booking' || b.type === 'newsletter',
+  );
 
   return `<!doctype html>
 <html lang="${esc(language)}">
@@ -188,10 +317,10 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   .hero { text-align: center; padding-top: 6rem; padding-bottom: 6rem; }
   .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .28em; font-size: .75rem; }
   h1 { font-size: clamp(2rem, 5vw, 3.25rem); }
-  .lead { opacity: .7; max-width: 42rem; margin: 1rem auto 0; }
+  .lead { opacity: .7; max-width: 42rem; margin: 1rem auto 0; text-align: center; }
   .btn { display: inline-block; margin-top: 2rem; padding: .85rem 1.75rem; border-radius: .75rem;
          background: var(--accent); color: ${light ? '#fff' : '#0a0a12'}; text-decoration: none;
-         font-weight: 600; font-size: .875rem; }
+         font-weight: 600; font-size: .875rem; border: 0; cursor: pointer; }
   .grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 2.5rem; }
   .grid > * { border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: .875rem; padding: 1.5rem; }
   .price { color: var(--accent); font-size: 1.75rem; }
@@ -216,6 +345,28 @@ export function toStandaloneHtml(doc: SiteDocument): string {
                font-size: .75rem; opacity: .6; margin-top: .5rem; padding: 0 .25rem; }
   .credit a { text-decoration: underline; text-underline-offset: 2px; }
   footer { border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); font-size: .8rem; opacity: .65; }
+  /* A funkcionalis blokkok urlap-stilusai. Ugyanaz a szerzodes, mint a preview. */
+  .dl-form { max-width: 34rem; margin: 2rem auto 0; display: grid; gap: 1rem; }
+  .dl-form.dl-inline { display: flex; flex-wrap: wrap; }
+  .dl-form.dl-inline input[type=email] { flex: 1 1 16rem; }
+  .dl-form label { display: block; font-size: .8125rem; opacity: .85; }
+  .dl-form input, .dl-form select, .dl-form textarea {
+    width: 100%; margin-top: .35rem; padding: .7rem .85rem; border-radius: .6rem; font: inherit; font-size: .9rem;
+    background: color-mix(in srgb, var(--fg) 6%, transparent); color: var(--fg);
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); }
+  .dl-form .dl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; }
+  .dl-form .btn { margin-top: .35rem; width: 100%; }
+  .dl-form .dl-status { margin: 0; font-size: .8125rem; min-height: 1.2em; }
+  .dl-form .dl-status[data-state=ok] { color: #22c55e; }
+  .dl-form .dl-status[data-state=err] { color: #ef4444; }
+  .dl-hours { max-width: 34rem; margin: 2rem auto 0; padding: 1rem 1.25rem; border-radius: .75rem;
+              border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); font-size: .85rem; }
+  .dl-hours ul { display: grid; gap: .25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+                 list-style: none; padding: 0; margin: .5rem 0 0; }
+  .dl-hours li { display: flex; justify-content: space-between; gap: 1rem; opacity: .8; }
+  .dl-map { display: block; width: 100%; max-width: 44rem; height: 360px; margin: 2rem auto 0;
+            border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); border-radius: .75rem; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   @media (max-width: 640px) { section, footer { padding: 3rem 1.25rem; } }
 </style>
 </head>
@@ -224,10 +375,74 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   <span style="font-weight:600; letter-spacing:.04em">${esc(title)}</span>
   <nav>${nav.map((n) => `<a href="${esc(safeHref(n.href))}">${esc(n.label)}</a>`).join('')}</nav>
 </header>
-${doc.blocks.map(renderBlock).join('\n')}
+${doc.blocks.map((b) => renderBlock(b, title)).join('\n')}
+${hasForm ? FORM_SCRIPT : ''}
 </body>
 </html>`;
 }
+
+/**
+ * A lapba agyazott bekuldes-kezelo.
+ *
+ * Azert inline es nem kulso fajl, mert a letoltott HTML-nek `file://`-bol is
+ * mukodnie kell. A `_hp` honeypot mezot ember nem latja, bot kitolti — a
+ * fogado vegpont ilyenkor csendben 200-at ad, hogy a bot ne tudja meg, hogy
+ * kiszuri. A HTTP-hibat a felhasznalonak is jelezzuk (409 = zarva / nyitva-
+ * tartason kivul), mert az nem rendszerhiba, hanem valaszthato masik idopont.
+ */
+const FORM_SCRIPT = `<script>
+(function () {
+  document.querySelectorAll('form.dl-form').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var status = form.querySelector('.dl-status');
+      var button = form.querySelector('button[type=submit]');
+      var hp = form.querySelector('input[name=_hp]');
+      if (hp && hp.value) { if (status) { status.textContent = 'Köszönjük!'; status.dataset.state = 'ok'; } return; }
+
+      var payload = { siteId: form.dataset.site, _hp: '' };
+      if (form.dataset.kind === 'booking') {
+        var fd = new FormData(form);
+        payload.service = fd.get('service');
+        payload.date = fd.get('date');
+        payload.time = fd.get('time');
+        payload.name = fd.get('name');
+        payload.contact = fd.get('contact');
+        try { payload.availability = JSON.parse(form.dataset.availability || '[]'); } catch (e) { payload.availability = []; }
+      } else if (form.dataset.formId === 'newsletter') {
+        payload.email = new FormData(form).get('email');
+      } else {
+        var fields = {};
+        new FormData(form).forEach(function (value, key) {
+          if (key === '_hp') return;
+          if (typeof value === 'string' && value.trim()) fields[key] = value.trim();
+        });
+        payload.formId = form.dataset.formId;
+        payload.fields = fields;
+      }
+
+      if (button) button.disabled = true;
+      if (status) { status.textContent = 'Küldés…'; status.dataset.state = ''; }
+
+      fetch(form.dataset.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.body.message || r.body.error || ('Hiba (' + r.status + ')'));
+          if (status) { status.textContent = r.body.message || form.dataset.success || 'Köszönjük!'; status.dataset.state = 'ok'; }
+          form.reset();
+        })
+        .catch(function (err) {
+          if (status) { status.textContent = err.message || 'A beküldés nem sikerült.'; status.dataset.state = 'err'; }
+        })
+        .finally(function () { if (button) button.disabled = false; });
+    });
+  });
+})();
+</script>`;
 
 function slug(text: string): string {
   return (
