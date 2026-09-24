@@ -230,9 +230,6 @@ Deno.serve(async (req) => {
 
   const user = await requestUser(req);
   if (!user) return json({ error: "UNAUTHORIZED", message: "Jelentkezz be a videógeneráláshoz." }, 401, req);
-  if (!await consumeRateLimit(req, user.id, 2, "video")) {
-    return json({ error: "RATE_LIMITED", message: "Túl sok videógenerálási kérés rövid idő alatt." }, 429, req);
-  }
 
   let body: {
     action?: "start" | "status";
@@ -248,6 +245,20 @@ Deno.serve(async (req) => {
     body = await req.json();
   } catch {
     return json({ error: "INVALID_JSON" }, 400, req);
+  }
+
+  const action = body.action === "status" ? "status" : body.action === "start" ? "start" : "";
+  if (!action) return json({ error: "INVALID_REQUEST", message: "Az action kötelező: start vagy status." }, 400, req);
+
+  const rateLimit = action === "start" ? 2 : 30;
+  const rateScope = action === "start" ? "video:start" : "video:status";
+  if (!await consumeRateLimit(req, user.id, rateLimit, rateScope)) {
+    return json({
+      error: "RATE_LIMITED",
+      message: action === "start"
+        ? "Túl sok videógenerálási kérés rövid idő alatt."
+        : "Túl sok videóállapot-lekérdezés rövid idő alatt.",
+    }, 429, req);
   }
 
   const provider = parseProvider(body.provider);
