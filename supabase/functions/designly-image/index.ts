@@ -83,7 +83,7 @@ async function runQwen(prompt: string): Promise<string> {
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const result = await fetch(
-      `${HF_SPACE}/gradio_api/call/text_to_image/${encodeURIComponent(eventId)}`,
+      `${HF_SPACE}/gradio_api/call/${HF_FN}/${encodeURIComponent(eventId)}`,
       { headers: { Accept: "text/event-stream" } },
     );
 
@@ -93,39 +93,33 @@ async function runQwen(prompt: string): Promise<string> {
     }
 
     const lines = stream.split(/\r?\n/);
+    let eventName = "";
     for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim();
+        continue;
+      }
       if (!line.startsWith("data:")) continue;
       const payload = line.slice(5).trim();
       if (!payload) continue;
 
-      if (payload === "[DONE]") {
-        throw new Error("A Qwen Image Space nem adott képet.");
+      if (eventName === "error") {
+        throw new Error("Qwen Image generation failed.");
       }
+      if (eventName !== "complete") continue;
 
       try {
         const parsed = JSON.parse(payload);
-        const value = Array.isArray(parsed) ? parsed[0] : parsed;
-
-        if (typeof value === "string" && (value.startsWith("/") || value.startsWith("http"))) {
-          return toAbsoluteFileUrl(value);
-        }
-
-        if (value && typeof value === "object") {
-          const candidate = value.url ?? value.path;
-          if (typeof candidate === "string") return toAbsoluteFileUrl(candidate);
-          if (Array.isArray(candidate) && typeof candidate[0] === "string") return toAbsoluteFileUrl(candidate[0]);
-        }
-
-        if (Array.isArray(parsed)) {
-          for (const item of parsed) {
-            if (typeof item === "string" && (item.startsWith("/") || item.startsWith("http"))) {
-              return toAbsoluteFileUrl(item);
-            }
-            if (item && typeof item === "object" && typeof item.url === "string") {
-              return toAbsoluteFileUrl(item.url);
-            }
-            if (item && typeof item === "object" && typeof item.path === "string") {
-              return toAbsoluteFileUrl(item.path);
+        const candidates = Array.isArray(parsed) ? parsed : [parsed];
+        for (const item of candidates) {
+          if (typeof item === "string" && (item.startsWith("/") || item.startsWith("http"))) {
+            return toAbsoluteFileUrl(item);
+          }
+          if (item && typeof item === "object") {
+            const candidate = item.url ?? item.path;
+            if (typeof candidate === "string") return toAbsoluteFileUrl(candidate);
+            if (Array.isArray(candidate) && typeof candidate[0] === "string") {
+              return toAbsoluteFileUrl(candidate[0]);
             }
           }
         }
@@ -161,7 +155,7 @@ function classifyProviderError(error: unknown): { code: string; message: string 
   if (/várakozási időt|túllépte/i.test(msg)) {
     return { code: "PROVIDER_TIMEOUT", message: "A generálás túllépte az időkeretet. Próbáld újra." };
   }
-  if (/nem adott képet|\[DONE\]/i.test(msg)) {
+  if (/nem adott képet|\[DONE\]|generation failed/i.test(msg)) {
     return { code: "PROVIDER_EMPTY", message: "A generátor nem adott képet erre a briefre. Fogalmazd át." };
   }
   return { code: "PROVIDER_ERROR", message: "A képgenerálás nem sikerült." };
