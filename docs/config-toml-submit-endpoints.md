@@ -1,0 +1,21 @@
+-- A fogado vegpontok hozzaadasa a Supabase konfiguraciohoz.
+--
+-- A funkcionalis blokkok ket uj vegpontot hasznalnak. Ezek NEM DESIGNLY-
+-- felhasznalok kereset fogadnak, hanem a generalt oldal latogatojaet — ezert
+-- a `verify_jwt = true` mellett sem lehet oket JWT-vel vedei: egy latogatonak
+-- nincs tokenje. A vedelem a funkcio belsejeben van (honeypot, mezo-szures,
+-- RLS-sel lezart tablak), nem a JWT-ben.
+--
+-- Ezt a ket bejegyzest a `supabase/config.toml`-be kell bemasolni.
+--
+-- [functions.designly-form-submit]
+-- verify_jwt = false
+-- entrypoint = "./functions/designly-form-submit/index.ts"
+--
+-- [functions.designly-booking]
+-- verify_jwt = false
+-- entrypoint = "./functions/designly-booking/index.ts"
+--
+-- [functions.designly-subscribe]
+-- verify_jwt = false
+-- entrypoint = "./functions/designly-subscribe/index.ts"
