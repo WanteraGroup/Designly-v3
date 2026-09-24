@@ -59,6 +59,24 @@ export const BLOCK_TYPES = [
 
 const ALLOWED = new Set<string>(BLOCK_TYPES);
 
+function safeColor(v: unknown, fallback = '#c9a45c'): string {
+  const color = typeof v === 'string' ? v.trim() : '';
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
+}
+
+function safeFont(v: unknown, fallback: string): string {
+  const font = typeof v === 'string' ? v.trim() : '';
+  return /^[A-Za-z0-9 _.,'\-]{1,80}$/.test(font) ? font : fallback;
+}
+
+function safeHref(v: unknown, fallback = '#'): string {
+  const href = typeof v === 'string' ? v.trim() : '';
+  if (!href) return fallback;
+  if (/^(#|\/|\.\/|\.\.\/)/.test(href)) return href.slice(0, 320);
+  if (/^(https?:|mailto:|tel:)/i.test(href)) return href.slice(0, 320);
+  return fallback;
+}
+
 function text(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v.slice(0, 8000) : fallback;
 }
@@ -67,7 +85,7 @@ function link(v: unknown, fallbackLabel = 'Link', fallbackHref = '#'): CtaLink {
   const x = v && typeof v === 'object' ? v as Record<string, unknown> : {};
   return {
     label: text(x.label, fallbackLabel).slice(0, 160),
-    href: text(x.href, fallbackHref).slice(0, 320),
+    href: safeHref(x.href, fallbackHref),
   };
 }
 
@@ -182,7 +200,7 @@ function normalizeBlock(raw: unknown): SiteBlock | null {
         text: text(b.text, 'DESIGNLY STUDIO'),
         links: objectArray(b.links).slice(0, 10).map((x) => ({
           label: text(x.label, 'Link').slice(0, 160),
-          href: text(x.href, '#').slice(0, 320),
+          href: safeHref(x.href),
         })),
       };
     default:
@@ -204,16 +222,17 @@ export function parseSite(raw: unknown): SiteDocument | null {
       theme: {
         mode: theme.mode === 'light' ? 'light' : 'dark',
         palette: Array.isArray(theme.palette) && theme.palette.length
-          ? theme.palette.filter((v): v is string => typeof v === 'string').slice(0, 8)
+          ? theme.palette.filter((v): v is string => typeof v === 'string').slice(0, 8).map((v) => safeColor(v))
           : ['#c9a45c'],
-        heading_font: typeof theme.heading_font === 'string' && theme.heading_font ? theme.heading_font.slice(0, 120) : 'Marcellus',
-        body_font: typeof theme.body_font === 'string' && theme.body_font ? theme.body_font.slice(0, 120) : 'Inter',
+        heading_font: safeFont(theme.heading_font, 'Marcellus'),
+        body_font: safeFont(theme.body_font, 'Inter'),
       },
       nav: Array.isArray(doc.site.nav)
         ? doc.site.nav
             .filter((item): item is {label: string; href: string} =>
               !!item && typeof item.label === 'string' && typeof item.href === 'string')
             .slice(0, 8)
+            .map((item) => ({ label: item.label.slice(0, 160), href: safeHref(item.href) }))
         : [],
     },
     blocks: doc.blocks
