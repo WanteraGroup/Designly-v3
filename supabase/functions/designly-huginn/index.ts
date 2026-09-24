@@ -1,41 +1,37 @@
 import { requestUser } from "../_shared/auth.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
+import { corsHeadersFor } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
-
-function json(data: unknown, status = 200) {
+function json(data: unknown, status = 200, req: Request) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeadersFor(req), "Content-Type": "application/json" },
   });
 }
+
 const destinations = [
   "landing", "services", "agents", "templates", "pricing", "contact",
   "create", "extra", "gamer", "workflow"
 ];
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeadersFor(req) });
+  if (req.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405, req);
 
   const user = await requestUser(req);
   if (!await consumeRateLimit(req, user?.id ?? null, user ? 20 : 8, user ? "huginn" : "huginn-public")) {
-    return json({ ok: false, error: "RATE_LIMITED", message: "Túl sok kérés rövid idő alatt." }, 429);
+    return json({ ok: false, error: "RATE_LIMITED", message: "Túl sok kérés rövid idő alatt." }, 429, req);
   }
 
   try {
     const body = await req.json().catch(() => ({}));
     const message = typeof body.message === "string" ? body.message.trim().slice(0, 500) : "";
     const language = typeof body.language === "string" ? body.language.slice(0, 8) : "hu";
-    if (!message) return json({ error: "INVALID_REQUEST" }, 400);
+    if (!message) return json({ error: "INVALID_REQUEST" }, 400, req);
 
     const key = Deno.env.get("GROQ_API_KEY") || Deno.env.get("AI_API_KEY") || "";
     if (!user || !key) {
-      return json({ ok: true, reply: "HUGINN a DESIGNLY guide-ja. A teljes AI concierge a bejelentkezett workspace-ben aktív.", action: "create" });
+      return json({ ok: true, reply: "HUGINN a DESIGNLY guide-ja. A teljes AI concierge a bejelentkezett workspace-ben aktív.", action: "create" }, 200, req);
     }
 
     const system = [
@@ -67,7 +63,7 @@ Deno.serve(async (req: Request) => {
       }),
     });
 
-    if (!response.ok) return json({ ok: false, error: "AI_PROVIDER_ERROR" }, 502);
+    if (!response.ok) return json({ ok: false, error: "AI_PROVIDER_ERROR" }, 502, req);
 
     const data = await response.json();
     const raw = data.choices?.[0]?.message?.content || "{}";
@@ -77,8 +73,8 @@ Deno.serve(async (req: Request) => {
     const value = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
     const reply = typeof value.reply === "string" ? value.reply.slice(0, 1200) : "Kérdezz a DESIGNLY funkcióiról.";
     const action = typeof value.action === "string" && destinations.includes(value.action) ? value.action : null;
-    return json({ ok: true, reply, action });
+    return json({ ok: true, reply, action }, 200, req);
   } catch {
-    return json({ ok: false, error: "HUGINN_ERROR" }, 500);
+    return json({ ok: false, error: "HUGINN_ERROR" }, 500, req);
   }
 });
