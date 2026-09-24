@@ -137,7 +137,7 @@ function renderBlock(b: SiteBlock, docTitle = ''): string {
   <p>${esc(b.body)}</p>
   <ul class="plain">${[
     b.email ? `<li><a href="${esc(`mailto:${b.email}`)}">${esc(b.email)}</a></li>` : '',
-    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`}">${esc(b.phone)}</a></li>` : '',
+    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`)}">${esc(b.phone)}</a></li>` : '',
     b.address ? `<li>${esc(b.address)}</li>` : '',
   ].join('')}</ul>
 </section>`;
