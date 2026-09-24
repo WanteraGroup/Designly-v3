@@ -57,10 +57,10 @@ function toAbsoluteFileUrl(value: string): string {
 }
 
 async function runQwen(prompt: string): Promise<string> {
-  const start = await fetch(`${HF_SPACE}/gradio_api/call/text_to_image`, {
+  const start = await fetch(`${HF_SPACE}/gradio_api/call/generated_image`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data: [prompt, 28] }),
+    body: JSON.stringify({ data: [prompt] }),
   });
 
   const startText = await start.text();
