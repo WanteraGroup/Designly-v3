@@ -3,6 +3,7 @@ import { BadgeCheck, BriefcaseBusiness, Brush, CalendarDays, Check, Download, Fi
 import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 import EngineeringPlanner from './EngineeringPlanner';
 import CncPromptStudio from './CncPromptStudio';
+import TattooStudio from './TattooStudio';
 
 type ToolId = 'brand'|'campaign'|'product'|'ai_edit'|'business_card'|'invitation'|'flyer'|'poster'|'advertisement'|'brochure'|'menu'|'pricelist'|'social'|'banner'|'presentation'|'tattoo'|'planner'|'cnc';
 type Tool = { id: ToolId; label: string; desc: string; icon: typeof Sparkles; kind: 'visual'|'system' };
@@ -38,7 +39,7 @@ const RATIO: Record<string,string> = { business_card:'3:2', invitation:'4:3', fl
  * latott — a generalikus blokk ugyanis a `current.label`-t hasznalta promptkent,
  * ami edit eseten ertelmezhetetlen.
  */
-const TOOLS_WITH_OWN_BLOCK: ToolId[] = ['brand','cnc','planner','campaign','product','ai_edit'];
+const TOOLS_WITH_OWN_BLOCK: ToolId[] = ['brand','cnc','planner','campaign','product','ai_edit','tattoo'];
 type Brand = { name:string; tone:string; colors:string[]; heading:string; body:string };
 const DEFAULT_BRAND: Brand = { name:'', tone:'Nordic / Minimal / Luxury', colors:['#C9A45C','#0B0C10','#F3EEE3'], heading:'Marcellus', body:'Inter' };
 function LocalImage({ file, alt, className, draggable = false }: { file: File; alt: string; className?: string; draggable?: boolean }) {
@@ -149,6 +150,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
      {tool==='brand' && <section className='space-y-4'><div className='grid gap-4 md:grid-cols-2'><input className='vp-input' value={brand.name} onChange={e=>setBrand({...brand,name:e.target.value})} placeholder='Márkanév'/><input className='vp-input' value={brand.tone} onChange={e=>setBrand({...brand,tone:e.target.value})} placeholder='Hangnem / stílus'/><input className='vp-input' value={brand.heading} onChange={e=>setBrand({...brand,heading:e.target.value})} placeholder='Címbetű'/><input className='vp-input' value={brand.body} onChange={e=>setBrand({...brand,body:e.target.value})} placeholder='Törzsszöveg betű'/></div><div className='flex flex-wrap gap-2'>{brand.colors.map((c,i)=><input key={i} type='color' value={c} onChange={e=>{const colors=[...brand.colors];colors[i]=e.target.value;setBrand({...brand,colors});}} className='h-11 w-14 rounded-lg border border-line bg-panel'/>)}</div><div className='grid gap-3 md:grid-cols-4'>{brand.colors.map((c,i)=><div key={i} className='h-20 rounded-xl border border-line' style={{background:c}} title={'Szín '+(i+1)+' '+c}/>)}</div><div className='flex flex-wrap items-center gap-3'><button type='button' onClick={generateLogo} disabled={busy||!brand.name.trim()} className='vp-btn'><Sparkles className='h-4 w-4'/>Logó koncepció</button><button type='button' onClick={saveBrand} className='vp-btn'><Save className='h-4 w-4'/>Brand Kit mentése</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>Mentett betöltése</button>{brandSaved&&<span className='text-xs text-emerald-300'><Check className='inline h-4 w-4'/> Elmentve</span>}</div>{logoImage&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={logoImage} alt='Logó koncepció' draggable={false} className='max-h-[420px] w-full object-contain'/><div className='flex justify-end p-3'><a href={logoImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Logó megnyitása / mentése</a></div></div>}</section>}
      {tool==='cnc' && <CncPromptStudio language={language} />}
      {tool==='planner' && <EngineeringPlanner language={language} />}
+     {tool==='tattoo' && <TattooStudio language={language} />}
      {tool==='product' && <section className='space-y-4'>
       <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'><div className='font-semibold text-ink-100'>AI Product Studio</div><p className='mt-1'>Tölts fel egy termékfotót, válassz jelenetet, majd készíts reklám- vagy webshop-kompatibilis képet. A meglévő AI Edit motor használja a referenciát.</p></div>
       <div className='grid gap-4 md:grid-cols-2'>
