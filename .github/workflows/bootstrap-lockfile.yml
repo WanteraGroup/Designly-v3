@@ -10,8 +10,9 @@ permissions:
 
 jobs:
   lockfile:
-    if: ${{ !hashFiles('package-lock.json') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
     steps:
       - name: Checkout main
         uses: actions/checkout@v5
@@ -22,15 +23,36 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
+
+      - name: Check whether lockfile already exists
+        id: lockfile
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "package-lock.json already exists; nothing to generate."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "package-lock.json is missing; generating it."
+          fi
 
       - name: Generate lockfile
-        run: npm install --package-lock-only --ignore-scripts
+        if: steps.lockfile.outputs.exists != 'true'
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
       - name: Commit lockfile
+        if: steps.lockfile.outputs.exists != 'true'
+        shell: bash
         run: |
+          set -euo pipefail
+          test -f package-lock.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package-lock.json
-          git diff --cached --quiet && exit 0
+          if git diff --cached --quiet; then
+            echo "No lockfile changes to commit."
+            exit 0
+          fi
           git commit -m "chore: add npm lockfile for deterministic installs"
           git push origin HEAD:main
