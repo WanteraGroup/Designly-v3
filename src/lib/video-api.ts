@@ -17,6 +17,7 @@ export type VideoGenerationStatus = {
   status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
   provider: string;
   model?: string;
+  mode?: 't2v' | 'i2v';
   jobId?: string;
   url?: string;
   cost?: number;
