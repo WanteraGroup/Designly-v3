@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BadgeCheck, BriefcaseBusiness, Brush, CalendarDays, Check, Download, FileText, Image as ImageIcon, Layers3, LayoutDashboard, Megaphone, PenTool, Ruler, Save, Settings2, Sparkles, Target, Wand2, Wrench, X } from 'lucide-react';
 import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 
@@ -47,12 +47,15 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
  const [editResolution,setEditResolution]=useState<'1k'|'2k'|'4k'>('1k');
  const [editAspectRatio,setEditAspectRatio]=useState('1:1');
  const [editImage,setEditImage]=useState<string|null>(null);
+ const [editHistory,setEditHistory]=useState<string[]>([]);
+ const [editCompare,setEditCompare]=useState(50);
  const [brand,setBrand]=useState<Brand>(DEFAULT_BRAND);
  const [brandSaved,setBrandSaved]=useState(false);
  const [cnc,setCnc]=useState({w:80,h:50,depth:4,feed:700,plunge:250,spindle:12000,controller:'GRBL'});
  const [planner,setPlanner]=useState({w:200,h:100,label:'Alaprajz / gyártási terv'});
  const current=useMemo(()=>TOOLS.find(t=>t.id===tool)!,[tool]);
- const select=(id:ToolId)=>{setTool(id);setImage(null);setLogoImage(null);setCampaign([]);setEditImage(null);setError('');};
+ const select=(id:ToolId)=>{setTool(id);setImage(null);setLogoImage(null);setCampaign([]);setEditImage(null);setEditHistory([]);setError('');};
+ useEffect(()=>()=>{editFiles.forEach((file)=>{ /* object URLs are created only for previews below */ void file; });},[editFiles]);
  const loadBrand=()=>{
   try{
     const v=localStorage.getItem('designly_brand_kit_v5');
@@ -89,6 +92,7 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
   try{
     const result=await editCreativeImage({files:editFiles,prompt:editPrompt,aspectRatio:editAspectRatio,resolution:editResolution});
     setEditImage(result.url);
+    setEditHistory((prev)=>[result.url,...prev.filter((url)=>url!==result.url)].slice(0,8));
   }catch(e){setError(e instanceof Error?e.message:'Az AI Edit sikertelen.');}
   finally{setBusy(false);}
  }
@@ -110,17 +114,45 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
      {tool==='cnc' && <section className='space-y-4'><div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>{(['w','h','depth','feed','plunge','spindle'] as const).map(k=><label key={k} className='text-xs text-ink-400'>{k}<input type='number' min='0.1' value={cnc[k]} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))setCnc({...cnc,[k]:Math.max(0.1,n)});}} className='vp-input mt-1'/></label>)}<label className='text-xs text-ink-400'>Vezérlő<select value={cnc.controller} onChange={e=>setCnc({...cnc,controller:e.target.value})} className='vp-input mt-1'>{['GRBL','LinuxCNC','Mach3','Fanuc','Haas','Siemens'].map(v=><option key={v}>{v}</option>)}</select></label></div><pre className='max-h-80 overflow-auto rounded-2xl border border-line bg-black p-4 text-[11px] leading-5 text-ink-200'>{gcode}</pre><button type='button' onClick={()=>download('designly-cnc.nc',gcode,'text/plain;charset=utf-8')} className='vp-btn'><Download className='h-4 w-4'/>G-kód export</button></section>}
      {tool==='planner' && <section className='space-y-4'><div className='grid gap-3 md:grid-cols-3'><input type='number' min='1' className='vp-input' value={planner.w} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))setPlanner({...planner,w:Math.max(1,n)});}}/><input type='number' min='1' className='vp-input' value={planner.h} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))setPlanner({...planner,h:Math.max(1,n)});}}/><input className='vp-input' value={planner.label} onChange={e=>setPlanner({...planner,label:e.target.value})}/></div><img src={'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(psvg)} alt='Planner előnézet' className='w-full rounded-2xl border border-line'/><button type='button' onClick={()=>download('designly-planner.svg',psvg,'image/svg+xml;charset=utf-8')} className='vp-btn'><Download className='h-4 w-4'/>SVG export</button></section>}
      {tool==='ai_edit' && <section className='space-y-4'>
-      <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'>Nano Banana 2 Edit: 1–14 referencia-kép. A RunPod 1K / 2K / 4K kimenetet támogat; 1–3 referencia általában stabilabb.</div>
-      <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setError('');}}/>
-      {editFiles.length>0&&<div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-xl border border-line bg-black'><img src={URL.createObjectURL(file)} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-2 text-[10px] text-ink-400'>{i+1}. {file.name}</figcaption></figure>)}</div>}
-      <textarea rows={4} className='vp-input' value={editPrompt} onChange={e=>setEditPrompt(e.target.value)} placeholder='Mit változtassak? Pl. Cseréld le a hátteret sötét prémium stúdióra, a terméket és a logót tartsd változatlanul.'/>
-      <div className='grid gap-3 sm:grid-cols-2'>
+      <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'>
+       <div className='font-semibold text-ink-100'>AI Image Editor 2.0</div>
+       <p className='mt-1'>Nano Banana 2 Edit · 1–14 referencia-kép · 1K / 2K / 4K. A rendszer az eredeti témát megőrzi, és a promptban megadott változtatást célozza.</p>
+      </div>
+      <div className='grid gap-3 md:grid-cols-2'>
+       <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
+        <div className='mb-2 text-xs font-semibold text-ink-200'>1. Referenciák</div>
+        <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setEditHistory([]);setError('');}}/>
+        {editFiles.length>0&&<div className='mt-3 grid grid-cols-3 gap-2'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-lg border border-line bg-black'><img src={URL.createObjectURL(file)} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-1.5 text-[9px] text-ink-500'>{i+1}. {file.name}</figcaption></figure>)}</div>}
+       </div>
+       <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
+        <div className='mb-2 text-xs font-semibold text-ink-200'>2. Mit változtassak?</div>
+        <textarea rows={5} className='vp-input' value={editPrompt} onChange={e=>setEditPrompt(e.target.value)} placeholder='Pl. Cseréld le a hátteret sötét prémium stúdióra. A terméket, logót, feliratot és arányokat tartsd változatlanul.'/>
+        <div className='mt-3 flex flex-wrap gap-2'>{[
+          'Háttér csere prémium stúdióra',
+          'Termék környezetének cseréje',
+          'Fények és árnyékok javítása',
+          'Tisztítsd meg a hátteret',
+          'Cseréld a színeket, mást ne módosíts',
+          'Készíts reklámfotó jellegű változatot',
+        ].map(p=><button key={p} type='button' onClick={()=>setEditPrompt(p)} className='rounded-full border border-line px-3 py-1.5 text-[10px] text-ink-300 hover:border-accent/50 hover:text-accent'>{p}</button>)}</div>
+       </div>
+      </div>
+      <div className='grid gap-3 sm:grid-cols-3'>
        <label className='text-xs text-ink-400'>Felbontás<select className='vp-input mt-1' value={editResolution} onChange={e=>setEditResolution(e.target.value as '1k'|'2k'|'4k')}><option value='1k'>1K · 10 kredit</option><option value='2k'>2K · 15 kredit</option><option value='4k'>4K · 20 kredit</option></select></label>
        <label className='text-xs text-ink-400'>Képarány<select className='vp-input mt-1' value={editAspectRatio} onChange={e=>setEditAspectRatio(e.target.value)}>{['1:1','16:9','9:16','3:2','4:5','4:3','3:4','2:3'].map(v=><option key={v}>{v}</option>)}</select></label>
+       <div className='flex items-end'><button type='button' disabled={busy||!editFiles.length||!editPrompt.trim()} onClick={runImageEdit} className='vp-btn w-full'><Wand2 className='h-4 w-4'/>{busy?'AI Edit készül…':'AI Edit futtatása'}</button></div>
       </div>
-      <button type='button' disabled={busy||!editFiles.length||!editPrompt.trim()} onClick={runImageEdit} className='vp-btn'><Wand2 className='h-4 w-4'/>{busy?'AI Edit készül…':'AI Edit futtatása'}</button>
-      {editImage&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={editImage} alt='Nano Banana 2 szerkesztett kép' className='max-h-[720px] w-full object-contain'/><div className='flex justify-end p-3'><a href={editImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Kép megnyitása / mentése</a></div></div>}
-     </section>}
+      {editImage&&editFiles[0]&&<div className='rounded-2xl border border-line bg-black p-3'>
+       <div className='mb-2 flex items-center justify-between text-xs text-ink-400'><span>ELŐTTE / UTÁNA</span><span>{editCompare}%</span></div>
+       <div className='relative overflow-hidden rounded-xl'>
+        <img src={URL.createObjectURL(editFiles[0])} alt='Eredeti referencia' className='block max-h-[720px] w-full object-contain'/>
+        <div className='absolute inset-y-0 left-0 overflow-hidden' style={{width:editCompare+'%'}}><img src={editImage} alt='Szerkesztett eredmény' className='block h-full w-[100vw] max-w-none object-contain object-left'/></div>
+       </div>
+       <input aria-label='Előtte utána összehasonlítás' type='range' min='0' max='100' value={editCompare} onChange={e=>setEditCompare(Number(e.target.value))} className='mt-3 w-full'/>
+       <div className='mt-3 flex flex-wrap justify-end gap-2'><a href={editImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Eredmény megnyitása</a></div>
+      </div>}
+      {editHistory.length>0&&<div className='rounded-2xl border border-line bg-canvas/50 p-4'><div className='mb-3 text-xs font-semibold text-ink-200'>VERZIÓK · {editHistory.length}</div><div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>{editHistory.map((url,i)=><button key={url} type='button' onClick={()=>setEditImage(url)} className={'overflow-hidden rounded-xl border bg-black '+(url===editImage?'border-accent/70':'border-line')}><img src={url} alt={'AI Edit '+(i+1)} className='aspect-square w-full object-cover'/><span className='block p-2 text-left text-[10px] text-ink-400'>V{i+1}</span></button>)}</div></div>}
+     </section>
      {tool==='campaign' && <section className='space-y-4'><textarea rows={4} className='vp-input' value={brief} onChange={e=>setBrief(e.target.value)} placeholder='Pl. KÉK MAJOM őszi kampány: autókozmetika akció'/><button type='button' disabled={busy||!brief.trim()} onClick={generateCampaign} className='vp-btn'><Megaphone className='h-4 w-4'/>{busy?'Kampány készül…':'Teljes kampány generálása'}</button>{campaign.length>0&&<div className='grid gap-4 sm:grid-cols-2'>{campaign.map(x=><figure key={x.label} className='overflow-hidden rounded-2xl border border-line bg-panel'><img src={x.url} alt={x.label} draggable={false} className='h-auto w-full object-cover'/><figcaption className='flex items-center justify-between gap-3 p-3 text-xs text-ink-200'><span>{x.label}</span><a href={x.url} target='_blank' rel='noreferrer' className='text-accent'>Megnyitás</a></figcaption></figure>)}</div>}</section>}
      {!['brand','cnc','planner','campaign'].includes(tool) && <section className='space-y-4'><textarea rows={4} className='vp-input' value={brief} onChange={e=>setBrief(e.target.value)} placeholder={'Mit szeretnél készíteni? Példa: '+current.label+' egy prémium fekete-arany márkának.'}/><div className='flex flex-wrap gap-2'>{['premium','luxury','minimal','modern','cinematic','corporate','bold'].map(v=><button key={v} type='button' onClick={()=>setStyle(v)} className={'rounded-full border px-3 py-1 text-xs '+(style===v?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}>{v}</button>)}</div><div className='flex flex-wrap gap-2'><button type='button' disabled={busy||!brief.trim()} onClick={generateVisual} className='vp-btn'>{busy?<Sparkles className='h-4 w-4 animate-pulse'/>:<Brush className='h-4 w-4'/>}{busy?'Generálás…':'AI kreatív készítése'}</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>Brand betöltése</button></div>{image&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={image} alt={current.label} draggable={false} className='max-h-[620px] w-full object-contain'/><div className='flex justify-end p-3'><a href={image} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>Kép megnyitása / mentése</a></div></div>}</section>}
      {error&&<div className='mt-4 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300'><X className='h-4 w-4'/>{error}</div>}
