@@ -5,6 +5,7 @@ import './styles.css';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Home = lazy(() => import('./pages/Home'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 function Fallback() {
   return (
@@ -69,6 +70,7 @@ createRoot(root).render(
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/app" element={<Home />} />
+          <Route path="/admin" element={<AdminPanel />} />
           <Route path="*" element={<Landing />} />
         </Routes>
       </Suspense>
