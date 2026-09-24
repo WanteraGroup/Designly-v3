@@ -25,7 +25,6 @@ interface ImageHit {
 
 /** A valaszok cache-elese a funkcio eletciklusan belul. */
 const cache = new Map<string, ImageHit[]>();
-const cacheRate = new Map<string, number[]>();
 
 /**
  * Unsplash kereses.
