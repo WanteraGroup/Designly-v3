@@ -49,7 +49,7 @@ function compilePrompt(input: string): string {
   ].join("\n");
 }
 
-const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\\/$/, "");
+const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\/$/, "");
 const ENGINE_KEY = Deno.env.get("DESIGNLY_IMAGE_ENGINE_KEY") ?? "";
 const RUNPOD_KEY = Deno.env.get("RUNPOD_API_KEY") ?? "";
 const RUNPOD_ENDPOINT = (Deno.env.get("DESIGNLY_RUNPOD_ENDPOINT") ?? "https://api.runpod.ai/v2/qwen-image-t2i").replace(/\\/$/, "");
@@ -78,7 +78,7 @@ function providerChain(): ProviderName[] {
 const HF_SPACE = "https://akhaliq-qwen-image-2-1-workflow.hf.space";
 const HF_FN = "text_to_image";
 function toAbsoluteFileUrl(value: string): string {
-  if (/^https?:\\/\\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith("/")) return HF_SPACE + value;
   return HF_SPACE + "/" + value;
 }
