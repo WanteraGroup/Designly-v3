@@ -1,25 +1,35 @@
 project_id = "mxrgdcvmxzhocbdhtlhg"
 
+# A kliens a bejelentkezett felhasznalo access tokenjet kuld, nem az anon keyt.
+# A verify_jwt nelkul minden funkcio egy nyitott vegpont: a Groq token, a HF
+# ZeroGPU kvota es az Unsplash keret a projekt tulajdonosaet terheli, barki
+# hivhassa. A JWT bekapcsolasa utan a Supabase a fuggetlen ellenorzi a tokent,
+# es a 401-et a funkcio kodja elott adja vissza.
+#
+# FIGYELEM: a kliensnek ezzel egyutt session tokent kell kuldenie. Amig a
+# src/lib/*.ts az anon keyt kuldi, ezek a vegpontok 401-gyel valaszolnak.
+# A kliensoldali atallas ugyanezen a branchen van (src/lib/supabase-client.ts).
+
 [functions.designly-v3-agent]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/designly-v3-agent/index.ts"
 
 [functions.designly-v3-refine]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/designly-v3-refine/index.ts"
 
 [functions.designly-huginn]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/designly-huginn/index.ts"
 
 [functions.designly-image]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/designly-image/index.ts"
 
 [functions.designly-video]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/designly-video/index.ts"
 
 [functions.vey-images]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/vey-images/index.ts"
