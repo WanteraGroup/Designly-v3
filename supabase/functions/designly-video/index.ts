@@ -3,10 +3,12 @@ import { consumeRateLimit } from "../_shared/rate-limit.ts";
 import { corsHeadersFor } from "../_shared/cors.ts";
 
 type VideoProvider = "wan" | "kling";
+type VideoMode = "t2v" | "i2v";
 type RunpodStatus = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
 
 const RUNPOD_KEY = Deno.env.get("RUNPOD_API_KEY") ?? "";
 const WAN_ENDPOINT = (Deno.env.get("DESIGNLY_WAN_VIDEO_ENDPOINT") ?? "https://api.runpod.ai/v2/wan-2-2-i2v-720").replace(/\/$/, "");
+const WAN_T2V_ENDPOINT = (Deno.env.get("DESIGNLY_WAN_T2V_VIDEO_ENDPOINT") ?? "https://api.runpod.ai/v2/wan-2-2-t2v-720").replace(/\/$/, "");
 const KLING_ENDPOINT = (Deno.env.get("DESIGNLY_KLING_VIDEO_ENDPOINT") ?? "https://api.runpod.ai/v2/kling-v2-1-i2v-pro").replace(/\/$/, "");
 const VIDEO_COST = Number(Deno.env.get("DESIGNLY_VIDEO_COST") || "0");
 const MAX_PROMPT_LENGTH = 2500;
@@ -22,11 +24,13 @@ function parseProvider(value: unknown): VideoProvider {
   return value === "kling" ? "kling" : "wan";
 }
 
-function endpointFor(provider: VideoProvider): string {
+function endpointFor(provider: VideoProvider, mode: VideoMode = "i2v"): string {
+  if (mode === "t2v") return WAN_T2V_ENDPOINT;
   return provider === "kling" ? KLING_ENDPOINT : WAN_ENDPOINT;
 }
 
-function modelFor(provider: VideoProvider): string {
+function modelFor(provider: VideoProvider, mode: VideoMode = "i2v"): string {
+  if (mode === "t2v") return "alibaba/wan-2.2-t2v-720";
   return provider === "kling"
     ? "kwaivgi/kling-v2.1-i2v-pro"
     : "alibaba/wan-2.2-i2v-720";
@@ -53,22 +57,17 @@ function extractCost(output: unknown): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-async function runRunpod(provider: VideoProvider, imageUrl: string, prompt: string, duration: 5 | 10) {
+async function runRunpod(provider: VideoProvider, mode: VideoMode, imageUrl: string | undefined, prompt: string, duration: 5 | 10) {
   if (!RUNPOD_KEY) throw new Error("RUNPOD_NOT_CONFIGURED");
 
-  const input = provider === "kling"
+  if (mode === "t2v" && provider !== "wan") {
+    throw new Error("T2V supports the Wan 2.2 provider only.");
+  }
+
+  const input = mode === "t2v"
     ? {
         prompt,
         negative_prompt: NEGATIVE_PROMPT,
-        image: imageUrl,
-        guidance_scale: 0.5,
-        duration,
-        enable_safety_checker: true,
-      }
-    : {
-        prompt,
-        negative_prompt: NEGATIVE_PROMPT,
-        image: imageUrl,
         size: "1280*720",
         num_inference_steps: 30,
         guidance: 5,
@@ -77,9 +76,31 @@ async function runRunpod(provider: VideoProvider, imageUrl: string, prompt: stri
         seed: -1,
         enable_prompt_optimization: false,
         enable_safety_checker: true,
-      };
+      }
+    : provider === "kling"
+      ? {
+          prompt,
+          negative_prompt: NEGATIVE_PROMPT,
+          image: imageUrl,
+          guidance_scale: 0.5,
+          duration,
+          enable_safety_checker: true,
+        }
+      : {
+          prompt,
+          negative_prompt: NEGATIVE_PROMPT,
+          image: imageUrl,
+          size: "1280*720",
+          num_inference_steps: 30,
+          guidance: 5,
+          duration,
+          flow_shift: 5,
+          seed: -1,
+          enable_prompt_optimization: false,
+          enable_safety_checker: true,
+        };
 
-  const response = await fetch(endpointFor(provider) + "/run", {
+  const response = await fetch(endpointFor(provider, mode) + "/run", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -91,34 +112,34 @@ async function runRunpod(provider: VideoProvider, imageUrl: string, prompt: stri
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error("RunPod " + provider + " HTTP " + response.status + ": " + text.slice(0, 700));
+    throw new Error("RunPod " + provider + " " + mode + " HTTP " + response.status + ": " + text.slice(0, 700));
   }
 
   let payload: { id?: string; status?: RunpodStatus; output?: unknown; error?: string };
   try {
     payload = JSON.parse(text);
   } catch {
-    throw new Error("RunPod " + provider + " response is not JSON: " + text.slice(0, 300));
+    throw new Error("RunPod " + provider + " " + mode + " response is not JSON: " + text.slice(0, 300));
   }
 
   if (!payload.id) {
-    throw new Error("RunPod " + provider + " response did not include a job id: " + text.slice(0, 500));
+    throw new Error("RunPod " + provider + " " + mode + " response did not include a job id: " + text.slice(0, 500));
   }
 
   return {
     jobId: payload.id,
     status: payload.status || "IN_QUEUE",
-    model: modelFor(provider),
+    model: modelFor(provider, mode),
     cost: extractCost(payload.output),
   };
 }
 
-async function getRunpodStatus(provider: VideoProvider, jobId: string) {
+async function getRunpodStatus(provider: VideoProvider, mode: VideoMode, jobId: string) {
   if (!RUNPOD_KEY) throw new Error("RUNPOD_NOT_CONFIGURED");
   if (!/^[A-Za-z0-9._:-]{8,160}$/.test(jobId)) throw new Error("INVALID_JOB_ID");
 
   const response = await fetch(
-    endpointFor(provider) + "/status/" + encodeURIComponent(jobId),
+    endpointFor(provider, mode) + "/status/" + encodeURIComponent(jobId),
     {
       headers: { Authorization: "Bearer " + RUNPOD_KEY },
       signal: AbortSignal.timeout(30_000),
@@ -172,23 +193,24 @@ async function finalizeCompletedVideo(userId: string, provider: VideoProvider, j
   return {
     url,
     provider: provider === "kling" ? "Kling" : "RunPod",
-    model: modelFor(provider),
+    model: modelFor(provider, mode),
     cost: extractCost(output),
   };
 }
 
-async function start(userId: string, provider: VideoProvider, imageUrl: string, prompt: string, duration: 5 | 10, req: Request) {
+async function start(userId: string, provider: VideoProvider, mode: VideoMode, imageUrl: string | undefined, prompt: string, duration: 5 | 10, req: Request) {
   await ensureProfile(userId);
   const charged = await consumeCredits(userId, VIDEO_COST, "designly-video-" + provider);
   if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402, req);
 
   try {
-    const job = await runRunpod(provider, imageUrl, prompt, duration);
+    const job = await runRunpod(provider, mode, imageUrl, prompt, duration);
     return json({
       status: job.status,
       jobId: job.jobId,
-      provider: provider === "kling" ? "Kling" : "RunPod",
+      provider: mode === "t2v" ? "RunPod" : provider === "kling" ? "Kling" : "RunPod",
       model: job.model,
+      mode,
       cost: job.cost || undefined,
       duration,
     }, 200, req);
@@ -215,6 +237,7 @@ Deno.serve(async (req) => {
   let body: {
     action?: "start" | "status";
     provider?: VideoProvider;
+    mode?: VideoMode;
     imageUrl?: string;
     prompt?: string;
     duration?: number;
@@ -231,10 +254,11 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === "status") {
+      const mode: VideoMode = body.mode === "t2v" ? "t2v" : "i2v";
       const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
       if (!jobId) return json({ error: "INVALID_REQUEST", message: "A jobId kötelező." }, 400, req);
 
-      const result = await getRunpodStatus(provider, jobId);
+      const result = await getRunpodStatus(provider, mode, jobId);
       const status = result.status || "IN_QUEUE";
 
       if (status === "FAILED") {
@@ -242,7 +266,7 @@ Deno.serve(async (req) => {
           status,
           jobId,
           provider: provider === "kling" ? "Kling" : "RunPod",
-          model: modelFor(provider),
+          model: modelFor(provider, mode),
           error: result.error || "A RunPod videógenerálás sikertelen.",
         }, 200, req);
       }
@@ -261,7 +285,7 @@ Deno.serve(async (req) => {
             status: "FAILED",
             jobId,
             provider: provider === "kling" ? "Kling" : "RunPod",
-            model: modelFor(provider),
+            model: modelFor(provider, mode),
             error: error instanceof Error ? error.message : String(error),
           }, 200, req);
         }
@@ -271,22 +295,23 @@ Deno.serve(async (req) => {
         status,
         jobId,
         provider: provider === "kling" ? "Kling" : "RunPod",
-        model: modelFor(provider),
+        model: modelFor(provider, mode),
       }, 200, req);
     }
 
+    const mode: VideoMode = body.mode === "t2v" ? "t2v" : "i2v";
     const imageUrl = typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
     const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, MAX_PROMPT_LENGTH) : "";
     const duration = body.duration === 10 ? 10 : 5;
 
-    if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+    if (mode === "i2v" && (!imageUrl || !/^https?:\/\//i.test(imageUrl))) {
       return json({ error: "INVALID_REQUEST", message: "Érvényes referencia-kép URL szükséges." }, 400, req);
     }
     if (!prompt) {
       return json({ error: "INVALID_REQUEST", message: "A videó prompt kötelező." }, 400, req);
     }
 
-    return await start(user.id, provider, imageUrl, prompt, duration, req);
+    return await start(user.id, provider, mode, mode === "t2v" ? undefined : imageUrl, prompt, duration, req);
   } catch (error) {
     console.error("designly-video provider failed", provider, error);
     const message = error instanceof Error ? error.message : String(error);
