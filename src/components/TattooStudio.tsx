@@ -152,12 +152,27 @@ export default function TattooStudio({language='hu'}:{language?:string}){
         <div className='mb-3 flex items-center justify-between text-xs text-ink-400'><span>{t(language,'preview')}</span><span>{previewUrl?'ISOLATED':'—'}</span></div>
         <div className='relative flex min-h-[520px] items-center justify-center overflow-hidden rounded-2xl border border-line' style={{backgroundImage:'linear-gradient(45deg,#171717 25%,transparent 25%),linear-gradient(-45deg,#171717 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#171717 75%),linear-gradient(-45deg,transparent 75%,#171717 75%)',backgroundSize:'28px 28px',backgroundPosition:'0 0,0 14px,14px -14px,-14px 0'}}>
           {previewUrl?<img src={previewUrl} alt='Isolated tattoo stencil' className='max-h-[620px] max-w-full object-contain'/>:<div className='text-center text-sm text-ink-500'><PenTool className='mx-auto mb-2 h-8 w-8'/></div>}
-          {previewUrl&&<div className='pointer-events-none absolute inset-0'>
-            <div className='absolute inset-4 border border-accent/30'/>
-            {center&&<div className='absolute bottom-4 left-1/2 top-4 w-px bg-accent/30'/>}
-            {mirror&&<><div className='absolute bottom-4 left-[calc(50%-6px)] top-4 w-px border-l border-dashed border-cyan-300/40'/><div className='absolute bottom-4 left-[calc(50%+6px)] top-4 w-px border-l border-dashed border-cyan-300/40'/></>}
-            {grid&&<div className='absolute inset-4' style={{backgroundImage:'linear-gradient(to right, transparent 24.9%, rgba(201,164,92,.18) 25%, transparent 25.1%, transparent 49.9%, rgba(201,164,92,.18) 50%, transparent 50.1%, transparent 74.9%, rgba(201,164,92,.18) 75%, transparent 75.1%),linear-gradient(to bottom, transparent 24.9%, rgba(201,164,92,.18) 25%, transparent 25.1%, transparent 49.9%, rgba(201,164,92,.18) 50%, transparent 50.1%, transparent 74.9%, rgba(201,164,92,.18) 75%, transparent 75.1%)'}}/>
-          </div>}
+          {previewUrl && (
+            <div className='pointer-events-none absolute inset-0'>
+              <div className='absolute inset-4 border border-accent/30' />
+              {center && <div className='absolute bottom-4 left-1/2 top-4 w-px bg-accent/30' />}
+              {mirror && (
+                <>
+                  <div className='absolute bottom-4 left-[calc(50%-6px)] top-4 border-l border-dashed border-cyan-300/40' />
+                  <div className='absolute bottom-4 left-[calc(50%+6px)] top-4 border-l border-dashed border-cyan-300/40' />
+                </>
+              )}
+              {grid && (
+                <div
+                  className='absolute inset-4'
+                  style={{
+                    backgroundImage:
+                      'linear-gradient(to right, transparent 24.9%, rgba(201,164,92,.18) 25%, transparent 25.1%, transparent 49.9%, rgba(201,164,92,.18) 50%, transparent 50.1%, transparent 74.9%, rgba(201,164,92,.18) 75%, transparent 75.1%)',
+                  }}
+                />
+              )}
+            </div>
+          )}
         </div>
         {transparent&&stencil&&<div className='mt-4 grid gap-2 sm:grid-cols-2'>
           <button type='button' className='vp-btn' onClick={()=>downloadBlob('designly-tattoo-transparent.png',transparent)}><Download className='h-4 w-4'/>{t(language,'transparent')}</button>
