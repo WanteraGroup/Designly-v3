@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Clapperboard, Copy, Download, Image as ImageIcon, Play, Sparkles } from 'lucide-react';
 import { generateCreativeImage } from '../lib/creative-api';
 import { generateVideo, type VideoGenerationStatus, type VideoProvider } from '../lib/video-api';
@@ -12,6 +12,12 @@ function buildStoryboard(brief:string,style:string):Shot[]{
   {scene:3,duration:'7–12 mp',visual:'A márka / alkotás használat közben',camera:'Dynamic tracking',voice:'Bizonyíték / eredmény',text:'Mutasd meg az eredményt.'},
   {scene:4,duration:'12–15 mp',visual:'Prémium zárókép és logóhely',camera:'Centered hero frame',voice:'CTA',text:'Készen állsz? Kezdjük el.'},
  ].map((shot)=>({...shot,visual:shot.visual+' · Style: '+style}));
+}
+function LocalImage({ file, alt, className }: { file: File; alt: string; className?: string }) {
+ const [url,setUrl]=useState('');
+ useEffect(()=>{const next=URL.createObjectURL(file);setUrl(next);return()=>URL.revokeObjectURL(next);},[file]);
+ if(!url)return null;
+ return <img src={url} alt={alt} className={className}/>;
 }
 function download(name:string,data:unknown){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
 export default function MediaStudio(){
