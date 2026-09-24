@@ -18,7 +18,7 @@ import { buildSite, refineSite, type SiteDocument } from '../lib/api';
 import { downloadSiteHtml } from '../lib/export-html';
 import { collectImageQueries, resolveImages, applyImages } from '../lib/images';
 import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
-import { planAgents, type AgentEntry, type AgentPlan } from '../lib/agents';
+import { planAgents, PUBLIC_AGENT_MODULES, type AgentPlan } from '../lib/agents';
 import { CATEGORY_SPECS, specFor, briefFromTemplate } from '../lib/brief';
 import { getDesignlyTemplate, TEMPLATE_TOTAL } from '../lib/templates';
 import { templateCoverUrl } from '../lib/template-art';
@@ -489,42 +489,68 @@ export default function Home() {
  * agent, ami a listan van, de nem fut, nem hazudik mukodest.
  */
 function AgentTeam({ plan, runtimeAgents, runtimeMode }: { plan: AgentPlan; runtimeAgents: string[]; runtimeMode: 'ai' | 'fallback' }) {
+  const selected = plan.agents.map((agent) => agent.id);
+  const isInPlan = (moduleId: string) => {
+    const module = PUBLIC_AGENT_MODULES.find((item) => item.id === moduleId);
+    return !!module && (
+      module.specialistIds.length === 0 ||
+      module.specialistIds.some((id) => selected.includes(id))
+    );
+  };
+
   return (
     <aside className="vp-card h-fit p-5">
       <div className="mb-4 flex items-center gap-2">
         <Users className="h-4 w-4 text-accent" />
-        <h2 className="font-display text-sm tracking-[0.14em] text-ink-100">AGENT TEAM</h2>
+        <h2 className="font-display text-sm tracking-[0.14em] text-ink-100">DESIGNLY WORKSPACE</h2>
       </div>
 
-      <div className="mb-3 rounded-lg border border-line bg-panel-hi/50 px-3 py-2 text-[10px] text-ink-300">
-        <div className="flex items-center justify-between gap-2"><span>FŐNÖK: <b className="text-ink-100">VYRON CORE</b></span><span className={runtimeMode === 'ai' ? 'text-emerald-400' : 'text-amber-300'}>{runtimeMode === 'ai' ? 'AI RUNTIME' : 'FALLBACK'}</span></div>
+      <div className="mb-4 rounded-lg border border-line bg-panel-hi/50 px-3 py-2 text-[10px] text-ink-300">
+        <div className="flex items-center justify-between gap-2">
+          <span>FŐNÖK: <b className="text-ink-100">VYRON CORE</b></span>
+          <span className={runtimeMode === 'ai' ? 'text-emerald-400' : 'text-amber-300'}>
+            {runtimeMode === 'ai' ? 'AI RUNTIME' : 'FALLBACK'}
+          </span>
+        </div>
       </div>
 
-      <ul className="space-y-2">
-        {plan.agents.map((agent: AgentEntry) => (
-          <li key={agent.id} className="rounded-xl border border-line bg-panel-hi/60 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold tracking-wider text-ink-100">
-                {agent.name}
-              </span>
-              {runtimeAgents.includes(agent.id) ? (
-                <span className="flex items-center gap-1 text-[10px] text-emerald-400"><Check className="h-3 w-3" /> FUTOTT</span>
-              ) : agent.status === 'live' ? (
-                <span className="flex items-center gap-1 text-[10px] text-cyan-300"><Check className="h-3 w-3" /> BEKÖTVE</span>
-              ) : (
-                <span className="flex items-center gap-1 text-[10px] text-ink-400"><Clock className="h-3 w-3" /> HAMAROSAN</span>
-              )}
+      <div className="space-y-2">
+        {PUBLIC_AGENT_MODULES.map((module) => {
+          const plannedForBrief = isInPlan(module.id);
+          const executed = module.specialistIds.some((id) => runtimeAgents.includes(id));
+          const alwaysOn = ['core', 'master', 'huginn'].includes(module.id);
+
+          return (
+            <div
+              key={module.id}
+              className="rounded-xl border border-line bg-panel-hi/60 px-3 py-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold tracking-wider text-ink-100">
+                  {module.name}
+                </span>
+                {executed || alwaysOn ? (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <Check className="h-3 w-3" /> {runtimeMode === 'ai' && executed ? 'FUTOTT' : 'BEKÖTVE'}
+                  </span>
+                ) : plannedForBrief ? (
+                  <span className="flex items-center gap-1 text-[10px] text-cyan-300">
+                    <Check className="h-3 w-3" /> AKTÍV
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] text-cyan-300">
+                    <Check className="h-3 w-3" /> MODUL
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-ink-300">{module.role}</p>
             </div>
-            <p className="mt-1 text-[11px] leading-snug text-ink-300">{agent.role}</p>
-            <p className="mt-1 text-[10px] text-ink-400">
-              {plan.reasons[agent.id] ?? agent.source}
-            </p>
-          </li>
-        ))}
-      </ul>
+          );
+        })}
+      </div>
 
       <p className="mt-4 text-[10px] leading-relaxed text-ink-400">
-        VYRON CORE → DESIGNLY MASTER → specialisták → BUILDER → REVIEWER
+        VYRON CORE → DESIGNLY MASTER → specialisták a háttérben → eredmény
       </p>
     </aside>
   );
