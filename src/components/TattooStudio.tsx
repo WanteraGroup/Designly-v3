@@ -1,588 +1,449 @@
-import { ChangeEvent, DragEvent, useState } from 'react';
-import { Download, FileImage, Grid3X3, ImagePlus, Layers3, PenTool, Share2, Sparkles, Upload } from 'lucide-react';
-import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
+/**
+ * PRO TATTOO STUDIO — foto -> stencil.
+ *
+ * Ket bemenet, EGY feldolgozasi lanc:
+ *
+ *   feltoltott kep        -> buildStencil() -> stencil PNG
+ *   prompt -> RunPod      -> buildStencil() -> stencil PNG
+ *
+ * A prompt-ag is ugyanazon a motoron megy at, mert a generalt kep sosem eleve
+ * tiszta vonalmunka — a modell arnyekolt, texturazott kepet ad, amit el kell
+ * konturozni. Ez az oka, hogy a ket ag ugyanoda fut ossze.
+ *
+ * A feldolgozas KLIENSOLDALI: nincs GPU, nincs provider-koltseg. Ezert
+ * ingyenes, es ezert lesz a kesobbi kreditesites tiszta bevetel.
+ *
+ * A RunPod-ot csak a prompt-ag hivja. Az onnan jon a `reserveStencilSlot()`
+ * szandekos helye: ma mindent atenged, de a hivas helye mar most kijeloli,
+ * hova kerul a kreditesites — igy az egyetlen szerveroldali fuggveny lesz,
+ * amit at kell irni.
+ */
+import { useCallback, useRef, useState } from 'react';
+import {
+  Download, FileImage, ImagePlus, PenTool, Share2, Sparkles, Upload, X,
+  Grid3X3, Ruler, Loader2,
+} from 'lucide-react';
+import { generateCreativeImage } from '../lib/creative-api';
+import {
+  buildStencil,
+  describeStencilWarning,
+  stencilToPng,
+  type StencilDiagnostics,
+  type StencilStyle,
+  type StencilWeight,
+} from '../lib/stencil-engine';
 
-type Lang = 'hu'|'en'|'de'|'fr'|'es'|'it'|'pl'|'uk'|'ro'|'nl';
-type SourceMode = 'upload'|'ai';
-type Format = 'portrait'|'square'|'landscape';
-type StencilEngine = 'outline'|'fineLine'|'realism'|'tonalMap'|'fullDetail';
-
-const UI: Record<Lang, Record<string,string>> = {
-  hu: {
-    title:'PRO TATTOO STUDIO', desc:'Feltöltött képből vagy AI-generálásból készíts izolált, 2D tattoo stencil mintát.',
-    source:'Forrás', upload:'Kép feltöltése', ai:'AI generálás', uploadHint:'Húzd ide a képet, vagy válaszd ki a gépről.',
-    engine:'Stencil motor', outline:'Outline', fineLine:'Fine Line', realism:'Realism', tonalMap:'Tonal Map', fullDetail:'Full Detail',
-    lineColor:'Stencil vonalszín', opacity:'Stencil átlátszóság', copy:'Másolás / Procreate', prepare:'Nyomtatás előkészítése', formats:'Kimeneti formátum',
-    portrait:'Álló 2:3', square:'Négyzet 1:1', landscape:'Fekvő 3:2', concept:'AI tattoo koncepció',
-    conceptPlaceholder:'Pl. Odin két hollóval, kelta fonatokkal, csak fekete tattoo vonalmunka.',
-    removeBody:'Testrész / mockup eltávolítása', removeBodyHint:'A végső minta önálló legyen, bőr és test nélkül.', ink:'Stencil vonal / tinta',
-    fine:'Finom', standard:'Standard', bold:'Erős', guides:'Segédvonalak a szalonmunkalapon', center:'Középvonal', grid:'Rács', mirror:'Tükörtengely',
-    generate:'Stencil készítése', generating:'Stencil készül…', sourcePreview:'FORRÁS ELŐNÉZET', result:'SZALONKÉSZ STENCIL', transparent:'Átlátszó PNG',
-    stencil:'Stencil PNG', sheet:'Szalon munkalap', share:'Küldés / megosztás', empty:'Itt jelenik meg az izolált stencil.', remove:'Kép törlése',
-    aiSource:'AI FORRÁSKÉP', uploadedSource:'FELTÖLTÖTT KÉP', note:'A kimenet különálló 2D tattoo artwork. A szalon munkalap külön illesztési jeleket és segédvonalakat tartalmaz.',
-    error:'A stencil készítése sikertelen.', max:'JPG, PNG vagy WEBP • max. 10 MB'
-  },
-  en: {
-    title:'PRO TATTOO STUDIO', desc:'Create an isolated 2D tattoo stencil from an uploaded image or an AI-generated concept.',
-    source:'Source', upload:'Upload image', ai:'AI generate', uploadHint:'Drop an image here or choose a file.',
-    engine:'Stencil engine', outline:'Outline', fineLine:'Fine Line', realism:'Realism', tonalMap:'Tonal Map', fullDetail:'Full Detail',
-    lineColor:'Stencil line color', opacity:'Stencil opacity', copy:'Copy / Procreate', prepare:'Prepare for print', formats:'Output format',
-    portrait:'Portrait 2:3', square:'Square 1:1', landscape:'Landscape 3:2', concept:'AI tattoo concept',
-    conceptPlaceholder:'e.g. Odin with two ravens and Celtic knotwork, black tattoo linework only.', removeBody:'Remove body / mockup',
-    removeBodyHint:'The final artwork must be standalone, with no skin or body.', ink:'Stencil line / ink', fine:'Fine', standard:'Standard', bold:'Bold',
-    guides:'Salon worksheet guides', center:'Center line', grid:'Grid', mirror:'Mirror axis', generate:'Create stencil', generating:'Creating stencil…',
-    sourcePreview:'SOURCE PREVIEW', result:'SALON-READY STENCIL', transparent:'Transparent PNG', stencil:'Stencil PNG', sheet:'Salon worksheet',
-    share:'Share / send', empty:'The isolated stencil appears here.', remove:'Remove image', aiSource:'AI SOURCE IMAGE', uploadedSource:'UPLOADED IMAGE',
-    note:'The output is standalone 2D tattoo artwork. The salon worksheet adds separate registration marks and alignment guides.', error:'Stencil generation failed.', max:'JPG, PNG or WEBP • max. 10 MB'
-  },
-  de: {
-    title:'PRO TATTOO STUDIO', desc:'Erstelle aus einem hochgeladenen Bild oder einer KI-Idee ein isoliertes 2D-Tattoo-Stencil.',
-    source:'Quelle', upload:'Bild hochladen', ai:'KI generieren', uploadHint:'Bild hier ablegen oder Datei auswählen.', formats:'Ausgabeformat', portrait:'Hochformat 2:3',
-    square:'Quadrat 1:1', landscape:'Querformat 3:2', concept:'KI-Tattoo-Konzept', conceptPlaceholder:'z. B. Odin mit zwei Raben und keltischem Knotenmuster, nur schwarze Tattoo-Linien.',
-    removeBody:'Körper / Mockup entfernen', removeBodyHint:'Das Motiv muss freistehend ohne Haut und Körper sein.', ink:'Stencil-Linie / Tinte',
-    fine:'Fein', standard:'Standard', bold:'Stark', guides:'Hilfslinien im Salonblatt', center:'Mittellinie', grid:'Raster', mirror:'Spiegelachse',
-    generate:'Stencil erstellen', generating:'Stencil wird erstellt…', sourcePreview:'QUELLVORSCHAU', result:'SALONFERTIGES STENCIL', transparent:'Transparente PNG',
-    stencil:'Stencil PNG', sheet:'Salon-Arbeitsblatt', share:'Teilen / senden', empty:'Hier erscheint das isolierte Stencil.', remove:'Bild entfernen',
-    aiSource:'KI-QUELLBILD', uploadedSource:'HOCHGELADENES BILD', note:'Die Ausgabe ist eigenständige 2D-Tattoo-Kunst. Das Salonblatt enthält separate Registriermarken und Ausrichtungshilfen.',
-    error:'Stencil-Erstellung fehlgeschlagen.', max:'JPG, PNG oder WEBP • max. 10 MB'
-  },
-  fr: {
-    title:'PRO TATTOO STUDIO', desc:'Créez un stencil tattoo 2D isolé à partir d’une image importée ou d’un concept IA.',
-    source:'Source', upload:'Importer une image', ai:'Générer avec IA', uploadHint:'Déposez une image ou choisissez un fichier.', formats:'Format de sortie',
-    portrait:'Portrait 2:3', square:'Carré 1:1', landscape:'Paysage 3:2', concept:'Concept tattoo IA', conceptPlaceholder:'ex. Odin avec deux corbeaux et motifs celtiques, lignes noires uniquement.',
-    removeBody:'Retirer corps / mockup', removeBodyHint:'Le motif final doit être autonome, sans peau ni corps.', ink:'Ligne / encre stencil',
-    fine:'Fin', standard:'Standard', bold:'Fort', guides:'Repères feuille salon', center:'Axe central', grid:'Grille', mirror:'Axe miroir',
-    generate:'Créer le stencil', generating:'Création du stencil…', sourcePreview:'APERÇU SOURCE', result:'STENCIL PRÊT SALON', transparent:'PNG transparent',
-    stencil:'PNG stencil', sheet:'Feuille salon', share:'Partager / envoyer', empty:'Le stencil isolé apparaîtra ici.', remove:'Supprimer l’image',
-    aiSource:'IMAGE SOURCE IA', uploadedSource:'IMAGE IMPORTÉE', note:'La sortie est une illustration tattoo 2D isolée. La feuille salon ajoute séparément les marques et repères.',
-    error:'Échec de création du stencil.', max:'JPG, PNG ou WEBP • max. 10 Mo'
-  },
-  es: {
-    title:'PRO TATTOO STUDIO', desc:'Crea un stencil de tatuaje 2D aislado desde una imagen subida o un concepto generado por IA.',
-    source:'Fuente', upload:'Subir imagen', ai:'Generar con IA', uploadHint:'Arrastra una imagen o elige un archivo.', formats:'Formato de salida',
-    portrait:'Vertical 2:3', square:'Cuadrado 1:1', landscape:'Horizontal 3:2', concept:'Concepto tattoo IA', conceptPlaceholder:'Ej. Odín con dos cuervos y nudos celtas, solo líneas negras de tatuaje.',
-    removeBody:'Eliminar cuerpo / mockup', removeBodyHint:'El arte final debe quedar aislado, sin piel ni cuerpo.', ink:'Línea / tinta stencil',
-    fine:'Fina', standard:'Estándar', bold:'Fuerte', guides:'Guías de hoja de estudio', center:'Línea central', grid:'Cuadrícula', mirror:'Eje espejo',
-    generate:'Crear stencil', generating:'Creando stencil…', sourcePreview:'VISTA PREVIA DE FUENTE', result:'STENCIL LISTO PARA ESTUDIO', transparent:'PNG transparente',
-    stencil:'PNG stencil', sheet:'Hoja de estudio', share:'Compartir / enviar', empty:'Aquí aparecerá el stencil aislado.', remove:'Eliminar imagen',
-    aiSource:'IMAGEN FUENTE IA', uploadedSource:'IMAGEN SUBIDA', note:'La salida es arte tattoo 2D aislado. La hoja añade por separado marcas de registro y guías.',
-    error:'No se pudo crear el stencil.', max:'JPG, PNG o WEBP • máx. 10 MB'
-  },
-  it: {
-    title:'PRO TATTOO STUDIO', desc:'Crea uno stencil tattoo 2D isolato da un’immagine caricata o da un concept generato dall’AI.',
-    source:'Fonte', upload:'Carica immagine', ai:'Genera con AI', uploadHint:'Trascina un’immagine o scegli un file.', formats:'Formato di uscita',
-    portrait:'Verticale 2:3', square:'Quadrato 1:1', landscape:'Orizzontale 3:2', concept:'Concept tattoo AI', conceptPlaceholder:'Es. Odino con due corvi e nodi celtici, solo linee tattoo nere.',
-    removeBody:'Rimuovi corpo / mockup', removeBodyHint:'Il risultato deve essere autonomo, senza pelle o corpo.', ink:'Linea / inchiostro stencil',
-    fine:'Fine', standard:'Standard', bold:'Forte', guides:'Guide foglio studio', center:'Linea centrale', grid:'Griglia', mirror:'Asse specchio',
-    generate:'Crea stencil', generating:'Creazione stencil…', sourcePreview:'ANTEPRIMA FONTE', result:'STENCIL PRONTO STUDIO', transparent:'PNG trasparente',
-    stencil:'PNG stencil', sheet:'Scheda studio', share:'Condividi / invia', empty:'Qui apparirà lo stencil isolato.', remove:'Rimuovi immagine',
-    aiSource:'IMMAGINE FONTE AI', uploadedSource:'IMMAGINE CARICATA', note:'L’output è arte tattoo 2D isolata. La scheda studio aggiunge separatamente marker e guide.',
-    error:'Creazione stencil non riuscita.', max:'JPG, PNG o WEBP • max. 10 MB'
-  },
-  pl: {
-    title:'PRO TATTOO STUDIO', desc:'Twórz izolowany stencil tatuażu 2D z przesłanego obrazu lub konceptu AI.',
-    source:'Źródło', upload:'Prześlij obraz', ai:'Generuj AI', uploadHint:'Przeciągnij obraz lub wybierz plik.', formats:'Format wyjściowy',
-    portrait:'Pion 2:3', square:'Kwadrat 1:1', landscape:'Poziom 3:2', concept:'Koncept tatuażu AI', conceptPlaceholder:'np. Odyn z dwoma krukami i celtyckim splotem, tylko czarne linie tatuażu.',
-    removeBody:'Usuń ciało / mockup', removeBodyHint:'Końcowy wzór ma być samodzielny, bez skóry i ciała.', ink:'Linia / tusz stencila',
-    fine:'Delikatny', standard:'Standard', bold:'Mocny', guides:'Linie arkusza studia', center:'Oś środkowa', grid:'Siatka', mirror:'Oś lustra',
-    generate:'Utwórz stencil', generating:'Tworzenie stencila…', sourcePreview:'PODGLĄD ŹRÓDŁA', result:'STENCIL GOTOWY DO STUDIA', transparent:'PNG z przezroczystością',
-    stencil:'PNG stencil', sheet:'Arkusz studia', share:'Udostępnij / wyślij', empty:'Tutaj pojawi się izolowany stencil.', remove:'Usuń obraz',
-    aiSource:'OBRAZ ŹRÓDŁOWY AI', uploadedSource:'PRZESŁANY OBRAZ', note:'Wyjście to izolowana sztuka tatuażu 2D. Arkusz studia osobno dodaje znaczniki rejestracyjne i prowadnice.',
-    error:'Tworzenie stencila nie powiodło się.', max:'JPG, PNG lub WEBP • maks. 10 MB'
-  },
-  uk: {
-    title:'PRO TATTOO STUDIO', desc:'Створюйте ізольований 2D трафарет тату з завантаженого зображення або AI-концепту.',
-    source:'Джерело', upload:'Завантажити зображення', ai:'Генерувати AI', uploadHint:'Перетягніть зображення або виберіть файл.', formats:'Формат виходу',
-    portrait:'Вертикаль 2:3', square:'Квадрат 1:1', landscape:'Горизонталь 3:2', concept:'AI-концепт тату', conceptPlaceholder:'напр. Одін із двома воронами та кельтським плетінням, лише чорні лінії.',
-    removeBody:'Прибрати тіло / mockup', removeBodyHint:'Фінальний мотив має бути окремим, без шкіри та тіла.', ink:'Лінія / чорнило трафарету',
-    fine:'Тонка', standard:'Стандарт', bold:'Сильна', guides:'Напрямні аркуша студії', center:'Центральна лінія', grid:'Сітка', mirror:'Дзеркальна вісь',
-    generate:'Створити трафарет', generating:'Створення трафарету…', sourcePreview:'ПЕРЕГЛЯД ДЖЕРЕЛА', result:'ТРАФАРЕТ ГОТОВИЙ ДЛЯ СТУДІЇ', transparent:'PNG з прозорістю',
-    stencil:'PNG трафарет', sheet:'Аркуш студії', share:'Поділитися / надіслати', empty:'Тут з’явиться ізольований трафарет.', remove:'Видалити зображення',
-    aiSource:'AI ДЖЕРЕЛО', uploadedSource:'ЗАВАНТАЖЕНЕ ЗОБРАЖЕННЯ', note:'Вихід — ізольована 2D tattoo-графіка. Аркуш студії окремо додає реєстраційні позначки та напрямні.',
-    error:'Не вдалося створити трафарет.', max:'JPG, PNG або WEBP • макс. 10 МБ'
-  },
-  ro: {
-    title:'PRO TATTOO STUDIO', desc:'Creează un stencil tattoo 2D izolat dintr-o imagine încărcată sau dintr-un concept AI.',
-    source:'Sursă', upload:'Încarcă imagine', ai:'Generează cu AI', uploadHint:'Trage imaginea aici sau alege un fișier.', formats:'Format de ieșire',
-    portrait:'Portret 2:3', square:'Pătrat 1:1', landscape:'Peisaj 3:2', concept:'Concept tattoo AI', conceptPlaceholder:'ex. Odin cu doi corbi și noduri celtice, doar linii negre de tatuaj.',
-    removeBody:'Elimină corpul / mockup-ul', removeBodyHint:'Designul final trebuie să fie independent, fără piele sau corp.', ink:'Linie / cerneală stencil',
-    fine:'Fin', standard:'Standard', bold:'Puternic', guides:'Ghidaje foaie salon', center:'Linie centrală', grid:'Grilă', mirror:'Axă oglindă',
-    generate:'Creează stencil', generating:'Se creează stencilul…', sourcePreview:'PREVIZUALIZARE SURSĂ', result:'STENCIL GATA PENTRU SALON', transparent:'PNG transparent',
-    stencil:'PNG stencil', sheet:'Foaie salon', share:'Distribuie / trimite', empty:'Aici va apărea stencilul izolat.', remove:'Elimină imaginea',
-    aiSource:'IMAGINE SURSĂ AI', uploadedSource:'IMAGINE ÎNCĂRCATĂ', note:'Ieșirea este artă tattoo 2D izolată. Foaia salon adaugă separat markere și ghidaje de aliniere.',
-    error:'Generarea stencilului a eșuat.', max:'JPG, PNG sau WEBP • max. 10 MB'
-  },
-  nl: {
-    title:'PRO TATTOO STUDIO', desc:'Maak een geïsoleerde 2D tattoo-stencil uit een geüploade afbeelding of een AI-concept.',
-    source:'Bron', upload:'Afbeelding uploaden', ai:'AI genereren', uploadHint:'Sleep een afbeelding hierheen of kies een bestand.', formats:'Uitvoerformaat',
-    portrait:'Portret 2:3', square:'Vierkant 1:1', landscape:'Landschap 3:2', concept:'AI tattoo-concept', conceptPlaceholder:'bijv. Odin met twee raven en Keltische knopen, alleen zwarte tattoo-lijnen.',
-    removeBody:'Lichaam / mockup verwijderen', removeBodyHint:'Het eindmotief moet losstaand zijn, zonder huid of lichaam.', ink:'Stencil-lijn / inkt',
-    fine:'Fijn', standard:'Standaard', bold:'Sterk', guides:'Hulplijnen voor salonblad', center:'Middenlijn', grid:'Raster', mirror:'Spiegelas',
-    generate:'Stencil maken', generating:'Stencil wordt gemaakt…', sourcePreview:'BRONVOORBEELD', result:'SALONKLARE STENCIL', transparent:'Transparante PNG',
-    stencil:'Stencil PNG', sheet:'Salonwerkblad', share:'Delen / verzenden', empty:'Hier verschijnt de geïsoleerde stencil.', remove:'Afbeelding verwijderen',
-    aiSource:'AI-BRONAFBEELDING', uploadedSource:'GEÜPLOADE AFBEELDING', note:'De uitvoer is geïsoleerde 2D tattoo-art. Het salonblad voegt apart registratie- en uitlijnhulpen toe.',
-    error:'Stencilgeneratie mislukt.', max:'JPG, PNG of WEBP • max. 10 MB'
-  },
-};
-
-function t(language:string,key:string){
-  const lang=(language in UI?language:'en') as Lang;
-  return UI[lang][key] || UI.en[key] || key;
+export interface TattooStudioProps {
+  language?: string;
+  initialStyle?: string;
 }
 
-function downloadBlob(name:string,blob:Blob){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1500);
-}
+/** A motor-csempek: a kulcs a motor-azonosito, a cimke a felulet szovege. */
+const ENGINES: Array<{ id: StencilStyle; hu: string; en: string; subHu: string; subEn: string }> = [
+  { id: 'outline', hu: 'Outline', en: 'Outline', subHu: 'Kontúr', subEn: 'Contour' },
+  { id: 'fineLine', hu: 'Fine Line', en: 'Fine Line', subHu: 'Finom vonal', subEn: 'Fine line' },
+  { id: 'realism', hu: 'Realism', en: 'Realism', subHu: 'Tónus', subEn: 'Tone' },
+  { id: 'hatching', hu: 'Hatching', en: 'Hatching', subHu: 'Árnyékolás', subEn: 'Shading' },
+  { id: 'tonalMap', hu: 'Tonal Map', en: 'Tonal Map', subHu: 'Térkép', subEn: 'Tonal map' },
+  { id: 'fullDetail', hu: 'Full Detail', en: 'Full Detail', subHu: 'Részletes', subEn: 'Detailed' },
+];
 
-async function fileToPreview(file:File):Promise<string>{
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=()=>typeof reader.result==='string'?resolve(reader.result):reject(new Error('A kép előnézete nem olvasható.'));
-    reader.onerror=()=>reject(new Error('A kép előnézete nem olvasható.'));
-    reader.readAsDataURL(file);
-  });
-}
+export default function TattooStudio({ language = 'hu', initialStyle }: TattooStudioProps) {
+  const hu = language === 'hu';
+  const [mode, setMode] = useState<'upload' | 'ai'>('upload');
+  const [file, setFile] = useState<File | null>(null);
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [concept, setConcept] = useState('');
+  const [engine, setEngine] = useState<StencilStyle>((initialStyle as StencilStyle) ?? 'outline');
+  const [weight, setWeight] = useState<StencilWeight>('standard');
+  const [lineColor, setLineColor] = useState('#000000');
+  const [opacity, setOpacity] = useState(100);
+  const [guides, setGuides] = useState({ grid: true, center: true, mirror: false });
+  const [result, setResult] = useState('');
+  const [diagnostics, setDiagnostics] = useState<StencilDiagnostics | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
-async function isolateInkPng(url:string,transparent:boolean,threshold:number,lineColor:string='#000000',opacity=1):Promise<Blob>{
-  const response=await fetch(url);
-  if(!response.ok) throw new Error('A stencil forrása nem tölthető be.');
-  const blob=await response.blob();
-  const bitmap=await createImageBitmap(blob);
+  /** A forras, amin a motor fut: feltoltott fajl, vagy a RunPod URL-je. */
+  const activeSource: File | string | null = mode === 'upload' ? file : (sourceUrl || null);
+  const canRun = Boolean(activeSource) && !busy;
 
-  const src=document.createElement('canvas');
-  src.width=bitmap.width; src.height=bitmap.height;
-  const srcCtx=src.getContext('2d');
-  if(!srcCtx) throw new Error('A képfeldolgozó nem indult.');
-  srcCtx.drawImage(bitmap,0,0); bitmap.close();
+  /**
+   * A stencil futtatasa.
+   *
+   * Ez a fuggveny NEM tudja, honnan jott a kep — ez a lenyeg. A feltoltott
+   * fajl es a RunPod URL ugyanide fut be, es a kimenet ugyanaz a lanc.
+   */
+  const runStencil = useCallback(async (source: File | string) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { canvas, diagnostics: diag } = await buildStencil(source, {
+        style: engine,
+        weight,
+        lineColor,
+        opacity: opacity / 100,
+        transparent: true,
+      });
+      const blob = await stencilToPng(canvas);
+      const url = URL.createObjectURL(blob);
+      setResult((prev) => {
+        if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return url;
+      });
+      setDiagnostics(diag);
+      const warning = describeStencilWarning(diag);
+      if (warning) setNotice(warning);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (hu ? 'A stencil készítése sikertelen.' : 'Stencil generation failed.'));
+    } finally {
+      setBusy(false);
+    }
+  }, [engine, weight, lineColor, opacity, hu]);
 
-  const w=src.width,h=src.height;
-  const data=srcCtx.getImageData(0,0,w,h).data;
-  const inkMask=new Uint8Array(w*h);
-
-  // Background removal is based on whiteness/low-contrast pixels only.
-  // We deliberately do NOT cap connected-component size: a complete tattoo
-  // motif can legitimately occupy a large portion of the canvas.
-  const minX=Math.floor(w*0.01),maxX=Math.ceil(w*0.99);
-  const minY=Math.floor(h*0.01),maxY=Math.ceil(h*0.99);
-  for(let y=minY;y<maxY;y++) for(let x=minX;x<maxX;x++){
-    const i=(y*w+x)*4;
-    const r=data[i],g=data[i+1],b=data[i+2];
-    const lum=0.2126*r+0.7152*g+0.0722*b;
-    const chroma=Math.max(r,g,b)-Math.min(r,g,b);
-
-    // Preserve dark, neutral tattoo ink. Reject bright/near-white background.
-    // 'threshold' remains the user's ink-strength control.
-    const isInk=lum<threshold && chroma<55;
-    if(isInk) inkMask[y*w+x]=1;
+  /** Feltoltott kep. A feldolgozas azonnal indul — nincs varakozas. */
+  async function onPick(event: React.ChangeEvent<HTMLInputElement>) {
+    const picked = event.target.files?.[0];
+    if (!picked) return;
+    if (picked.size > 10 * 1024 * 1024) {
+      setError(hu ? 'A kép legfeljebb 10 MB lehet.' : 'The image may be at most 10 MB.');
+      return;
+    }
+    if (sourceUrl.startsWith('blob:')) URL.revokeObjectURL(sourceUrl);
+    const preview = URL.createObjectURL(picked);
+    setFile(picked);
+    setSourceUrl(preview);
+    setResult('');
+    setDiagnostics(null);
+    await runStencil(picked);
   }
 
-  // Remove only tiny isolated specks. Never remove a large connected tattoo component.
-  const seen=new Uint8Array(w*h);
-  const kept=new Uint8Array(w*h);
-  const qx=new Int32Array(Math.min(w*h,2200000));
-  const qy=new Int32Array(Math.min(w*h,2200000));
-  const neighbors=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
-  const minComponent=Math.max(12,Math.floor(w*h*0.0000007));
-  let totalKept=0;
-  let minBX=w,minBY=h,maxBX=0,maxBY=0;
-
-  for(let sy=minY;sy<maxY;sy++) for(let sx=minX;sx<maxX;sx++){
-    const si=sy*w+sx;
-    if(!inkMask[si]||seen[si]) continue;
-
-    let head=0,tail=0;
-    const indices:number[]=[];
-    let cminX=w,cminY=h,cmaxX=0,cmaxY=0;
-    qx[tail]=sx;qy[tail]=sy;tail++;seen[si]=1;
-
-    while(head<tail){
-      const x=qx[head],y=qy[head];head++;
-      const idx=y*w+x;indices.push(idx);
-      if(x<cminX)cminX=x;if(x>cmaxX)cmaxX=x;
-      if(y<cminY)cminY=y;if(y>cmaxY)cmaxY=y;
-
-      for(const [dx,dy] of neighbors){
-        const nx=x+dx,ny=y+dy;
-        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY) continue;
-        const ni=ny*w+nx;
-        if(inkMask[ni]&&!seen[ni]){
-          seen[ni]=1;qx[tail]=nx;qy[tail]=ny;tail++;
-        }
+  /**
+   * Prompt -> RunPod -> ugyanaz a motor.
+   *
+   * A `reserveStencilSlot()` itt a helye: a RunPod hivas az egyetlen pont ebben
+   * a komponensben, ami valodi penzbe kerul. Ma mindent atenged; kesobb ide
+   * kerul a kredit-ellenorzes, es a komponens tobbi resze valtozatlan marad.
+   */
+  async function generateFromConcept() {
+    if (!concept.trim() || busy) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const image = await generateCreativeImage(concept.trim(), '1:1');
+      setSourceUrl(image.url);
+      setFile(null);
+      await runStencil(image.url);
+      const cost = typeof image.cost === 'number' ? image.cost : null;
+      if (cost !== null) {
+        setNotice((hu ? 'A generálás költsége: $' : 'Generation cost: $') + cost.toFixed(4) + '.');
       }
-    }
-
-    // Keep every meaningful tattoo component, regardless of its area.
-    if(indices.length>=minComponent){
-      for(const idx of indices) kept[idx]=1;
-      totalKept+=indices.length;
-      if(cminX<minBX)minBX=cminX;if(cminY<minBY)minBY=cminY;
-      if(cmaxX>maxBX)maxBX=cmaxX;if(cmaxY>maxBY)maxBY=cmaxY;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (hu ? 'A stencil készítése sikertelen.' : 'Stencil generation failed.'));
+      setBusy(false);
     }
   }
 
-  if(!totalKept) throw new Error('Nem sikerült tisztán kiválasztani a tattoo motívumot.');
-
-  // Tight crop around the entire retained tattoo artwork.
-  const pad=Math.max(18,Math.round(Math.min(w,h)*0.035));
-  const bx0=Math.max(0,minBX-pad),by0=Math.max(0,minBY-pad);
-  const bx1=Math.min(w,maxBX+pad+1),by1=Math.min(h,maxBY+pad+1);
-  const outW=bx1-bx0,outH=by1-by0;
-
-  const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;
-  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('A stencil kimenet nem indult.');
-  const out=ctx.createImageData(outW,outH);
-
-  const cr=parseInt(lineColor.slice(1,3),16)||0;
-  const cg=parseInt(lineColor.slice(3,5),16)||0;
-  const cb=parseInt(lineColor.slice(5,7),16)||0;
-
-  for(let y=0;y<outH;y++) for(let x=0;x<outW;x++){
-    const si=(by0+y)*w+(bx0+x),di=(y*outW+x)*4,ink=kept[si]===1;
-    if(ink){
-      out.data[di]=cr;out.data[di+1]=cg;out.data[di+2]=cb;
-      out.data[di+3]=transparent?Math.round(255*opacity):255;
-    }else{
-      out.data[di]=255;out.data[di+1]=255;out.data[di+2]=255;out.data[di+3]=transparent?0:255;
-    }
+  /** Motorvaltas utan ujrafuttatas — a forras valtozatlan. */
+  function pickEngine(id: StencilStyle) {
+    setEngine(id);
+    if (activeSource) void runStencil(activeSource);
   }
 
-  ctx.putImageData(out,0,0);
-  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
-    b=>b?resolve(b):reject(new Error('Stencil PNG export hiba.')),'image/png'
-  ));
-}
-async function guideSheet(blob:Blob,opts:{grid:boolean;center:boolean;mirror:boolean}):Promise<Blob>{
-  const bitmap=await createImageBitmap(blob);
-  const w=bitmap.width,h=bitmap.height;
-
-  // Dedicated salon worksheet: the stencil is centered on an opaque white technical sheet.
-  const marginX=Math.max(220,Math.round(w*0.24));
-  const marginY=Math.max(220,Math.round(h*0.20));
-  const W=w+marginX*2,H=h+marginY*2;
-  const canvas=document.createElement('canvas');
-  canvas.width=W;canvas.height=H;
-  const ctx=canvas.getContext('2d');
-  if(!ctx)throw new Error('A munkalap export nem indult.');
-
-  ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,W,H);
-
-  const frameX=marginX,frameY=marginY;
-
-  // White stencil field.
-  ctx.drawImage(bitmap,frameX,frameY,w,h);
-  bitmap.close();
-
-  ctx.save();
-  ctx.strokeStyle='#222';
-  ctx.fillStyle='#222';
-  ctx.lineWidth=2;
-  ctx.setLineDash([]);
-
-  // Main technical frame.
-  ctx.strokeRect(frameX,frameY,w,h);
-
-  // Corner crop marks.
-  const crop=52,gap=14;
-  const corners:Array<[number,number,number,number]>=[
-    [frameX,frameY,1,1],[frameX+w,frameY,-1,1],
-    [frameX,frameY+h,1,-1],[frameX+w,frameY+h,-1,-1],
-  ];
-  for(const [x,y,sx,sy] of corners){
-    ctx.beginPath();
-    ctx.moveTo(x+sx*gap,y);ctx.lineTo(x+sx*(gap+crop),y);
-    ctx.moveTo(x,y+sy*gap);ctx.lineTo(x,y+sy*(gap+crop));
-    ctx.stroke();
+  function download(href: string) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = 'designly-stencil.png';
+    a.click();
   }
 
-  // Large registration crosses: four corners + four side centers + page center.
-  const cross=(cx:number,cy:number,size:number,label:string)=>{
-    ctx.strokeStyle='#111';
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.moveTo(cx-size,cy);ctx.lineTo(cx+size,cy);
-    ctx.moveTo(cx,cy-size);ctx.lineTo(cx,cy+size);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx,cy,Math.max(7,size*.22),0,Math.PI*2);
-    ctx.stroke();
-    ctx.font='700 '+Math.max(10,Math.round(size*.62))+'px sans-serif';
-    ctx.textAlign='center';
-    ctx.fillText(label,cx,cy+size*1.85);
-  };
-  const off=Math.max(72,Math.round(Math.min(marginX,marginY)*.58));
-  const size=Math.max(26,Math.round(Math.min(W,H)*.017));
-  cross(frameX-off,frameY-off,size,'REG');
-  cross(frameX+w+off,frameY-off,size,'REG');
-  cross(frameX-off,frameY+h+off,size,'REG');
-  cross(frameX+w+off,frameY+h+off,size,'REG');
-  cross(frameX-off, H/2,size,'REG');
-  cross(frameX+w+off, H/2,size,'REG');
-  cross(W/2,frameY-off,size,'REG');
-  cross(W/2,frameY+h+off,size,'REG');
-  cross(W/2,H/2,size*.78,'CENTER');
-
-  // Alignment axes.
-  if(opts.center){
-    ctx.setLineDash([18,12]);
-    ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.moveTo(frameX,H/2);ctx.lineTo(frameX+w,H/2);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(W/2,frameY);ctx.lineTo(W/2,frameY+h);ctx.stroke();
-  }
-  if(opts.mirror){
-    ctx.setLineDash([7,9]);
-    ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.moveTo(W/2-6,frameY);ctx.lineTo(W/2-6,frameY+h);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(W/2+6,frameY);ctx.lineTo(W/2+6,frameY+h);ctx.stroke();
-  }
-
-  // 10×10 technical grid only inside the stencil field.
-  if(opts.grid){
-    ctx.setLineDash([]);
-    ctx.strokeStyle='rgba(30,30,30,.16)';
-    ctx.lineWidth=1;
-    for(let i=1;i<10;i++){
-      const x=frameX+w*i/10;
-      const y=frameY+h*i/10;
-      ctx.beginPath();ctx.moveTo(x,frameY);ctx.lineTo(x,frameY+h);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(frameX,y);ctx.lineTo(frameX+w,y);ctx.stroke();
-    }
-  }
-
-  // Print / production information.
-  ctx.setLineDash([]);
-  ctx.fillStyle='#111';
-  ctx.textAlign='left';
-  ctx.font='700 '+Math.max(18,Math.round(Math.min(W,H)*.018))+'px sans-serif';
-  ctx.fillText('DESIGNLY TATTOO · STENCIL MASTER',Math.max(28,Math.round(marginX*.16)),Math.max(42,Math.round(marginY*.34)));
-  ctx.font='600 '+Math.max(11,Math.round(Math.min(W,H)*.009))+'px sans-serif';
-  ctx.fillText('PRINT 100% · NO FIT TO PAGE · REGISTRATION CROSSES · CROP MARKS',Math.max(28,Math.round(marginX*.16)),Math.max(65,Math.round(marginY*.54)));
-
-  // Orientation markers.
-  ctx.textAlign='center';
-  ctx.font='700 '+Math.max(12,Math.round(Math.min(W,H)*.010))+'px sans-serif';
-  ctx.fillText('TOP',W/2,Math.max(22,Math.round(marginY*.15)));
-  ctx.fillText('BOTTOM',W/2,H-Math.max(14,Math.round(marginY*.09)));
-
-  // Scale reference.
-  const bar=Math.max(140,Math.round(W*.09));
-  const bx=W-bar-Math.max(28,Math.round(marginX*.16));
-  const by=H-Math.max(34,Math.round(marginY*.25));
-  ctx.textAlign='right';
-  ctx.font='600 '+Math.max(10,Math.round(Math.min(W,H)*.008))+'px sans-serif';
-  ctx.fillText('REFERENCE 50 mm',bx+bar,by-12);
-  ctx.strokeStyle='#111';ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+bar,by);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(bx,by-9);ctx.lineTo(bx,by+9);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(bx+bar,by-9);ctx.lineTo(bx+bar,by+9);ctx.stroke();
-
-  ctx.restore();
-
-  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
-    b=>b?resolve(b):reject(new Error('Munkalap export hiba.')),'image/png'
-  ));
-}
-
-export default function TattooStudio({language='hu'}:{language?:string}){
-  const [sourceMode,setSourceMode]=useState<SourceMode>('upload');
-  const [file,setFile]=useState<File|null>(null);
-  const [sourcePreview,setSourcePreview]=useState<string|null>(null);
-  const [concept,setConcept]=useState('Kelta fonatos koszorú, Odin két hollója, önálló fekete tattoo vonalmunka, tiszta negatív tér.');
-  const [format,setFormat]=useState<Format>('portrait');
-  const [engine,setEngine]=useState<StencilEngine>('fineLine');
-  const [lineColor,setLineColor]=useState('#000000');
-  const [opacity,setOpacity]=useState(1);
-  const [inkLevel,setInkLevel]=useState(145);
-  const [removeBody,setRemoveBody]=useState(true);
-  const [grid,setGrid]=useState(true),[center,setCenter]=useState(true),[mirror,setMirror]=useState(false);
-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
-  const [resultUrl,setResultUrl]=useState<string|null>(null);
-  const [transparent,setTransparent]=useState<Blob|null>(null),[stencil,setStencil]=useState<Blob|null>(null),[sheet,setSheet]=useState<Blob|null>(null);
-
-  const ratio=format==='portrait'?'2:3':format==='landscape'?'3:2':'1:1';
-
-  async function setSource(next:File){
-    if(!/^image\/(png|jpe?g|webp)$/i.test(next.type)) { setError(t(language,'max')); return; }
-    if(next.size>10*1024*1024) { setError(t(language,'max')); return; }
-    setFile(next); setSourcePreview(await fileToPreview(next)); setError('');
-    setResultUrl(null);setTransparent(null);setStencil(null);setSheet(null);
-  }
-
-  async function chooseFile(e:ChangeEvent<HTMLInputElement>){ if(e.target.files?.[0]) await setSource(e.target.files[0]); }
-  async function dropFile(e:DragEvent<HTMLLabelElement>){ e.preventDefault(); const f=e.dataTransfer.files?.[0]; if(f) await setSource(f); }
-
-  const enginePrompt = {
-    outline: 'Use clean outer contours and essential internal lines; simplify tiny details for a transfer stencil.',
-    fineLine: 'Use precise fine-line tattoo contours with controlled internal linework and generous negative space.',
-    realism: 'Translate realistic tonal information into tattooable contour and controlled black/grey stencil information; no skin or photo.',
-    tonalMap: 'Convert values into clean mapped black/grey regions with intentional negative space and clear tattoo shading boundaries.',
-    fullDetail: 'Preserve maximum useful tattoo detail while keeping every line traceable and transfer-friendly.',
-  }[engine];
-
-  async function generate(){
-    if(busy) return;
-    if(sourceMode==='upload'&&!file){setError(t(language,'uploadHint'));return;}
-    if(sourceMode==='ai'&&!concept.trim()){setError(t(language,'error'));return;}
-    setBusy(true);setError('');setResultUrl(null);setTransparent(null);setStencil(null);setSheet(null);
-    try{
-      let workingUrl='';
-      if(sourceMode==='upload'){
-        const edited=await editCreativeImage({
-          files:[file!],
-          prompt:(removeBody?'Convert the uploaded image into a PURE 2D TATTOO STENCIL. Remove ALL skin, arm, leg, hand, shoulder, chest, torso, face, person, clothing, body, background, poster, frame, scenery, props and mockup elements. ': 'Do not create a body mockup. ')
-            +'Keep ONLY the tattoo motif. No 3D, no photorealism, no cinematic lighting, no shadows, no gradients. Reconstruct as clean black tattoo linework with crisp outer contours, controlled solid black stencil areas, clean negative space and traceable shapes. No text unless the requested letter is part of the tattoo motif. Plain white background only. '+enginePrompt,
-          aspectRatio:ratio,resolution:'1k'
-        });
-        workingUrl=edited.url;
-      }else{
-        const generated=await generateCreativeImage([
-          'PURE 2D TATTOO STENCIL ARTWORK ONLY.',
-          'Create exactly ONE standalone tattoo motif centered on a plain white background.',
-          'NO body, skin, arm, leg, hand, shoulder, chest, torso, face, person, mannequin or clothing.',
-          'NO poster, paper, mockup, scenery, environment, frame, border or props.',
-          'NO 3D, no photorealism, no perspective, no cinematic lighting, no shadows, no gradients.',
-          'Flat black tattoo linework, clean contour hierarchy, solid stencil areas, white negative space, connected traceable shapes. '+enginePrompt,
-          'No presentation text, captions, logos or watermark. A requested monogram may be an integral part of the tattoo motif.',
-          'Concept: '+concept.trim()
-        ].join(' '),ratio);
-        workingUrl=generated.url;
-      }
-
-      const alpha=await isolateInkPng(workingUrl,true,inkLevel,lineColor,opacity);
-      const st=await isolateInkPng(workingUrl,false,inkLevel,lineColor,opacity);
-      const sh=await guideSheet(st,{grid,center,mirror});
-      setTransparent(alpha);setStencil(st);setSheet(sh);setResultUrl(URL.createObjectURL(alpha));
-    }catch(e){
-      setError(e instanceof Error?e.message:t(language,'error'));
-    }finally{setBusy(false);}
-  }
-
-  async function copyToProcreate(blob:Blob){
-    try{
-      const item=new ClipboardItem({'image/png':blob});
-      await navigator.clipboard.write([item]);
-    }catch{ setError(t(language,'copy')); }
-  }
-
-  async function share(blob:Blob,name:string){
-    try{
-      const fileToShare=new File([blob],name,{type:'image/png'});
-      if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[fileToShare]}))){
-        await navigator.share({title:'Designly Tattoo Stencil',text:'Szalonra kész 2D tattoo stencil',files:[fileToShare]});return;
-      }
-      downloadBlob(name,blob);
-    }catch(e){if(e instanceof DOMException&&e.name==='AbortError')return;downloadBlob(name,blob);}
-  }
-
-  return <section className='space-y-5'>
-    <div className='rounded-2xl border border-accent/25 bg-accent/5 p-4'>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <div><div className='text-xs font-semibold text-ink-100'>{t(language,'title')}</div><p className='mt-1 text-xs text-ink-400'>{t(language,'desc')}</p></div>
-        <span className='rounded-full border border-emerald-500/30 px-3 py-1 text-[10px] text-emerald-300'>2D STENCIL</span>
-      </div>
-    </div>
-
-    <div className='grid gap-4 lg:grid-cols-[1fr_1.05fr]'>
-      <div className='space-y-4 rounded-2xl border border-line bg-canvas/50 p-4'>
-        <div className='flex gap-2 rounded-xl border border-line bg-black/30 p-1'>
-          <button type='button' onClick={()=>setSourceMode('upload')} className={'flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs '+(sourceMode==='upload'?'bg-accent/15 text-accent':'text-ink-300')}><Upload className='h-4 w-4'/>{t(language,'upload')}</button>
-          <button type='button' onClick={()=>setSourceMode('ai')} className={'flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs '+(sourceMode==='ai'?'bg-accent/15 text-accent':'text-ink-300')}><Sparkles className='h-4 w-4'/>{t(language,'ai')}</button>
+  return (
+    <div className="mt-8 rounded-3xl border border-line bg-panel/70 p-5 shadow-2xl backdrop-blur-xl">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[.22em] text-accent">PRO TATTOO STUDIO</div>
+          <h2 className="mt-1 font-display text-2xl text-ink-100">
+            {hu ? 'Fotó → stencil' : 'Photo → stencil'}
+          </h2>
         </div>
+        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] text-emerald-300">
+          {hu ? 'INGYENES · KLIENSOLDALI' : 'FREE · CLIENT-SIDE'}
+        </span>
+      </div>
 
-        {sourceMode==='upload'?(
-          <div className='space-y-3'>
-            <label onDragOver={e=>e.preventDefault()} onDrop={dropFile} className='flex min-h-[210px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-accent/40 bg-black/30 p-6 text-center hover:border-accent/70'>
-              <input type='file' accept='image/png,image/jpeg,image/webp' className='hidden' onChange={chooseFile}/>
-              <ImagePlus className='mb-3 h-10 w-10 text-accent'/><div className='text-sm font-medium text-ink-100'>{t(language,'uploadHint')}</div><div className='mt-2 text-[10px] text-ink-500'>{t(language,'max')}</div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* ---------- BAL: bemenet es vezerlok ---------- */}
+        <div>
+          <div className="mb-4 flex gap-2">
+            {(['upload', 'ai'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setMode(m); setError(''); setNotice(''); }}
+                className={'flex-1 rounded-xl border px-4 py-2.5 text-xs transition ' + (mode === m
+                  ? 'border-accent/70 bg-accent/15 text-accent'
+                  : 'border-line text-ink-300 hover:text-ink-100')}
+              >
+                {m === 'upload' ? (
+                  <><Upload className="mr-1.5 inline h-3.5 w-3.5" />{hu ? 'Kép feltöltése' : 'Upload image'}</>
+                ) : (
+                  <><Sparkles className="mr-1.5 inline h-3.5 w-3.5" />{hu ? 'AI generálás' : 'AI generate'}</>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'upload' ? (
+            <div>
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={onPick}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="w-full rounded-2xl border border-dashed border-line bg-canvas/40 px-6 py-10 text-center transition hover:border-accent/50"
+              >
+                <ImagePlus className="mx-auto h-7 w-7 text-accent" />
+                <p className="mt-3 text-sm text-ink-100">
+                  {hu ? 'Húzd ide a képet, vagy válaszd ki a gépről.' : 'Drop an image here or choose a file.'}
+                </p>
+                <p className="mt-1 text-[11px] text-ink-400">JPG, PNG / WEBP · max 10 MB</p>
+              </button>
+              {file && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel px-3 py-2">
+                  <span className="flex min-w-0 items-center gap-2 text-xs text-ink-200">
+                    <FileImage className="h-3.5 w-3.5 shrink-0 text-accent" />
+                    <span className="truncate">{file.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (sourceUrl.startsWith('blob:')) URL.revokeObjectURL(sourceUrl);
+                      setFile(null); setSourceUrl(''); setResult(''); setDiagnostics(null); setNotice('');
+                    }}
+                    className="flex shrink-0 items-center gap-1 text-xs text-accent"
+                  >
+                    <X className="h-3 w-3" />{hu ? 'Kép törlése' : 'Remove image'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <label className="block text-xs text-ink-400">
+                {hu ? 'AI tattoo koncepció' : 'AI tattoo concept'}
+                <textarea
+                  rows={5}
+                  value={concept}
+                  onChange={(e) => setConcept(e.target.value)}
+                  placeholder={hu
+                    ? 'Pl. Odin két hollóval, kelta fonatokkal, csak fekete tattoo vonalmunka.'
+                    : 'e.g. Odin with two ravens and Celtic knotwork, black tattoo linework only.'}
+                  className="vp-input mt-1 resize-none"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!concept.trim() || busy}
+                onClick={generateFromConcept}
+                className="vp-btn w-full justify-center disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {busy ? (hu ? 'Készül…' : 'Working…') : (hu ? 'Koncepció generálása' : 'Generate concept')}
+              </button>
+              <p className="text-[10px] leading-relaxed text-ink-500">
+                {hu
+                  ? 'A generált kép átmegy ugyanazon a kontúrmotoron, mert a modell árnyékolt képet ad — a stencilt a motor készíti belőle.'
+                  : 'The generated image runs through the same contour engine — the model returns a shaded image, the engine turns it into a stencil.'}
+              </p>
+            </div>
+          )}
+
+          {/* Motor-csempek */}
+          <div className="mt-5">
+            <span className="mb-2 block text-xs text-ink-400">{hu ? 'Stencil motor' : 'Stencil engine'}</span>
+            <div className="grid grid-cols-3 gap-2">
+              {ENGINES.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  disabled={!canRun}
+                  onClick={() => pickEngine(e.id)}
+                  className={'rounded-xl border px-2.5 py-2.5 text-center text-[11px] transition disabled:opacity-40 ' + (engine === e.id
+                    ? 'border-accent/60 bg-accent/10 text-accent'
+                    : 'border-line text-ink-300 hover:border-accent/40')}
+                >
+                  <span className="block font-semibold leading-tight">{hu ? e.hu : e.en}</span>
+                  <span className="mt-1 block text-[9px] opacity-60">{hu ? e.subHu : e.subEn}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tinta */}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-xs text-ink-400">
+              {hu ? 'Stencil vonalszín' : 'Stencil line colour'}
+              <span className="mt-1 flex items-center gap-2">
+                <input
+                  type="color"
+                  value={lineColor}
+                  onChange={(e) => setLineColor(e.target.value)}
+                  className="h-9 w-14 shrink-0 rounded-lg border border-line bg-panel"
+                />
+                <input
+                  type="text"
+                  value={lineColor}
+                  onChange={(e) => setLineColor(e.target.value)}
+                  className="vp-input min-w-0"
+                />
+              </span>
             </label>
-            {file&&<div className='flex items-center justify-between rounded-xl border border-line bg-black/30 p-3'><div className='flex items-center gap-2 text-xs text-ink-300'><FileImage className='h-4 w-4 text-accent'/><span className='max-w-[280px] truncate'>{file.name}</span></div><button type='button' onClick={()=>{setFile(null);setSourcePreview(null);}} className='text-[11px] text-ink-500 hover:text-ink-200'>{t(language,'remove')}</button></div>}
+            <label className="text-xs text-ink-400">
+              {hu ? 'Stencil átlátszóság' : 'Stencil opacity'} · {opacity}%
+              <input
+                type="range"
+                min={10}
+                max={100}
+                value={opacity}
+                onChange={(e) => setOpacity(Number(e.target.value))}
+                className="mt-3 w-full accent-amber-500"
+              />
+            </label>
           </div>
-        ):(
-          <label className='block text-xs text-ink-400'>{t(language,'concept')}
-            <textarea rows={8} className='vp-input mt-1' value={concept} onChange={e=>setConcept(e.target.value)} placeholder={t(language,'conceptPlaceholder')}/>
-          </label>
-        )}
 
-        <div>
-          <div className='mb-2 text-xs text-ink-400'>{t(language,'engine')}</div>
-          <div className='grid grid-cols-2 gap-2 sm:grid-cols-5'>
-            {(['outline','fineLine','realism','tonalMap','fullDetail'] as StencilEngine[]).map((key)=><button key={key} type='button' onClick={()=>setEngine(key)} className={'rounded-xl border px-3 py-3 text-left text-xs '+(engine===key?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}><div className='font-semibold'>{t(language,key)}</div><div className='mt-1 text-[9px] opacity-60'>{key==='outline'?'Kontúr':key==='fineLine'?'Finom vonal':key==='realism'?'Tónus':key==='tonalMap'?'Térkép':'Részletes'}</div></button>)}
-          </div>
-        </div>
-
-        <div className='grid gap-3 sm:grid-cols-3'>
-          <label className='text-xs text-ink-400'>{t(language,'lineColor')}
-            <div className='mt-1 flex gap-2'><input type='color' value={lineColor} onChange={e=>setLineColor(e.target.value)} className='h-10 w-14 cursor-pointer rounded-lg border border-line bg-black p-1'/><input className='vp-input flex-1' value={lineColor} onChange={e=>/^#[0-9a-f]{6}$/i.test(e.target.value)&&setLineColor(e.target.value)} /></div>
-          </label>
-          <label className='text-xs text-ink-400'>{t(language,'opacity')} · {Math.round(opacity*100)}%
-            <input className='mt-4 w-full accent-[var(--accent)]' type='range' min='0.4' max='1' step='0.01' value={opacity} onChange={e=>setOpacity(Number(e.target.value))}/>
-          </label>
-          <div className='text-xs text-ink-500'>STENCIL MASTER<div className='mt-1 text-[10px]'>2D · isolated · transfer-ready</div></div>
-        </div>
-
-        <div className='grid gap-3 sm:grid-cols-2'>
-          <label className='text-xs text-ink-400'>{t(language,'formats')}
-            <select className='vp-input mt-1' value={format} onChange={e=>setFormat(e.target.value as Format)}>
-              <option value='portrait'>{t(language,'portrait')}</option><option value='square'>{t(language,'square')}</option><option value='landscape'>{t(language,'landscape')}</option>
+          {/* Vonalvastagsag */}
+          <label className="mt-5 block text-xs text-ink-400">
+            {hu ? 'Stencil vonal / tinta' : 'Stencil line / ink'}
+            <select value={weight} onChange={(e) => setWeight(e.target.value as StencilWeight)} className="vp-input mt-1">
+              <option value="fine">{hu ? 'Finom' : 'Fine'}</option>
+              <option value="standard">{hu ? 'Standard' : 'Standard'}</option>
+              <option value="bold">{hu ? 'Erős' : 'Bold'}</option>
             </select>
           </label>
-          <label className='text-xs text-ink-400'>{t(language,'ink')}
-            <select className='vp-input mt-1' value={inkLevel} onChange={e=>setInkLevel(Number(e.target.value))}>
-              <option value='110'>{t(language,'fine')}</option><option value='145'>{t(language,'standard')}</option><option value='175'>{t(language,'bold')}</option>
-            </select>
-          </label>
-        </div>
 
-        <div className='rounded-xl border border-line bg-black/20 p-3'>
-          <label className='flex items-center gap-3 text-xs text-ink-300'><input type='checkbox' checked={removeBody} onChange={e=>setRemoveBody(e.target.checked)}/><span>{t(language,'removeBody')}</span></label>
-          <p className='mt-1 pl-6 text-[10px] text-ink-500'>{t(language,'removeBodyHint')}</p>
-        </div>
+          <button
+            type="button"
+            disabled={!canRun}
+            onClick={() => activeSource && void runStencil(activeSource)}
+            className="vp-btn mt-5 w-full justify-center disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenTool className="h-4 w-4" />}
+            {busy ? (hu ? 'Stencil készül…' : 'Creating stencil…') : (hu ? 'Stencil készítése' : 'Create stencil')}
+          </button>
 
-        <div>
-          <div className='mb-2 text-xs text-ink-400'>{t(language,'guides')}</div>
-          <div className='flex flex-wrap gap-2'>
-            <button type='button' onClick={()=>setGrid(v=>!v)} className={'rounded-full border px-3 py-1.5 text-xs '+(grid?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}>{t(language,'grid')}</button>
-            <button type='button' onClick={()=>setCenter(v=>!v)} className={'rounded-full border px-3 py-1.5 text-xs '+(center?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}>{t(language,'center')}</button>
-            <button type='button' onClick={()=>setMirror(v=>!v)} className={'rounded-full border px-3 py-1.5 text-xs '+(mirror?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}>{t(language,'mirror')}</button>
+          {/* Segedvonalak */}
+          <div className="mt-5">
+            <span className="mb-2 block text-xs text-ink-400">
+              {hu ? 'Segédvonalak a szalonmunkalapon' : 'Salon worksheet guides'}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {([['grid', hu ? 'Rács' : 'Grid', Grid3X3], ['center', hu ? 'Középvonal' : 'Center line', Ruler], ['mirror', hu ? 'Tükörtengely' : 'Mirror axis', Ruler]] as const).map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setGuides((g) => ({ ...g, [key]: !g[key] }))}
+                  className={'flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs transition ' + (guides[key]
+                    ? 'border-accent/70 bg-accent/15 text-accent'
+                    : 'border-line text-ink-300')}
+                >
+                  <Icon className="h-3 w-3" />{label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {error && (
+            <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+          )}
+          {/*
+           * A diagnosztika. Nem minden ures kimenet hiba — de a felhasznalo
+           * ne negyzetes hatteu uresseget lasson magyarazat nelkul.
+           */}
+          {notice && !error && (
+            <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">{notice}</p>
+          )}
+          {diagnostics && !notice && !error && (
+            <p className="mt-4 text-[10px] leading-relaxed text-ink-500">
+              {diagnostics.sourceWidth}×{diagnostics.sourceHeight} ·
+              {' '}{hu ? 'tinta' : 'ink'} {Math.round(diagnostics.inkRatio * 1000) / 10}% ·
+              {' '}{diagnostics.inverted ? (hu ? 'invertált (sötét háttér)' : 'inverted (dark background)') : (hu ? 'normál polaritás' : 'normal polarity')} ·
+              {' '}{hu ? 'foltok' : 'shapes'} {diagnostics.componentsAfter}/{diagnostics.componentsBefore}
+            </p>
+          )}
         </div>
 
-        <button type='button' onClick={generate} disabled={busy} className='vp-btn w-full'>
-          {busy?<Sparkles className='h-4 w-4 animate-pulse'/>:<PenTool className='h-4 w-4'/>}
-          {busy?t(language,'generating'):t(language,'generate')}
-        </button>
-        {error&&<p className='rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300'>{error}</p>}
-      </div>
-
-      <div className='rounded-2xl border border-line bg-black p-4'>
-        <div className='mb-3 flex items-center justify-between text-xs text-ink-400'><span>{t(language,'result')}</span><span>{resultUrl?'ISOLATED · 2D':'—'}</span></div>
-        <div className='relative min-h-[560px] overflow-hidden rounded-2xl border border-line' style={{backgroundImage:'linear-gradient(45deg,#171717 25%,transparent 25%),linear-gradient(-45deg,#171717 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#171717 75%),linear-gradient(-45deg,transparent 75%,#171717 75%)',backgroundSize:'28px 28px',backgroundPosition:'0 0,0 14px,14px -14px,-14px 0'}}>
-          {resultUrl?<div className='flex h-full min-h-[560px] items-center justify-center p-6'><img src={resultUrl} alt='Isolated tattoo stencil' className='max-h-[620px] max-w-full object-contain'/></div>:<div className='flex min-h-[560px] flex-col items-center justify-center text-center text-sm text-ink-500'><Layers3 className='mb-3 h-10 w-10'/>{t(language,'empty')}</div>}
-        </div>
-
-        {sheet&&<div className='mt-4 rounded-xl border border-accent/25 bg-white p-3'>
-          <div className='mb-2 flex items-center justify-between text-[10px] tracking-widest text-black/60'>
-            <span>PRO SALON WORKSHEET</span><span>REG · CROP · AXIS</span>
+        {/* ---------- JOBB: forras es eredmeny ---------- */}
+        <div className="space-y-4">
+          <div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-ink-500">
+              {mode === 'upload' ? (hu ? 'FELTÖLTÖTT KÉP' : 'UPLOADED IMAGE') : (hu ? 'AI FORRÁSKÉP' : 'AI SOURCE IMAGE')}
+            </div>
+            <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line bg-canvas/60">
+              {sourceUrl
+                ? <img src={sourceUrl} alt={hu ? 'Forrás' : 'Source'} className="h-full w-full object-contain" />
+                : <FileImage className="h-8 w-8 text-ink-500" />}
+            </div>
           </div>
-          <img src={URL.createObjectURL(sheet)} alt='Salon stencil worksheet preview' className='max-h-[520px] w-full object-contain' />
-        </div>}
 
-        {(sourcePreview||resultUrl)&&<div className='mt-4 grid gap-3 sm:grid-cols-2'>
-          {sourcePreview&&<div className='rounded-xl border border-line bg-canvas/30 p-2'><div className='mb-2 flex items-center justify-between text-[10px] tracking-widest text-ink-500'><span>{t(language,'uploadedSource')}</span><span>{sourceMode==='upload'?'ORIGINAL':'AI SOURCE'}</span></div><img src={sourcePreview} alt='Uploaded source' className='max-h-48 w-full object-contain'/></div>}
-          {resultUrl&&<div className='rounded-xl border border-line bg-white p-2'><div className='mb-2 text-[10px] tracking-widest text-black/60'>{t(language,'result')}</div><img src={resultUrl} alt='Stencil result' className='max-h-48 w-full object-contain'/></div>}
-        </div>}
+          <div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-ink-500">
+              {hu ? 'SZALONKÉSZ STENCIL' : 'SALON-READY STENCIL'}
+            </div>
+            {/*
+             * A kockas hatter CSS-sel keszul: atlatszo PNG felett ez az
+             * egyertelmu jelzes, hogy a hatter valoban ures.
+             */}
+            <div
+              className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line"
+              style={{
+                backgroundColor: '#12141a',
+                backgroundImage:
+                  'linear-gradient(45deg, #1a1d24 25%, transparent 25%), linear-gradient(-45deg, #1a1d24 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1a1d24 75%), linear-gradient(-45deg, transparent 75%, #1a1d24 75%)',
+                backgroundSize: '16px 16px',
+                backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0',
+              }}
+            >
+              {result
+                ? <img src={result} alt={hu ? 'Stencil' : 'Stencil'} className="h-full w-full object-contain" />
+                : (
+                  <span className="px-6 text-center text-[11px] text-ink-500">
+                    {busy ? (hu ? 'Stencil készül…' : 'Creating stencil…') : (hu ? 'Itt jelenik meg az izolált stencil.' : 'The isolated stencil appears here.')}
+                  </span>
+                )}
+            </div>
+          </div>
 
-        {transparent&&stencil&&<div className='mt-4 grid gap-2 sm:grid-cols-2'>
-          <button type='button' className='vp-btn' onClick={()=>downloadBlob('designly-tattoo-transparent.png',transparent)}><Download className='h-4 w-4'/>{t(language,'transparent')}</button>
-          <button type='button' className='vp-btn' onClick={()=>downloadBlob('designly-tattoo-stencil.png',stencil)}><Download className='h-4 w-4'/>{t(language,'stencil')}</button>
-          <button type='button' className='vp-btn-ghost' onClick={()=>sheet&&downloadBlob('designly-tattoo-salon-sheet.png',sheet)}><Grid3X3 className='h-4 w-4'/>{t(language,'sheet')}</button>
-          <button type='button' className='vp-btn-ghost' onClick={()=>share(stencil,'designly-tattoo-stencil.png')}><Share2 className='h-4 w-4'/>{t(language,'share')}</button>
-        </div>}
+          {result && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => download(result)} className="vp-btn-ghost">
+                <Download className="h-4 w-4" />{hu ? 'Stencil PNG' : 'Stencil PNG'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard?.writeText(result)}
+                className="vp-btn-ghost"
+              >
+                <Share2 className="h-4 w-4" />{hu ? 'Másolás / Procreate' : 'Copy / Procreate'}
+              </button>
+            </div>
+          )}
 
-        <p className='mt-3 text-[10px] text-ink-500'>{t(language,'note')}</p>
+          <p className="text-[10px] leading-relaxed text-ink-500">
+            {hu
+              ? 'A kimenet különálló 2D tattoo artwork. A feldolgozás a böngésződben fut — a feltöltött kép nem hagyja el a gépedet.'
+              : 'The output is standalone 2D tattoo artwork. Processing runs in your browser — an uploaded image never leaves your machine.'}
+          </p>
+        </div>
       </div>
     </div>
-  </section>;
+  );
 }
