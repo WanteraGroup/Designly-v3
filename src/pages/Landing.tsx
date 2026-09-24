@@ -7,12 +7,8 @@ import designlyHeroImage from '../assets/designly-hero';
 import { templateCoverUrl } from '../lib/template-art';
 
 /**
- * A nyito oldal.
- *
- * Nem a generalot teszi elore, hanem azt mutatja meg, mi a rendszer: huszonnegy
- * kategoria, huszonegy agent, szazharmincnyolcezer sablon, tiz nyelv. A generalo
- * egy kattintasra van, de elotte latni kell, mit kap a felhasznalo — kulonben
- * egy ures szovegdoboz az elso benyomas.
+ * DESIGNLY V3 landing.
+ * A felhasználó a fő modulokat látja; a VYRON CORE a specialistákat a háttérben koordinálja.
  */
 export default function Landing() {
   const featureCount = Object.keys(CATEGORY_SPECS).length;
@@ -112,7 +108,7 @@ export default function Landing() {
           {[
             { value: `${PUBLIC_AGENT_MODULES.length}`, label: 'Fő modul' },
             { value: TEMPLATE_TOTAL.toLocaleString('hu-HU'), label: 'Sablon' },
-            { value: `${FULL_AGENT_TEAM.length}`, label: 'Belső specialista' },
+            { value: `${FULL_AGENT_TEAM.length}`, label: 'Belső specialisták' },
             { value: `${LANGUAGES.length}`, label: 'Nyelv' },
           ].map((s) => (
             <div key={s.label} className="text-center">
