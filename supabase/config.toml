@@ -1,21 +1,5 @@
 project_id = "mxrgdcvmxzhocbdhtlhg"
 
-[functions.vey-generate]
-verify_jwt = false
-entrypoint = "./functions/vey-generate/index.ts"
-
-[functions.vey-refine]
-verify_jwt = false
-entrypoint = "./functions/vey-refine/index.ts"
-
-[functions.designly-image]
-verify_jwt = true
-entrypoint = "./functions/designly-image/index.ts"
-
-[functions.designly-video]
-verify_jwt = true
-entrypoint = "./functions/designly-video/index.ts"
-
 [functions.designly-v3-agent]
 verify_jwt = false
 entrypoint = "./functions/designly-v3-agent/index.ts"
@@ -23,3 +7,15 @@ entrypoint = "./functions/designly-v3-agent/index.ts"
 [functions.designly-v3-refine]
 verify_jwt = false
 entrypoint = "./functions/designly-v3-refine/index.ts"
+
+[functions.designly-image]
+verify_jwt = false
+entrypoint = "./functions/designly-image/index.ts"
+
+[functions.designly-video]
+verify_jwt = false
+entrypoint = "./functions/designly-video/index.ts"
+
+[functions.vey-images]
+verify_jwt = false
+entrypoint = "./functions/vey-images/index.ts"
