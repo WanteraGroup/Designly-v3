@@ -22,6 +22,7 @@ interface ImageHit {
 
 /** A valaszok cache-elese a funkcio eletciklusan belul. */
 const cache = new Map<string, ImageHit[]>();
+const cacheRate = new Map<string, number[]>();
 
 /**
  * Unsplash kereses.
@@ -97,6 +98,12 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400);
   }
 
+  const rateKey = (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'guest').split(',')[0].trim().slice(0, 80);
+  const now = Date.now();
+  const recent = (cacheRate.get(rateKey) ?? []).filter((t) => now - t < 60_000);
+  if (recent.length >= 20) return json({ error: 'RATE_LIMITED', message: 'Túl sok képkeresési kérés rövid idő alatt.' }, 429);
+  recent.push(now);
+  cacheRate.set(rateKey, recent);
   const queries = (body.queries ?? [])
     .map((q) => String(q).trim())
     .filter(Boolean)
