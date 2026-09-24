@@ -180,7 +180,7 @@ async function storeVideo(userId: string, provider: VideoProvider, jobId: string
   return data.publicUrl;
 }
 
-async function finalizeCompletedVideo(userId: string, provider: VideoProvider, jobId: string, output: unknown) {
+async function finalizeCompletedVideo(userId: string, provider: VideoProvider, mode: VideoMode, jobId: string, output: unknown) {
   const videoUrl = extractVideoUrl(output);
   if (!videoUrl) {
     throw new Error("RunPod " + provider + " did not return a video URL: " + JSON.stringify(output).slice(0, 700));
@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
 
       if (status === "COMPLETED") {
         try {
-          const completed = await finalizeCompletedVideo(user.id, provider, jobId, result.output);
+          const completed = await finalizeCompletedVideo(user.id, provider, mode, jobId, result.output);
           return json({
             status,
             jobId,
