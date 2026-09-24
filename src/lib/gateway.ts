@@ -2,7 +2,7 @@ import { parseSite, type SiteDocument } from './site-schema';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+import { authHeaders } from './supabase-client';
 
 export interface SiteGenerationResult {
   site: SiteDocument;
@@ -33,10 +33,7 @@ export async function generateSite(brief: string, language = 'hu'): Promise<Site
   try {
     res = await fetch(`${FUNCTIONS_URL}/designly-v3-agent`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(ANON_KEY ? { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY } : {}),
-      },
+      headers: await authHeaders(true),
       body: JSON.stringify({ brief: brief.slice(0, 4000), language }),
     });
   } catch {
