@@ -14,7 +14,7 @@ import {
   LayoutTemplate,
 } from 'lucide-react';
 import { buildSite, refineSite, type SiteDocument } from '../lib/api';
-import { downloadSiteHtml } from '../lib/export-html';
+import { downloadSiteHtml, toStandaloneHtml } from '../lib/export-html';
 import { collectImageQueries, resolveImages, applyImages } from '../lib/images';
 import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
 import { planAgents, PUBLIC_AGENT_MODULES, type AgentPlan } from '../lib/agents';
@@ -36,6 +36,17 @@ const EXAMPLES = [
   'Modern étterem oldal, étlappal és nyitvatartással',
   'Egy fitneszterem bemutatkozó oldala bérletárakkal',
 ];
+
+function openStandalonePreview(site: SiteDocument) {
+  const html = toStandaloneHtml(site);
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const popup = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!popup) {
+    URL.revokeObjectURL(url);
+    throw new Error('A böngésző blokkolta az új előnézeti ablakot.');
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 export default function Home() {
   const [brief, setBrief] = useState('');
@@ -383,6 +394,12 @@ export default function Home() {
                       window.setTimeout(() => setSavedNotice(false), 1800);
                     }} className="vp-btn">
                       <Save className="h-4 w-4" /> Mentés
+                    </button>
+                    <button type="button" onClick={() => {
+                      try { openStandalonePreview(site); setError(null); }
+                      catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+                    }} className="vp-btn-ghost">
+                      <LayoutTemplate className="h-4 w-4" /> Előnézet új lapon
                     </button>
                     <button type="button" onClick={() => downloadSiteHtml(site, brief)} className="vp-btn-ghost">
                       <Download className="h-4 w-4" /> HTML letöltés
