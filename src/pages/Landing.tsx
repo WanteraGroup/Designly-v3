@@ -3,7 +3,7 @@ import { LANGUAGES } from '../lib/constants';
 import { FULL_AGENT_TEAM, LIVE_AGENTS, PLANNED_AGENTS } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
 import { TEMPLATE_TOTAL } from '../lib/templates';
-import designlyManifestoImage from '../assets/designly-manifesto';
+import designlyHeroImage from '../assets/designly-hero';
 import { templateCoverUrl } from '../lib/template-art';
 
 /**
@@ -264,7 +264,7 @@ export default function Landing() {
 
       <section className="mx-auto max-w-6xl px-6 py-16">
         <div className="overflow-hidden rounded-3xl border border-accent/20 bg-panel/40 shadow-2xl">
-          <img src={designlyManifestoImage} alt="Human Intelligence × Artificial Power — Nem csak technológia. Egy erősebb jövő." draggable={false} className="h-auto w-full object-cover" />
+          <img src={designlyHeroImage} alt="DESIGNLY — A jövőt nem várjuk. Mi építjük." draggable={false} className="h-auto w-full object-cover" />
         </div>
       </section>
 
