@@ -137,9 +137,12 @@ function renderBlock(b: SiteBlock, docTitle = ''): string {
   <p>${esc(b.body)}</p>
   <ul class="plain">${[
     b.email ? `<li><a href="${esc(`mailto:${b.email}`)}">${esc(b.email)}</a></li>` : '',
-    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`)}">${esc(b.phone)}</a></li>` : '',
+    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`}">${esc(b.phone)}</a></li>` : '',
     b.address ? `<li>${esc(b.address)}</li>` : '',
-  ].join('')}</ul>    case 'form':
+  ].join('')}</ul>
+</section>`;
+
+    case 'form':
       return `<section>
   <h2>${esc(b.heading)}</h2>
   <p>${esc(b.body)}</p>
@@ -154,9 +157,6 @@ function renderBlock(b: SiteBlock, docTitle = ''): string {
     <button class="btn" type="submit">${esc(b.submitLabel)}</button>
     <p data-form-status class="form-status" aria-live="polite"></p>
   </form>
-</section>`;
-
-
 </section>`;
 
     case 'cta':
@@ -182,6 +182,7 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   const bodyFont = safeFont(theme.body_font, 'Inter');
   const bg = light ? '#ffffff' : '#0a0a12';
   const fg = light ? '#14141c' : '#eef0f6';
+  const FORM_ENDPOINT = SUPABASE_URL + '/functions/v1/designly-form-submit';
 
   return `<!doctype html>
 <html lang="${esc(language)}">
@@ -207,6 +208,14 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .28em; font-size: .75rem; }
   h1 { font-size: clamp(2rem, 5vw, 3.25rem); }
   .lead { opacity: .7; max-width: 42rem; margin: 1rem auto 0; }
+  .designly-form { max-width: 42rem; margin: 2rem auto 0; }
+  .designly-form label { display: block; margin-top: 1rem; }
+  .designly-form label span { display: block; margin-bottom: .4rem; font-size: .85rem; opacity: .8; }
+  .designly-form input, .designly-form textarea, .designly-form select { width: 100%; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: .75rem; padding: .75rem .85rem; background: transparent; color: inherit; font: inherit; }
+  .designly-form textarea { min-height: 8rem; resize: vertical; }
+  .designly-form select option { color: #14141c; }
+  .designly-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  .form-status { min-height: 1.4rem; font-size: .85rem; margin-top: .75rem; }
   .btn { display: inline-block; margin-top: 2rem; padding: .85rem 1.75rem; border-radius: .75rem;
          background: var(--accent); color: ${light ? '#fff' : '#0a0a12'}; text-decoration: none;
          font-weight: 600; font-size: .875rem; }
@@ -242,7 +251,44 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   <span style="font-weight:600; letter-spacing:.04em">${esc(title)}</span>
   <nav>${nav.map((n) => `<a href="${esc(safeHref(n.href))}">${esc(n.label)}</a>`).join('')}</nav>
 </header>
-${doc.blocks.map(renderBlock).join('\n')}
+${doc.blocks.map((block) => renderBlock(block, title)).join('\n')}
+<script>
+(() => {
+  const endpoint = "";
+  document.querySelectorAll('[data-designly-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const status = form.querySelector('[data-form-status]');
+      const button = form.querySelector('button');
+      if (button) button.disabled = true;
+      if (status) status.textContent = 'Küldés…';
+      const data = Object.fromEntries(new FormData(form).entries());
+      const website = String(data.website ?? '');
+      delete data.website;
+      try {
+        const response = await fetch('${FORM_ENDPOINT}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            formId: form.dataset.formId,
+            siteTitle: form.dataset.siteTitle || document.title,
+            data,
+            website,
+            sourceUrl: window.location.href
+          })
+        });
+        if (!response.ok) throw new Error('submit');
+        form.reset();
+        if (status) status.textContent = 'Az üzenetet sikeresen elküldtük.';
+      } catch {
+        if (status) status.textContent = 'Az üzenetet nem sikerült elküldeni.';
+      } finally {
+        if (button) button.disabled = false;
+      }
+    });
+  });
+})();
+</script>
 </body>
 </html>`;
 }
