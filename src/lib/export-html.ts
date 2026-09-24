@@ -12,6 +12,7 @@
  */
 
 import type { SiteDocument, SiteBlock } from './site-schema';
+import { SUPABASE_URL } from './supabase-client';
 
 export function esc(text: string): string {
   return String(text)
@@ -39,7 +40,7 @@ function safeFont(value: string, fallback: string): string {
   return /^[A-Za-z0-9 _.,'\-]{1,80}$/.test(font) ? font : fallback;
 }
 
-function renderBlock(b: SiteBlock): string {
+function renderBlock(b: SiteBlock, docTitle = ''): string {
   switch (b.type) {
     case 'hero':
       return `<section class="hero">
@@ -138,7 +139,24 @@ function renderBlock(b: SiteBlock): string {
     b.email ? `<li><a href="${esc(`mailto:${b.email}`)}">${esc(b.email)}</a></li>` : '',
     b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`)}">${esc(b.phone)}</a></li>` : '',
     b.address ? `<li>${esc(b.address)}</li>` : '',
-  ].join('')}</ul>
+  ].join('')}</ul>    case 'form':
+      return `<section>
+  <h2>${esc(b.heading)}</h2>
+  <p>${esc(b.body)}</p>
+  <form data-designly-form data-form-id="${esc(b.formId)}" data-site-title="${esc(docTitle)}" class="designly-form">
+    <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true" />
+    ${b.fields.map((field) => field.type === 'textarea'
+      ? `<label><span>${esc(field.label)}${field.required ? ' *' : ''}</span><textarea name="${esc(field.name)}"${field.required ? ' required' : ''} placeholder="${esc(field.placeholder ?? '')}"></textarea></label>`
+      : field.type === 'select'
+        ? `<label><span>${esc(field.label)}${field.required ? ' *' : ''}</span><select name="${esc(field.name)}"${field.required ? ' required' : ''}><option value="">Válassz…</option>${(field.options ?? []).map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select></label>`
+        : `<label><span>${esc(field.label)}${field.required ? ' *' : ''}</span><input type="${esc(field.type)}" name="${esc(field.name)}"${field.required ? ' required' : ''} placeholder="${esc(field.placeholder ?? '')}" /></label>`
+    ).join('')}
+    <button class="btn" type="submit">${esc(b.submitLabel)}</button>
+    <p data-form-status class="form-status" aria-live="polite"></p>
+  </form>
+</section>`;
+
+
 </section>`;
 
     case 'cta':
