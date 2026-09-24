@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, Grid3X3, PenTool, Share2, Sparkles } from 'lucide-react';
-import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
+import { generateCreativeImage } from '../lib/creative-api';
 
 type Lang = 'hu'|'en'|'de'|'fr'|'es'|'it'|'pl'|'uk'|'ro'|'nl';
 
@@ -33,84 +33,85 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number):Pr
   srcCtx.drawImage(bitmap,0,0); bitmap.close();
 
   const w=src.width,h=src.height;
-  const srcData=srcCtx.getImageData(0,0,w,h);
-  const p=srcData.data;
+  const data=srcCtx.getImageData(0,0,w,h).data;
   const mask=new Uint8Array(w*h);
 
-  const isSkin=(r:number,g:number,b:number)=>{
-    const warm=r>g+10 && g>b+8;
-    const range=Math.max(r,g,b)-Math.min(r,g,b);
-    return warm && r>70 && g>35 && b>20 && range>18;
-  };
+  // Only near-black neutral pixels are considered tattoo ink.
+  // The central ellipse rejects most skin/shadow/background pixels from a mockup.
+  const minX=Math.floor(w*0.08),maxX=Math.ceil(w*0.92);
+  const minY=Math.floor(h*0.04),maxY=Math.ceil(h*0.96);
+  const cx=w/2,cy=h/2;
+  const rx=w*0.39,ry=h*0.48;
 
-  const minX=Math.floor(w*0.04), maxX=Math.ceil(w*0.96);
-  const minY=Math.floor(h*0.015), maxY=Math.ceil(h*0.985);
-
-  // Only accept neutral dark ink. Reject white paper, light grey skin and warm skin.
   for(let y=minY;y<maxY;y++) for(let x=minX;x<maxX;x++){
+    const dx=(x-cx)/rx,dy=(y-cy)/ry;
+    if(dx*dx+dy*dy>1) continue;
     const i=(y*w+x)*4;
-    const r=p[i],g=p[i+1],b=p[i+2];
+    const r=data[i],g=data[i+1],b=data[i+2];
     const lum=0.2126*r+0.7152*g+0.0722*b;
     const chroma=Math.max(r,g,b)-Math.min(r,g,b);
-    const neutralInk=lum<threshold && chroma<52 && !isSkin(r,g,b);
-    if(neutralInk) mask[y*w+x]=1;
+    if(lum<threshold && chroma<38) mask[y*w+x]=1;
   }
 
-  // Connected components remove speckles and large page/body regions.
   const seen=new Uint8Array(w*h);
   const kept=new Uint8Array(w*h);
-  const qx=new Int32Array(Math.min(w*h,1600000));
-  const qy=new Int32Array(Math.min(w*h,1600000));
+  const qx=new Int32Array(w*h);
+  const qy=new Int32Array(w*h);
   const neighbors=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
-  const minComponent=Math.max(24,Math.floor(w*h*0.000008));
-  const maxComponent=Math.floor(w*h*0.11);
 
-  let bestCount=0,bestMinX=w,bestMinY=h,bestMaxX=0,bestMaxY=0;
+  const minComponent=Math.max(18,Math.floor(w*h*0.000004));
+  const maxComponent=Math.floor(w*h*0.055);
   const components:Array<{indices:number[];minX:number;minY:number;maxX:number;maxY:number;score:number}>=[];
+  let allCount=0;
+
   for(let sy=minY;sy<maxY;sy++) for(let sx=minX;sx<maxX;sx++){
     const si=sy*w+sx;
     if(!mask[si]||seen[si]) continue;
     let head=0,tail=0;
     const indices:number[]=[];
     let cminX=w,cminY=h,cmaxX=0,cmaxY=0;
-    qx[tail]=sx; qy[tail]=sy; tail++; seen[si]=1;
+    qx[tail]=sx;qy[tail]=sy;tail++;seen[si]=1;
+
     while(head<tail){
       const x=qx[head],y=qy[head];head++;
       const idx=y*w+x;indices.push(idx);
       if(x<cminX)cminX=x;if(x>cmaxX)cmaxX=x;if(y<cminY)cminY=y;if(y>cmaxY)cmaxY=y;
       for(const [dx,dy] of neighbors){
         const nx=x+dx,ny=y+dy;
-        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY)continue;
+        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY) continue;
         const ni=ny*w+nx;
         if(mask[ni]&&!seen[ni]){seen[ni]=1;qx[tail]=nx;qy[tail]=ny;tail++;}
       }
     }
+
     const size=indices.length;
-    if(size>=minComponent && size<=maxComponent){
-      const bw=cmaxX-cminX+1,bh=cmaxY-cminY+1;
-      const cx=(cminX+cmaxX)/2/w,cy=(cminY+cmaxY)/2/h;
-      const compact=Math.min(1,(bw*bh)/(size*18));
-      const centered=1-Math.min(1,Math.abs(cx-.5)*1.6+Math.abs(cy-.5)*.25);
-      const score=size*0.45+centered*size*0.4+compact*size*0.15;
-      components.push({indices,minX:cminX,minY:cminY,maxX:cmaxX,maxY:cmaxY,score});
-    }
+    if(size<minComponent||size>maxComponent) continue;
+    const bw=cmaxX-cminX+1,bh=cmaxY-cminY+1;
+    const ccx=(cminX+cmaxX)/2,ccy=(cminY+cmaxY)/2;
+    const distance=Math.sqrt(((ccx-cx)/(w*.42))**2+((ccy-cy)/(h*.52))**2);
+    if(distance>1) continue;
+    const compact=Math.min(1,(size/(bw*bh))*40);
+    const score=size*(1.15-distance*.75+compact*.25);
+    components.push({indices,minX:cminX,minY:cminY,maxX:cmaxX,maxY:cmaxY,score});
   }
 
-  // Keep the dominant centered components that together form the tattoo motif.
   components.sort((a,b)=>b.score-a.score);
-  const selected=components.slice(0,8);
+  // A tattoo motif can have separate wings, knots, eyes etc.; keep the strongest nearby ink components.
+  const selected=components.slice(0,14);
+  let minBX=w,minBY=h,maxBX=0,maxBY=0;
   for(const c of selected){
     for(const idx of c.indices) kept[idx]=1;
-    bestCount+=c.indices.length;
-    if(c.minX<bestMinX)bestMinX=c.minX;if(c.minY<bestMinY)bestMinY=c.minY;
-    if(c.maxX>bestMaxX)bestMaxX=c.maxX;if(c.maxY>bestMaxY)bestMaxY=c.maxY;
+    allCount+=c.indices.length;
+    if(c.minX<minBX)minBX=c.minX;if(c.minY<minBY)minBY=c.minY;
+    if(c.maxX>maxBX)maxBX=c.maxX;if(c.maxY>maxBY)maxBY=c.maxY;
   }
 
-  if(!bestCount) throw new Error('Nem sikerült elkülöníteni a tattoo motívumot.');
+  if(!allCount) throw new Error('Nem sikerült tisztán kiválasztani a tattoo motívumot. Használj fekete vonalmunka briefet.');
 
-  const pad=Math.max(20,Math.round(Math.min(w,h)*0.04));
-  const bx0=Math.max(0,bestMinX-pad),by0=Math.max(0,bestMinY-pad);
-  const bx1=Math.min(w,bestMaxX+pad+1),by1=Math.min(h,bestMaxY+pad+1);
+  // Tight crop around the isolated ink only. Outside pixels are true alpha=0 for transparent output.
+  const pad=Math.max(12,Math.round(Math.min(w,h)*0.025));
+  const bx0=Math.max(0,minBX-pad),by0=Math.max(0,minBY-pad);
+  const bx1=Math.min(w,maxBX+pad+1),by1=Math.min(h,maxBY+pad+1);
   const outW=bx1-bx0,outH=by1-by0;
 
   const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;
@@ -122,8 +123,8 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number):Pr
     const v=ink?0:255;
     out.data[di]=v;out.data[di+1]=v;out.data[di+2]=v;out.data[di+3]=transparent?(ink?255:0):255;
   }
-
   ctx.putImageData(out,0,0);
+
   return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
     b=>b?resolve(b):reject(new Error('Stencil PNG export hiba.')),'image/png'
   ));
@@ -157,28 +158,20 @@ export default function TattooStudio({language='hu'}:{language?:string}){
     setBusy(true); setError(''); setPreviewUrl(null); setTransparent(null); setStencil(null); setSheet(null);
     try{
       const prompt=[
-        'TATTOO STENCIL MASTER ARTWORK ONLY.',
-        'Create exactly ONE isolated centered tattoo motif as flat black tattoo linework on pure white.',
-        'The entire canvas is a stencil sheet containing ONLY the tattoo motif.',
-        'ABSOLUTELY NO body, skin, arm, hand, face, person, clothing, mannequin, poster, paper, page, mockup, scenery, environment, branch, object outside the tattoo, frame or border.',
-        'NO presentation typography, poster text, captions, logos or watermark. A specifically requested monogram or letter may appear ONLY as an integral part of the tattoo motif.',
-        'No photorealism, no cinematic lighting, no shadows, no gradients, no 3D render.',
-        'Use clean tattoo contours, deliberate line hierarchy, controlled black fills, clear negative space, connected traceable shapes and professional stencil-friendly geometry.',
-        'The output must look like a standalone tattoo stencil reference, not a tattoo displayed on a body.',
+        'PURE 2D TATTOO STENCIL SHEET — artwork only.',
+        'Create exactly ONE standalone tattoo motif centered on a plain white background.',
+        'This is NOT a photo and MUST NOT be shown on skin or on any body part.',
+        'NO arm, leg, hand, shoulder, chest, torso, face, head, person, mannequin, skin or body.',
+        'NO poster, no paper mockup, no frame, no room, no scenery, no branch, no props, no environment.',
+        'NO 3D, NO photorealism, NO perspective, NO cinematic lighting, NO shadows, NO gradients, NO glossy rendering.',
+        'Flat black ink linework with crisp contour hierarchy, controlled solid black areas, clean white negative space, connected tattooable shapes, traceable contours.',
+        'The image must look like a professional tattoo transfer stencil printed on plain white, with the tattoo motif itself only.',
+        'No text, captions, typography, logos or watermark unless an explicitly requested monogram is an integral part of the tattoo motif.',
         'Concept: '+concept.trim(),
       ].join(' ');
-      const first=await generateCreativeImage(prompt,ratio);
-      const src=await fetch(first.url); if(!src.ok) throw new Error('A generált alapminta nem tölthető be.');
-      const srcBlob=await src.blob();
-      const srcFile=new File([srcBlob],'tattoo-source.png',{type:'image/png'});
-      const edited=await editCreativeImage({
-        files:[srcFile],
-        prompt:'Turn the source into a PURE STANDALONE TATTOO STENCIL MASTER. KEEP ONLY ONE centered tattoo motif. REMOVE ALL skin, arm, hand, body, face, person, clothes, background, scenery, paper, poster, page, frame, border, props and mockup elements. REMOVE ALL text, letters, numbers, logos and watermarks. Reconstruct the motif as flat black tattoo linework with solid black stencil areas and clean white negative space. NO photo, NO realism, NO shadows, NO gradients, NO environment. The final canvas must contain only the tattoo design on a plain white field, ready for tracing and transfer.',
-        aspectRatio:ratio,
-        resolution:'1k',
-      });
-      const alpha=await isolateInkPng(edited.url,true,inkLevel);
-      const st=await isolateInkPng(edited.url,false,inkLevel);
+      const generated=await generateCreativeImage(prompt,ratio);
+      const alpha=await isolateInkPng(generated.url,true,inkLevel);
+      const st=await isolateInkPng(generated.url,false,inkLevel);
       const sh=await guideSheet(alpha,{grid,center,mirror});
       setTransparent(alpha); setStencil(st); setSheet(sh); setPreviewUrl(URL.createObjectURL(alpha));
     }catch(e){ setError(e instanceof Error?e.message:t(language,'error')); }
