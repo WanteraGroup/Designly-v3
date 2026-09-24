@@ -1,4 +1,4 @@
-import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Briefcase, Video, Languages, Gamepad2 } from 'lucide-react';
+import { Sparkles, Users, LayoutTemplate, Wand2, Check, Briefcase, Video, Gamepad2 } from 'lucide-react';
 import { LANGUAGES } from '../lib/constants';
 import { FULL_AGENT_TEAM, PUBLIC_AGENT_MODULES } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
