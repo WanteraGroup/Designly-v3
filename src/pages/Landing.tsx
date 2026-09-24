@@ -280,9 +280,15 @@ export default function Landing() {
               </span>
             </div>
             <nav className="flex flex-wrap gap-6 text-xs text-ink-400">
-              {['Szolgáltatások', 'Agentek', 'Sablonok', 'Árak', 'Kapcsolat'].map((i) => (
-                <a key={i} href="#" className="transition hover:text-ink-200">
-                  {i}
+              {[
+                ['Szolgáltatások', '#services'],
+                ['Agentek', '#agents'],
+                ['Sablonok', '#templates'],
+                ['Árak', '#pricing'],
+                ['Kapcsolat', '#contact'],
+              ].map(([label, href]) => (
+                <a key={label} href={href} className="transition hover:text-ink-200">
+                  {label}
                 </a>
               ))}
             </nav>
