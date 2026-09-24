@@ -29,15 +29,8 @@ export const PLANNED_AGENTS: AgentEntry[] = [
   {id:'marketing',name:'MARKETING AGENT',role:'Kampány és marketinganyagok',capabilities:['campaign','ads','funnel','social'],source:'Designity / Nexora',status:'live'},
   {id:'template',name:'TEMPLATE AGENT',role:'Sablonillesztés és metadata',capabilities:['template-matching','template-metadata'],source:'Designity',status:'live'},
   {id:'product',name:'PRODUCT FACTORY',role:'Termék- és MVP-tervezés',capabilities:['product-concept','feature-set','offer-package'],source:'Nexora / Trenova',status:'live'},
-  {id:'tiktok-shop',name:'TIKTOK SHOP AGENT',role:'Social-commerce workflow',capabilities:['tiktok-shop','product-listing','shop-health'],source:'Trenova / Wantera',status:'live'},
   {id:'video',name:'VIDEO CREATOR AGENT',role:'Rövid videó, hook, storyboard és UGC',capabilities:['video','reels','shorts','ugc','storyboard'],source:'Designity / Trenova',status:'live'},
   {id:'sales',name:'SALES AGENT',role:'Ajánlat, upsell és értékesítési üzenetek',capabilities:['offer','upsell','sales-copy','follow-up'],source:'Nexora',status:'live'},
-  {id:'voice',name:'VOICE AGENT',role:'Hangvezérlés és beszédfeldolgozás',capabilities:['speech-to-text','text-to-speech','voice-ui'],source:'Mira / VEYRA',status:'live'},
-  {id:'translator',name:'REALTIME TRANSLATOR',role:'Többnyelvű fordítás és tolmácsolás',capabilities:['translation','interpreter','speech-translation'],source:'Mira-Mobile / VEYRA',status:'live'},
-  {id:'mira',name:'MIRA',role:'Személyi AI asszisztens',capabilities:['assistant','voice','reminders','mobile'],source:'Mira.AI / Mira-Mobile',status:'live'},
-  {id:'procurement',name:'AVENTOR',role:'B2B procurement intelligence',capabilities:['procurement','supplier-list','b2b'],source:'AVENTOR',status:'live'},
-  {id:'recruitment',name:'WANTERA',role:'Talent és recruitment intelligence',capabilities:['recruitment','job-matching','talent','cv'],source:'WANTERA',status:'live'},
-  {id:'social-publisher',name:'SOCIAL PUBLISHER',role:'Engedélyezett social publishing workflow',capabilities:['oauth','direct-post','approval','audit-log'],source:'Wantera Platform',status:'live'},
   {id:'web-qa',name:'WEB QA',role:'Web QA, linkek, űrlapok és reszponzivitás',capabilities:['web-qa','links','forms','responsive'],source:'Designity',status:'live'},
 ];
 
@@ -50,15 +43,10 @@ export interface AgentPlan {
 
 const RULES: Array<{id:string;terms:RegExp[];reason:string}> = [
   {id:'product',terms:[/mvp/i,/termék/i,/webshop/i,/webáruház/i,/shop/i],reason:'termék- és commerce-tervezés'},
-  {id:'tiktok-shop',terms:[/tiktok\s*shop/i,/seller/i,/product listing/i,/affiliate/i],reason:'social-commerce workflow'},
   {id:'video',terms:[/videó/i,/video/i,/reels/i,/shorts/i,/ugc/i,/reklámfilm/i],reason:'videós kreatív'},
   {id:'marketing',terms:[/marketing/i,/kampány/i,/hirdetés/i,/ads/i],reason:'kampány és marketing'},
   {id:'social',terms:[/social/i,/instagram/i,/facebook/i,/tiktok/i,/poszt/i,/story/i],reason:'social kreatív'},
   {id:'sales',terms:[/értékesítés/i,/eladás/i,/ajánlat/i,/upsell/i,/sales/i],reason:'értékesítés'},
-  {id:'voice',terms:[/hang/i,/beszéd/i,/telefon/i,/voice/i,/voiceover/i],reason:'hanginterakció'},
-  {id:'translator',terms:[/fordít/i,/tolmács/i,/többnyelv/i,/multilingual/i],reason:'fordítás'},
-  {id:'procurement',terms:[/beszerzés/i,/beszállító/i,/procurement/i,/b2b/i],reason:'B2B procurement'},
-  {id:'recruitment',terms:[/toborz/i,/recruit/i,/állás/i,/jelölt/i,/talent/i],reason:'recruitment'},
   {id:'web-architect',terms:[/weboldal/i,/website/i,/honlap/i,/webshop/i,/site/i],reason:'web-architektúra'},
   {id:'ux-ui',terms:[/weboldal/i,/website/i,/honlap/i,/ui/i,/ux/i,/interakció/i],reason:'UX/UI'},
   {id:'seo-content',terms:[/weboldal/i,/website/i,/honlap/i,/seo/i,/google/i,/kereső/i],reason:'SEO'},
