@@ -28,7 +28,7 @@ A STREAMER & GAMER STUDIO stream scene-eket, overlayeket, alertokat, thumbnailok
 
 ## Stack
 
-Vite + React 18 + TypeScript + Tailwind. Supabase Postgres/Auth/Edge Functions. A szöveges agent runtime jelenleg Groq-alapú lehet, fallback móddal. A képgenerálás a DESIGNLY Qwen-Image-2.1 Edge Functionjén keresztül működik.
+Vite + React 18 + TypeScript + Tailwind. Supabase Postgres/Auth/Edge Functions. A szöveges agent runtime szerveroldali Groq providerrel működik, és provider-hiba esetén egyértelműen jelölt előnézeti fallbackot ad. A képgenerálás a DESIGNLY Qwen-Image-2.1 Edge Functionjén keresztül működik; a jelenlegi provider 1:1 kimenetet ad, ezért a kért képarányt a rendszer nem állítja hamisan kimeneti méretként.
 
 ## Indítás
 
@@ -74,9 +74,11 @@ A credit-ledger szerveroldali RPC-t használó részeknél az auth.uid ellenőrz
 
 GitHub Actions:
 
-- `.github/workflows/designly-ci.yml` — typecheck + Vite production build
+- `.github/workflows/designly-ci.yml` — TypeScript + Vite build + Deno Edge Function typecheck
 - `.github/workflows/designly-security.yml` — CodeQL
-- GitHub Dependency Review nincs bekapcsolva, mert a repóban a Dependency graph jelenleg nincs engedélyezve; ezt külön GitHub Security beállításban lehet aktiválni.
+- `.github/workflows/designly-dependency-review.yml` — Dependency Review PR-oknál
+
+A GitHub Actions a `main` ágat ellenőrzi; a deployment célja továbbra is Vercel.
 
 GitHub Pages / Next.js deployment workflow nincs a V3-ban; a deployment célja Vercel.
 
