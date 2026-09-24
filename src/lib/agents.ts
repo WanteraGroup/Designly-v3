@@ -49,7 +49,7 @@ export const PUBLIC_AGENT_MODULES: PublicAgentModule[] = [
   { id:'web-architect', name:'WEB ARCHITECT', role:'Struktúra, UX/UI, reszponzivitás és információs architektúra', specialistIds:['web','web-architect','ux-ui'] },
   { id:'content-growth', name:'CONTENT & GROWTH', role:'Tartalom, SEO, kampány és értékesítési üzenetek', specialistIds:['content','seo-content','marketing','sales'] },
   { id:'image-studio', name:'IMAGE STUDIO', role:'AI képek, vizuális kreatívok és galériák', specialistIds:[] },
-  { id:'media-studio', name:'MEDIA STUDIO', role:'Videó, rövidformátum, storyboard és UGC', specialistIds:['video','social'] },
+  { id:'media-studio', name:'VIDEO STUDIO', role:'Videó, rövidformátum, storyboard és UGC', specialistIds:['video','social'] },
   { id:'social-studio', name:'SOCIAL STUDIO', role:'Social post, story és platformváltozatok', specialistIds:['social'] },
   { id:'template-studio', name:'TEMPLATE STUDIO', role:'Sablonillesztés és variációk', specialistIds:['template'] },
   { id:'extra-design-studio', name:'EXTRA DESIGN STUDIO', role:'Névjegy, meghívó, flyer, plakát, tattoo, planner és CNC', specialistIds:[] },
