@@ -34,6 +34,31 @@ export const PLANNED_AGENTS: AgentEntry[] = [
   {id:'web-qa',name:'WEB QA',role:'Web QA, linkek, űrlapok és reszponzivitás',capabilities:['web-qa','links','forms','responsive'],source:'Designity',status:'live'},
 ];
 
+
+export interface PublicAgentModule {
+  id: string;
+  name: string;
+  role: string;
+  specialistIds: string[];
+}
+
+export const PUBLIC_AGENT_MODULES: PublicAgentModule[] = [
+  { id:'core', name:'VYRON CORE', role:'Főorchestrátor és teljes agent-hálózat', specialistIds:['core'] },
+  { id:'master', name:'DESIGNLY MASTER', role:'Kreatív és design döntések', specialistIds:['master'] },
+  { id:'huginn', name:'HUGINN', role:'AI concierge, navigáció és felhasználói segítség', specialistIds:['huginn'] },
+  { id:'brand-studio', name:'BRAND STUDIO', role:'Logó, színpaletta, tipográfia, brand voice és Brand Kit', specialistIds:['brand'] },
+  { id:'web-architect', name:'WEB ARCHITECT', role:'Struktúra, UX/UI, reszponzivitás és információs architektúra', specialistIds:['web','web-architect','ux-ui'] },
+  { id:'content-growth', name:'CONTENT & GROWTH', role:'Tartalom, SEO, kampány és értékesítési üzenetek', specialistIds:['content','seo-content','marketing','sales'] },
+  { id:'image-studio', name:'IMAGE STUDIO', role:'AI képek, vizuális kreatívok és galériák', specialistIds:[] },
+  { id:'media-studio', name:'MEDIA STUDIO', role:'Videó, rövidformátum, storyboard és UGC', specialistIds:['video','social'] },
+  { id:'social-studio', name:'SOCIAL STUDIO', role:'Social post, story és platformváltozatok', specialistIds:['social'] },
+  { id:'template-studio', name:'TEMPLATE STUDIO', role:'Sablonillesztés és variációk', specialistIds:['template'] },
+  { id:'extra-design-studio', name:'EXTRA DESIGN STUDIO', role:'Névjegy, meghívó, flyer, plakát, tattoo, planner és CNC', specialistIds:[] },
+  { id:'streamer-gamer', name:'STREAMER & GAMER STUDIO', role:'Overlay, alert, scene, emote, badge és creator kreatívok', specialistIds:['video','social'] },
+  { id:'merch-factory', name:'MERCH FACTORY', role:'Póló, hoodie, bögre, sapka és sticker artwork', specialistIds:['product'] },
+  { id:'qa', name:'QA AGENT', role:'Minőségbiztosítás, validáció és acceptance', specialistIds:['reviewer','web-qa','builder'] },
+];
+
 export const FULL_AGENT_TEAM: AgentEntry[] = [...LIVE_AGENTS, ...PLANNED_AGENTS];
 
 export interface AgentPlan {
