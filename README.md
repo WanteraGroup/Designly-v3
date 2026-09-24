@@ -85,3 +85,6 @@ GitHub Pages / Next.js deployment workflow nincs a V3-ban; a deployment célja V
 Az Unsplash képekhez a fotós neve és a forráslink megmarad a galériában és az exportált HTML-ben.
 
 A Qwen-Image-2.1 használata előtt kereskedelmi szolgáltatásnál a modell aktuális licencfeltételeit külön ellenőrizni kell.
+
+
+<!-- CI audit marker v3 -->
