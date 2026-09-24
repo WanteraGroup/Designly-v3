@@ -266,7 +266,7 @@ export default function Home() {
 
       {tab === 'studio' && (
         <section className="relative mx-auto max-w-6xl px-6 pb-24">
-          <CreativeStudio />
+          <CreativeStudio initialTool={new URLSearchParams(window.location.search).get('tool') ?? undefined} />
         </section>
       )}
 
