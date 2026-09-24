@@ -1,10 +1,31 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { buildOrchestrationPlan } from "../_shared/orchestrator.ts";
 const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization, X-Client-Info, Apikey"};
 const buckets=new Map<string,number[]>();
 function json(data:unknown,status=200){return new Response(JSON.stringify(data),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});}
-function rateLimited(req:Request){const k=(req.headers.get("x-forwarded-for")||req.headers.get("cf-connecting-ip")||"guest").split(",")[0].trim().slice(0,100);const n=Date.now();const r=(buckets.get(k)||[]).filter(t=>n-t<60000);if(r.length>=8)return true;r.push(n);buckets.set(k,r);return false;}
+function rateLimited(req:Request){const k=(req.headers.get("x-forwarded-for")||req.headers.get("cf-connecting-ip")||"guest").split(",")[0].trim().slice(0,100);const n=Date.now();const r=(buckets.get(k)||[]).filter(t=>n-t<60000);if(r.length>=8)return true;r.push(n);buckets.set(k,r);if(buckets.size>2000){for(const [bk,times] of buckets){if(times.every(t=>n-t>=60000))buckets.delete(bk);}}return false;}
 function s(v:unknown,f="",m=1400){return typeof v==="string"&&v.trim()?v.trim().slice(0,m):f;}
 function a(v:unknown,f:any[]=[],m=8){return Array.isArray(v)?v.slice(0,m):f;}
+
+/*
+ * A SUPABASE_SERVICE_ROLE_KEY es a SUPABASE_URL a futo kornyezetbol jon.
+ * A `deduct_credits` RPC-t a hardening migration kizarolag service_role-nak
+ * engedi (REVOKE ... FROM PUBLIC, authenticated), ezert a kliens-oldali
+ * token nem eleg: a szolgalati kulcs kell hozza. Ha barmelyik hianyzik, a
+ * vegpont nem indit general ast — inkabb 503, mint csendben ingyenes futas.
+ */
+function adminClient(){
+  const url=Deno.env.get("SUPABASE_URL")||"";
+  const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
+  if(!url||!key)return null;
+  return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+}
+function userClient(req:Request){
+  const url=Deno.env.get("SUPABASE_URL")||"";
+  const anon=Deno.env.get("SUPABASE_ANON_KEY")||"";
+  return createClient(url,anon,{global:{headers:{Authorization:req.headers.get("Authorization")||""}},auth:{persistSession:false,autoRefreshToken:false}});
+}
+
 function fallback(brief:string,lang:string){const hu=lang.startsWith("hu");const dark=/(sötét|sotet|dark|black|noir|viking|kelta|celtic)/i.test(brief);const title=s(brief.replace(/^.*?[:\-]\s*/,""),"DESIGNLY",70);return {siteTitle:title,themeMode:dark?"dark":"light",palette:dark?["#07080c","#151820","#c9a45c","#f3eee3"]:["#f6f2eb","#fff","#1c2330","#9b6d2d"],headingFont:"Marcellus",bodyFont:"Inter",nav:[{label:hu?"Főoldal":"Home",href:"#top"},{label:hu?"Szolgáltatások":"Services",href:"#services"},{label:hu?"Kapcsolat":"Contact",href:"#contact"}],heroEyebrow:"DESIGNLY STUDIO",heroHeadline:title,heroSubheadline:hu?"Koherens, modern és működő digitális jelenlét.":"A coherent, modern digital presence.",heroCtaLabel:hu?"Kapcsolat":"Contact",heroCtaHref:"#contact",featuresHeading:hu?"Miért ez az irány?":"Why this direction?",features:[{title:"Hierarchia",text:"Erős vizuális sorrend és CTA."},{title:"Reszponzív",text:"Mobil, tablet és asztali nézet."},{title:"Márkaközpontú",text:"Következetes vizuális rendszer."}],aboutHeading:hu?"A projektről":"About",aboutBody:brief.slice(0,900),servicesHeading:hu?"Szolgáltatások":"Services",services:[{name:"Strategia",text:"Kreatív és funkcionális irány.",price:"—"},{name:"Design",text:"UI és vizuális rendszer.",price:"—"},{name:"Build",text:"Build-ready specifikáció és QA.",price:"—"}],pricingHeading:hu?"Csomagok":"Plans",pricingTiers:[{name:"START",price:"Egyedi",period:"",features:["Brief","Design","QA"]},{name:"PRO",price:"Egyedi",period:"",features:["Full structure","Content","QA"]}],galleryHeading:hu?"Inspiráció":"Inspiration",gallery:[{query:"premium modern business interior",caption:"Premium visual direction"},{query:"modern creative studio architecture",caption:"Editorial atmosphere"}],testimonialsHeading:hu?"Visszajelzés":"Testimonials",testimonials:[{quote:"Tiszta és következetes.",author:hu?"Ügyfél":"Client",role:"Project"}],faqHeading:"FAQ",faq:[{q:hu?"Módosítható?":"Can it be refined?",a:hu?"Igen.":"Yes."}],contactHeading:hu?"Kapcsolat":"Contact",contactBody:hu?"Kérj személyre szabott ajánlatot.":"Request a tailored proposal.",email:"",phone:"",address:"",ctaHeadline:hu?"Építsük fel.":"Let us build it.",ctaSubheadline:hu?"A következő lépés egy jóváhagyott brief.":"The next step is an approved brief.",ctaLabel:hu?"Indulás":"Start",ctaHref:"#contact",footerText:"DESIGNLY STUDIO",footerLinks:[{label:"Privacy",href:"#"}]};}
 function doc(d:any,lang:string){const x=(v:any,f:any[]=[],m=8)=>a(v,f,m);return {site:{title:s(d.siteTitle,"DESIGNLY",120),language:lang,theme:{mode:d.themeMode==="light"?"light":"dark",palette:x(d.palette,["#c9a45c"],8).map((v:any)=>s(v,"#c9a45c",60)),heading_font:s(d.headingFont,"Marcellus",80),body_font:s(d.bodyFont,"Inter",80)},nav:x(d.nav,[],8).map((v:any)=>({label:s(v?.label,"Link",80),href:s(v?.href,"#",160)}))},blocks:[{type:"hero",eyebrow:s(d.heroEyebrow,"DESIGNLY",100),headline:s(d.heroHeadline,"Create.",300),subheadline:s(d.heroSubheadline,"",700),cta:{label:s(d.heroCtaLabel,"Contact",100),href:s(d.heroCtaHref,"#contact",160)}},{type:"features",heading:s(d.featuresHeading,"Features",140),items:x(d.features,[],6).map((v:any)=>({title:s(v?.title,"Feature",120),text:s(v?.text,"",800)}))},{type:"about",heading:s(d.aboutHeading,"About",140),body:s(d.aboutBody,"",1800)},{type:"services",heading:s(d.servicesHeading,"Services",140),items:x(d.services,[],6).map((v:any)=>({name:s(v?.name,"Service",120),text:s(v?.text,"",800),price:s(v?.price,"—",120)}))},{type:"pricing",heading:s(d.pricingHeading,"Pricing",140),tiers:x(d.pricingTiers,[],5).map((v:any)=>({name:s(v?.name,"Plan",120),price:s(v?.price,"—",120),period:s(v?.period,"",80),features:x(v?.features,[],8).map((q:any)=>s(q,"",300))}))},{type:"gallery",heading:s(d.galleryHeading,"Gallery",140),images:x(d.gallery,[],6).map((v:any)=>({query:s(v?.query,"modern design",180),caption:s(v?.caption,"",300)}))},{type:"testimonials",heading:s(d.testimonialsHeading,"Testimonials",140),items:x(d.testimonials,[],6).map((v:any)=>({quote:s(v?.quote,"",500),author:s(v?.author,"",120),role:s(v?.role,"",120)}))},{type:"faq",heading:s(d.faqHeading,"FAQ",140),items:x(d.faq,[],8).map((v:any)=>({q:s(v?.q,"",300),a:s(v?.a,"",800)}))},{type:"contact",heading:s(d.contactHeading,"Contact",140),body:s(d.contactBody,"",800),email:s(d.email,"",140),phone:s(d.phone,"",80),address:s(d.address,"",300)},{type:"cta",headline:s(d.ctaHeadline,"Let us build it.",200),subheadline:s(d.ctaSubheadline,"",600),cta:{label:s(d.ctaLabel,"Start",100),href:s(d.ctaHref,"#contact",160)}},{type:"footer",text:s(d.footerText,"DESIGNLY STUDIO",180),links:x(d.footerLinks,[],8).map((v:any)=>({label:s(v?.label,"Link",80),href:s(v?.href,"#",160)}))}]};}
 const SPECIALIST_ROLES:Record<string,string>={
@@ -22,7 +43,8 @@ const SPECIALIST_ROLES:Record<string,string>={
 "product":"Define product concept, MVP scope, feature priorities and offer structure.",
 "video":"Define hooks, short-form video structure, storyboard and UGC direction.",
 "sales":"Define offer framing, sales messaging and follow-up requirements.",
-"web-qa":"Define link, form, responsive and acceptance test requirements."
+"web-qa":"Define link, form, responsive and acceptance test requirements.",
+"functional":"Decide which functional blocks (form, booking, product-grid, map, newsletter) the brief actually needs, and specify their fields, endpoints and success states. Only add a functional block when the brief asks for it."
 };
 
 async function runSpecialist(key:string,model:string,agent:string,brief:string,lang:string){
@@ -42,5 +64,107 @@ async function runSpecialist(key:string,model:string,agent:string,brief:string,l
   return {agent,deliverable:String(parsed.deliverable||""),decisions:Array.isArray(parsed.decisions)?parsed.decisions.filter((x:any)=>typeof x==="string").slice(0,8):[],risks:Array.isArray(parsed.risks)?parsed.risks.filter((x:any)=>typeof x==="string").slice(0,6):[]};
 }
 
-async function ai(key:string,model:string,brief:string,lang:string,agents:string[]){const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:"You are VYRON CORE, the boss of DESIGNLY. DESIGNLY MASTER is the design director. Coordinate the selected specialist agents. Return JSON only. Do not invent prices, contact data, testimonials or factual claims."},{role:"user",content:"BRIEF:\n"+brief+"\nLANGUAGE:\n"+lang+"\nACTIVE AGENTS:\n"+agents.join(", ")+"\nReturn keys: siteTitle,themeMode,palette,headingFont,bodyFont,nav,heroEyebrow,heroHeadline,heroSubheadline,heroCtaLabel,heroCtaHref,featuresHeading,features,aboutHeading,aboutBody,servicesHeading,services,pricingHeading,pricingTiers,galleryHeading,gallery,testimonialsHeading,testimonials,faqHeading,faq,contactHeading,contactBody,email,phone,address,ctaHeadline,ctaSubheadline,ctaLabel,ctaHref,footerText,footerLinks."}],temperature:0.25,max_tokens:5200,response_format:{type:"json_object"}})});if(!r.ok)throw new Error("Groq "+r.status);const d=await r.json();const raw=d.choices?.[0]?.message?.content;if(typeof raw!=="string"||!raw.trim())throw new Error("Groq returned no content");return JSON.parse(raw);}
-Deno.serve(async(req:Request)=>{if(req.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders});if(req.method!=="POST")return json({error:"METHOD_NOT_ALLOWED"},405);if(rateLimited(req))return json({error:"RATE_LIMITED",message:"Túl sok kérés rövid idő alatt. Próbáld újra később."},429);try{const b=await req.json().catch(()=>({}));const brief=typeof b.brief==="string"?b.brief.trim().slice(0,4000):"";const lang=typeof b.language==="string"?b.language.trim().slice(0,8):"hu";if(!brief)return json({error:"INVALID_REQUEST",message:"A brief kötelező."},400);const plan=buildOrchestrationPlan(brief,Array.isArray(b.requestedOutputs)?b.requestedOutputs:[]);const key=Deno.env.get("GROQ_API_KEY")||Deno.env.get("AI_API_KEY")||"";const model=Deno.env.get("DESIGNLY_GROQ_MODEL")||"openai/gpt-oss-120b";let payload:any;let mode:"ai"|"fallback"="fallback";let providerError:string|null=null;let specialistOutputs:any[]=[];if(key){try{const specialistIds=plan.agents.filter((id:string)=>!["core","master","huginn"].includes(id)).slice(0,10);const runs=await Promise.allSettled(specialistIds.map((id:string)=>runSpecialist(key,model,id,brief,lang)));specialistOutputs=runs.flatMap((x:any)=>x.status==="fulfilled"?[x.value]:[]);const specialistContext=JSON.stringify(specialistOutputs).slice(0,12000);payload=await ai(key,model,brief+"\nSPECIALIST TEAM OUTPUTS:\n"+specialistContext,lang,plan.agents);mode="ai";}catch(e){providerError=e instanceof Error?e.message:String(e);payload=fallback(brief,lang);}}else payload=fallback(brief,lang);const executedAgents=mode==="ai" ? [...new Set(specialistOutputs.map((item:any)=>item.agent).filter((id:any)=>typeof id==="string"))] : []; return json({success:true,document:doc(payload,lang),activeAgents:executedAgents,boss:"core",master:"master",specialistOutputs,orchestration:{agents:plan.agents,capabilities:plan.capabilities,reasons:plan.reasons,teamExecuted:mode==="ai"&&specialistOutputs.length>0},diagnostics:{provider:key?"groq":"none",model:key?model:null,runtimeMode:mode,providerError,specialistsExecuted:specialistOutputs.length}});}catch(e){return json({error:"AGENT_RUNTIME_ERROR",message:"A VYRON CORE futása hibába ütközött.",detail:(e instanceof Error?e.message:String(e)).slice(0,500)},500);}});
+async function ai(key:string,model:string,brief:string,lang:string,agents:string[]){const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:"You are VYRON CORE, the boss of DESIGNLY. DESIGNLY MASTER is the design director. Coordinate the selected specialist agents. Return JSON only. Do not invent prices, contact data, testimonials or factual claims. Only emit a functional block (form, booking, product-grid, map, newsletter) when the brief explicitly asks for it."},{role:"user",content:"BRIEF:\n"+brief+"\nLANGUAGE:\n"+lang+"\nACTIVE AGENTS:\n"+agents.join(", ")+"\nReturn keys: siteTitle,themeMode,palette,headingFont,bodyFont,nav,heroEyebrow,heroHeadline,heroSubheadline,heroCtaLabel,heroCtaHref,featuresHeading,features,aboutHeading,aboutBody,servicesHeading,services,pricingHeading,pricingTiers,galleryHeading,gallery,testimonialsHeading,testimonials,faqHeading,faq,contactHeading,contactBody,email,phone,address,ctaHeadline,ctaSubheadline,ctaLabel,ctaHref,footerText,footerLinks,functionalBlocks."}],temperature:0.25,max_tokens:5200,response_format:{type:"json_object"}})});if(!r.ok)throw new Error("Groq "+r.status);const d=await r.json();const raw=d.choices?.[0]?.message?.content;if(typeof raw!=="string"||!raw.trim())throw new Error("Groq returned no content");return JSON.parse(raw);}
+
+Deno.serve(async(req:Request)=>{
+if(req.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders});
+if(req.method!=="POST")return json({error:"METHOD_NOT_ALLOWED"},405);
+if(rateLimited(req))return json({error:"RATE_LIMITED",message:"Túl sok kérés rövid idő alatt. Próbáld újra később."},429);
+
+try{
+  /*
+   * 1. Ki hiv? A verify_jwt a Supabase szintjen mar kizarja az ervenytelen
+   *    tokent, de az azonositas a funkcioban is kell: enelkul nem tudjuk,
+   *    kinek a kreditejet terheljuk.
+   */
+  const auth=userClient(req);
+  const { data: { user }, error: authError } = await auth.auth.getUser();
+  if(authError||!user) return json({error:"UNAUTHORIZED",message:"Jelentkezz be az oldal elkészítéséhez."},401);
+
+  /*
+   * 2. Van-e a szervernek szolgalati kulcsa a kredit-levonashoz? Ha nincs,
+   *    NEM futtatunk ingyen general ast: a hivas 503-at kap, es a hibaok
+   *    lathato a valaszban. Egy csendes, ingyenes futas lenne a legrosszabb
+   *    kimenet, mert a kvota fogy, a felhasznalo meg nem tud rola.
+   */
+  const admin=adminClient();
+  if(!admin) return json({error:"SERVER_NOT_CONFIGURED",message:"A szerveroldali kredit-ellenorzes nincs beallitva (SUPABASE_SERVICE_ROLE_KEY hianyzik)."},503);
+
+  const b=await req.json().catch(()=>({}));
+  const brief=typeof b.brief==="string"?b.brief.trim().slice(0,4000):"";
+  const lang=typeof b.language==="string"?b.language.trim().slice(0,8):"hu";
+  if(!brief)return json({error:"INVALID_REQUEST",message:"A brief kötelező."},400);
+
+  /*
+   * 3. Kredit-levonas MEG a provider hivas elott. Egy elutasitott keres igy
+   *    nem fogyaszt Groq tokent, egy engedelyezett igen. A 402 a helyes
+   *    statusz: nem tiltas (403), hanem fizetesi feltetel.
+   */
+  const cost=Math.max(1,Math.min(100,Number(Deno.env.get("DESIGNLY_AGENT_COST")||"1")));
+  const { data: charged, error: chargeError } = await admin.rpc("deduct_credits",{
+    p_user_id:user.id,
+    p_amount:cost,
+    p_description:"designly-v3-agent"
+  });
+  if(chargeError) return json({error:"CREDIT_CHECK_FAILED",message:"A kredit-ellenőrzés nem futott le.",detail:chargeError.message.slice(0,300)},500);
+  if(charged!==true) return json({error:"INSUFFICIENT_CREDITS",message:"Elfogytak a kreditek. Töltsd fel a fiókot a generáláshoz."},402);
+
+  const plan=buildOrchestrationPlan(brief,Array.isArray(b.requestedOutputs)?b.requestedOutputs:[]);
+  const key=Deno.env.get("GROQ_API_KEY")||Deno.env.get("AI_API_KEY")||"";
+  const model=Deno.env.get("DESIGNLY_GROQ_MODEL")||"openai/gpt-oss-120b";
+  let payload:any;
+  let mode:"ai"|"fallback"="fallback";
+  let providerError:string|null=null;
+  let specialistOutputs:any[]=[];
+  let specialistFailures:string[]=[];
+
+  if(key){
+    try{
+      const specialistIds=plan.agents.filter((id:string)=>!["core","master","huginn"].includes(id)).slice(0,10);
+      const runs=await Promise.allSettled(specialistIds.map((id:string)=>runSpecialist(key,model,id,brief,lang)));
+      specialistOutputs=runs.flatMap((x:any)=>x.status==="fulfilled"?[x.value]:[]);
+      /*
+       * A reszleges specialist-kieses eddig csendben eltunt. Most a nevek is
+       * bekerulnek a valaszba, hogy a felulet meg tudja mondani, melyik agens
+       * nem futott — a "csapat dolgozott" allitas igy ellenorizheto marad.
+       */
+      specialistFailures=runs.flatMap((x:any,i:number)=>x.status==="rejected"?[specialistIds[i]]:[]);
+      const specialistContext=JSON.stringify(specialistOutputs).slice(0,12000);
+      payload=await ai(key,model,brief+"\nSPECIALIST TEAM OUTPUTS:\n"+specialistContext,lang,plan.agents);
+      mode="ai";
+    }catch(e){
+      providerError=e instanceof Error?e.message:String(e);
+      payload=fallback(brief,lang);
+    }
+  }else{
+    payload=fallback(brief,lang);
+  }
+
+  const executedAgents=mode==="ai"?[...new Set(specialistOutputs.map((item:any)=>item.agent).filter((id:any)=>typeof id==="string"))]:[];
+
+  /*
+   * A fallback eseten a kredit NEM jar vissza automatikusan — a keres lefutott,
+   * a szolgaltatas teljesult (sablonvazlat). Ezt a valasz `creditsCharged`
+   * mezoje rögziti, hogy a felulet meg tudja irni a felhasznalonak, mi tortent.
+   */
+  return json({
+    success:true,
+    document:doc(payload,lang),
+    activeAgents:executedAgents,
+    boss:"core",
+    master:"master",
+    specialistOutputs,
+    orchestration:{agents:plan.agents,capabilities:plan.capabilities,reasons:plan.reasons,teamExecuted:mode==="ai"&&specialistOutputs.length>0},
+    diagnostics:{
+      provider:key?"groq":"none",
+      model:key?model:null,
+      runtimeMode:mode,
+      providerError,
+      specialistsExecuted:specialistOutputs.length,
+      specialistsFailed:specialistFailures,
+      creditsCharged:cost
+    }
+  });
+}catch(e){
+  return json({error:"AGENT_RUNTIME_ERROR",message:"A VYRON CORE futása hibába ütközött.",detail:(e instanceof Error?e.message:String(e)).slice(0,500)},500);
+}});
