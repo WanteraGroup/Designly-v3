@@ -58,11 +58,12 @@ export default function AuthGate({ children }: { children: ReactNode }) {
             {adminRole && (
               <a
                 href="/admin"
-                className="rounded-full p-1.5 text-accent hover:bg-panel-hi"
+                className="flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-accent hover:bg-accent/20"
                 aria-label="Admin menü"
                 title={adminRole === 'owner' ? 'Owner admin menü' : 'Admin menü'}
               >
                 <Cog className="h-3.5 w-3.5" />
+                <span>ADMIN</span>
               </a>
             )}
             <button
