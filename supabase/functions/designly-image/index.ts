@@ -79,16 +79,22 @@ function toAbsoluteFileUrl(value: string): string {
   return HF_SPACE + "/" + value;
 }
 
+// The RunPod qwen-image-t2i endpoint validates size against the model's
+// fixed Qwen Image presets. It does not accept arbitrary/custom dimensions.
+// Keep all Studio ratios usable by mapping unsupported ratios to the nearest
+// supported preset; the response still reports the requested ratio separately.
 const RATIO_SIZES: Record<string, [number, number]> = {
   "1:1": [1328, 1328],
   "4:3": [1472, 1104],
   "3:4": [1104, 1472],
   "16:9": [1664, 928],
   "9:16": [928, 1664],
-  "3:2": [1584, 1056],
-  "2:3": [1056, 1584],
-  "21:9": [1664, 714],
-  "4:5": [1088, 1360],
+
+  // RunPod/Qwen fixed-preset compatibility mappings.
+  "3:2": [1472, 1104],
+  "2:3": [1104, 1472],
+  "21:9": [1664, 928],
+  "4:5": [1104, 1472],
 };
 
 /*
@@ -223,6 +229,7 @@ async function runRunpod(prompt: string, aspectRatio: string): Promise<{ bytes: 
         negative_prompt: "low quality, blurry, distorted anatomy, malformed hands, duplicate objects, unreadable text",
         size,
         seed: Math.floor(Math.random() * 2 ** 31),
+        enable_safety_checker: true,
       },
     }),
     signal: AbortSignal.timeout(timeoutMs),
