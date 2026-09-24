@@ -130,44 +130,121 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number):Pr
   ));
 }
 async function guideSheet(blob:Blob,opts:{grid:boolean;center:boolean;mirror:boolean}):Promise<Blob>{
-  const bitmap=await createImageBitmap(blob); const w=bitmap.width,h=bitmap.height;
-  const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
-  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('A munkalap export nem indult.');
+  const bitmap=await createImageBitmap(blob);
+  const w=bitmap.width,h=bitmap.height;
 
-  // Always start from an opaque white technical sheet. The sheet source is the
-  // already-isolated stencil PNG, never the original AI/mockup image.
+  // Professional salon worksheet = isolated stencil + technical registration area.
+  // The worksheet never uses the original AI/mockup image.
+  const marginX=Math.max(180,Math.round(w*0.22));
+  const marginY=Math.max(180,Math.round(h*0.18));
+  const W=w+marginX*2;
+  const H=h+marginY*2;
+  const canvas=document.createElement('canvas');
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  if(!ctx) throw new Error('A munkalap export nem indult.');
+
   ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,w,h);
-  ctx.drawImage(bitmap,0,0);
+  ctx.fillRect(0,0,W,H);
+
+  const frameX=marginX,frameY=marginY,frameW=w,frameH=h;
+  ctx.drawImage(bitmap,frameX,frameY);
   bitmap.close();
 
+  // Technical border around the actual stencil area.
   ctx.save();
-  ctx.strokeStyle='rgba(70,70,70,.55)';
-  ctx.fillStyle='rgba(70,70,70,.9)';
-  ctx.lineWidth=Math.max(1,Math.round(w/1200));
-  ctx.setLineDash([8,8]);
+  ctx.strokeStyle='#303030';
+  ctx.fillStyle='#303030';
+  ctx.lineWidth=2;
+  ctx.setLineDash([]);
+  ctx.strokeRect(frameX,frameY,frameW,frameH);
 
-  if(opts.grid){
-    for(let i=1;i<4;i++){
-      const x=w*i/4,y=h*i/4;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-    }
+  // Corner crop marks.
+  const crop=42, gap=12;
+  for(const [x,y,sx,sy] of [
+    [frameX,frameY,1,1],
+    [frameX+frameW,frameY,-1,1],
+    [frameX,frameY+frameH,1,-1],
+    [frameX+frameW,frameY+frameH,-1,-1],
+  ] as Array<[number,number,number,number]>){
+    ctx.beginPath();
+    ctx.moveTo(x+sx*gap,y);ctx.lineTo(x+sx*(gap+crop),y);
+    ctx.moveTo(x,y+sy*gap);ctx.lineTo(x,y+sy*(gap+crop));
+    ctx.stroke();
   }
+
+  // Registration crosses for physical alignment / transfer sheet orientation.
+  const crossSize=Math.max(22,Math.round(Math.min(W,H)*0.018));
+  const ring=Math.max(6,Math.round(crossSize*0.22));
+  const cross=(cx:number,cy:number)=>{
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(cx-crossSize,cy);ctx.lineTo(cx+crossSize,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,cy-crossSize);ctx.lineTo(cx,cy+crossSize);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,ring,0,Math.PI*2);ctx.stroke();
+  };
+
+  const regOffset=Math.max(58,Math.round(Math.min(marginX,marginY)*0.46));
+  cross(frameX-regOffset,frameY-regOffset);
+  cross(frameX+frameW+regOffset,frameY-regOffset);
+  cross(frameX-regOffset,frameY+frameH+regOffset);
+  cross(frameX+frameW+regOffset,frameY+frameH+regOffset);
+  cross(W/2,H/2);
+
+  // Axis guides.
+  ctx.lineWidth=1.5;
   if(opts.center){
-    ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();
+    ctx.setLineDash([14,10]);
+    ctx.beginPath();ctx.moveTo(frameX, H/2);ctx.lineTo(frameX+frameW,H/2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W/2,frameY);ctx.lineTo(W/2,frameY+frameH);ctx.stroke();
   }
   if(opts.mirror){
-    ctx.setLineDash([4,6]);
-    ctx.beginPath();ctx.moveTo(w/2-3,0);ctx.lineTo(w/2-3,h);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(w/2+3,0);ctx.lineTo(w/2+3,h);ctx.stroke();
+    ctx.setLineDash([6,8]);
+    ctx.beginPath();ctx.moveTo(W/2-4,frameY);ctx.lineTo(W/2-4,frameY+frameH);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W/2+4,frameY);ctx.lineTo(W/2+4,frameY+frameH);ctx.stroke();
   }
-  ctx.setLineDash([]);
-  ctx.font='600 '+Math.max(12,Math.round(w/90))+'px sans-serif';
+
+  // Reference grid inside the stencil work area only.
+  if(opts.grid){
+    ctx.strokeStyle='rgba(80,80,80,.18)';
+    ctx.lineWidth=1;
+    ctx.setLineDash([]);
+    for(let i=1;i<10;i++){
+      const x=frameX+(frameW*i/10), y=frameY+(frameH*i/10);
+      ctx.beginPath();ctx.moveTo(x,frameY);ctx.lineTo(x,frameY+frameH);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(frameX,y);ctx.lineTo(frameX+frameW,y);ctx.stroke();
+    }
+  }
+
+  // Professional title / print instruction area.
+  ctx.fillStyle='#202020';
+  ctx.font='700 '+Math.max(18,Math.round(Math.min(W,H)*0.018))+'px sans-serif';
   ctx.textAlign='left';
-  ctx.fillText('DESIGNLY TATTOO • STENCIL WORKSHEET',Math.max(12,Math.round(w*.03)),Math.max(22,Math.round(h*.04)));
-  ctx.font=Math.max(10,Math.round(w/130))+'px sans-serif';
-  ctx.fillText('CENTER / GRID / MIRROR guides — print reference',Math.max(12,Math.round(w*.03)),Math.max(38,Math.round(h*.065)));
+  ctx.fillText('DESIGNLY TATTOO · STENCIL MASTER',Math.max(28,Math.round(marginX*0.22)),Math.max(42,Math.round(marginY*0.32)));
+  ctx.font='500 '+Math.max(11,Math.round(Math.min(W,H)*0.009))+'px sans-serif';
+  ctx.fillText('PRINT 100% · NO FIT TO PAGE · REGISTRATION CROSSES · CENTER / GRID / MIRROR REFERENCE',
+    Math.max(28,Math.round(marginX*0.22)),Math.max(62,Math.round(marginY*0.50)));
+
+  // Registration legend markers, intentionally outside the tattoo.
+  ctx.font='600 '+Math.max(10,Math.round(Math.min(W,H)*0.008))+'px sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('REG',frameX-regOffset,frameY-regOffset+crossSize*2.1);
+  ctx.fillText('REG',frameX+frameW+regOffset,frameY-regOffset+crossSize*2.1);
+  ctx.fillText('REG',frameX-regOffset,frameY+frameH+regOffset+crossSize*2.1);
+  ctx.fillText('REG',frameX+frameW+regOffset,frameY+frameH+regOffset+crossSize*2.1);
+  ctx.fillText('CENTER',W/2,H/2+crossSize*2.1);
+
+  // Small scale reference bar (visual reference; final tattoo dimensions should be set by the studio printer).
+  const bar=Math.max(120,Math.round(W*0.08));
+  const bx=W-bar-Math.max(28,Math.round(marginX*0.22));
+  const by=H-Math.max(28,Math.round(marginY*0.30));
+  ctx.textAlign='right';
+  ctx.font='500 '+Math.max(10,Math.round(Math.min(W,H)*0.008))+'px sans-serif';
+  ctx.fillText('REFERENCE 50 mm',bx+bar,by-10);
+  ctx.strokeStyle='#202020';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+bar,by);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx,by-8);ctx.lineTo(bx,by+8);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx+bar,by-8);ctx.lineTo(bx+bar,by+8);ctx.stroke();
+
   ctx.restore();
 
   return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
