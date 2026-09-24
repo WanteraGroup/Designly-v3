@@ -193,6 +193,15 @@ export default function Home() {
         ))}
       </div>
 
+      <div className="mx-auto mb-8 flex max-w-6xl flex-wrap items-center justify-center gap-1.5 px-6 text-[10px] tracking-[0.12em] text-ink-500">
+        {['CREATE','DESIGN','WEB','IMAGE','VIDEO','SOCIAL','STREAMER/GAMER','MERCH','EXTRA','TEMPLATES','PUBLISH'].map((step, i, arr) => (
+          <span key={step} className="flex items-center gap-1.5">
+            <span className={i === 0 ? "rounded-full border border-accent/50 bg-accent/10 px-2.5 py-1 text-accent" : "rounded-full border border-line px-2.5 py-1 text-ink-400"}>{step}</span>
+            {i < arr.length - 1 && <span className="text-accent/50">→</span>}
+          </span>
+        ))}
+      </div>
+
       {tab === 'gamer' && (
         <section className="relative mx-auto max-w-6xl px-6 pb-24">
           <GamerStudio />
