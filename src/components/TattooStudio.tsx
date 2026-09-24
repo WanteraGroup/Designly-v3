@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, Grid3X3, PenTool, Share2, Sparkles } from 'lucide-react';
-import { generateCreativeImage } from '../lib/creative-api';
+import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 
 type Lang = 'hu'|'en'|'de'|'fr'|'es'|'it'|'pl'|'uk'|'ro'|'nl';
 type StyleKey = 'blackwork'|'fineLine'|'geometric'|'ornamental'|'nordic'|'realistic'|'dotwork'|'minimal';
@@ -82,16 +82,29 @@ export default function TattooStudio({language='hu'}:{language?:string}){
   if(!subject.trim()||busy)return; setBusy(true);setError('');setResult(null);setTransparent(null);setStencil(null);setSheet(null);
   try{
    const prompt=[
-    'Professional tattoo flash / stencil master artwork.',
-    'Create ONE centered tattoo design only, isolated on a clean pure white background for later alpha extraction.',
-    'No text, no letters, no numbers, no logo, no watermark, no mockup, no body photo, no skin, no frame.',
-    'Black and grey tattoo ink, crisp contour hierarchy, deliberate line weight, clean negative space, tattooable shapes, coherent anatomy and symmetry where appropriate.',
+    'TATTOO STENCIL MASTER — NOT A POSTER, NOT AN ILLUSTRATION, NOT A PHOTO.',
+    'Create ONE isolated, centered tattoo design only. The final image must look like a professional tattoo flash stencil sheet prepared by a tattoo artist.',
+    'ONLY the tattoo motif may be visible. No poster, no paper sheet, no mockup, no body, no skin, no person, no face, no scenery, no branch, no background scene, no frame, no border.',
+    'ABSOLUTELY NO TEXT, LETTERS, NUMBERS, TYPOGRAPHY, LOGOS, WATERMARKS OR DECORATIVE CAPTIONS.',
+    'Flat black ink linework and controlled solid black stencil shapes on pure white background. No photographic lighting, no cinematic depth, no glossy rendering, no gradients, no realistic environment.',
+    'Use strong outer contour, clean internal line hierarchy, deliberate negative space, connected tattooable shapes, traceable contours, stencil-friendly geometry and print clarity.',
+    'The design must be suitable for transfer stencil preparation and must contain no elements that are not part of the tattoo itself.',
     'Style: '+styleName+'. Placement target: '+placementName+'. Composition: '+format+'.',
-    'User concept: '+subject.trim(),
-    'Design for a professional tattoo artist: clear outer silhouette, internal linework separated, avoid muddy micro-details, keep the design printable and traceable.'
+    'USER TATTOO CONCEPT: '+subject.trim(),
+    'Return the artwork only. Never depict or design a poster around the tattoo.'
    ].join(' ');
-   const r=await generateCreativeImage(prompt,ratio); setResult(r.url);
-   const alpha=await urlToPng(r.url,true); const st=await urlToPng(r.url,false); const sh=await guideSheet(alpha,{grid,center,mirror});
+   const r=await generateCreativeImage(prompt,ratio);
+   const sourceResponse=await fetch(r.url); if(!sourceResponse.ok) throw new Error('A generált alapminta nem tölthető be.');
+   const sourceBlob=await sourceResponse.blob();
+   const sourceFile=new File([sourceBlob],'tattoo-source.png',{type:'image/png'});
+   const edited=await editCreativeImage({
+     files:[sourceFile],
+     prompt:'Convert this generated image into a PROFESSIONAL TATTOO STENCIL MASTER. REMOVE EVERYTHING THAT IS NOT THE TATTOO MOTIF: poster layout, page, paper, background, scenery, environment, human body, skin, face, branch, frame, border, decorative objects, captions, letters, words, numbers, logos and watermark. KEEP ONLY ONE centered tattoo motif. Re-render it as clean flat black ink linework with solid black stencil shapes and white negative space. NO text. NO typography. NO realistic scene. NO gradients. NO shadows. NO photographic lighting. Make every contour clear, connected, printable, traceable and suitable for a tattoo transfer stencil. Output only the tattoo artwork on a plain white background.',
+     aspectRatio:ratio,
+     resolution:'1k',
+   });
+   setResult(edited.url);
+   const alpha=await urlToPng(edited.url,true); const st=await urlToPng(edited.url,false); const sh=await guideSheet(alpha,{grid,center,mirror});
    setTransparent(alpha);setStencil(st);setSheet(sh);
   }catch(e){setError(e instanceof Error?e.message:'A tattoo generálása sikertelen.');}
   finally{setBusy(false);}
