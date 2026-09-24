@@ -1,6 +1,6 @@
 import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Clock, Briefcase, Video, Languages, Gamepad2 } from 'lucide-react';
 import { LANGUAGES } from '../lib/constants';
-import { FULL_AGENT_TEAM, LIVE_AGENTS, PLANNED_AGENTS } from '../lib/agents';
+import { FULL_AGENT_TEAM, PUBLIC_AGENT_MODULES } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
 import { TEMPLATE_TOTAL } from '../lib/templates';
 import designlyHeroImage from '../assets/designly-hero';
@@ -101,9 +101,9 @@ export default function Landing() {
       <section className="border-y border-line bg-panel/40">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-10 lg:grid-cols-4">
           {[
-            { value: `${LIVE_AGENTS.length}/${FULL_AGENT_TEAM.length}`, label: 'Aktív agent' },
+            { value: `${PUBLIC_AGENT_MODULES.length}`, label: 'Fő modul' },
             { value: TEMPLATE_TOTAL.toLocaleString('hu-HU'), label: 'Sablon' },
-            { value: `${featureCount}`, label: 'Kategória' },
+            { value: `${FULL_AGENT_TEAM.length - PUBLIC_AGENT_MODULES.length}`, label: 'Háttérspecialista' },
             { value: `${LANGUAGES.length}`, label: 'Nyelv' },
           ].map((s) => (
             <div key={s.label} className="text-center">
@@ -124,14 +124,18 @@ export default function Landing() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            { icon: Sparkles, name: 'Website Builder', desc: 'AI weboldalak természetes nyelvű briefből, kész szöveggel.', live: true },
-            { icon: LayoutTemplate, name: 'Sablon Galéria', desc: `${TEMPLATE_TOTAL.toLocaleString('hu-HU')} generált sablon, ${featureCount} kategóriában.`, live: true },
-            { icon: Wand2, name: 'Design Editor', desc: 'Természetes nyelvű finomítás diff-alapon — a szerkezet megmarad.', live: true },
-            { icon: Users, name: 'Agent Team', desc: `${LIVE_AGENTS.length} aktív specialista, és ${PLANNED_AGENTS.length} épülőben.`, live: true },
-            { icon: Briefcase, name: 'Brand Kit', desc: 'Színek, tipográfia és hangnem, minden kreatívhoz köthető.', live: true },
-            { icon: Video, name: 'Kampány Stúdió', desc: 'Poster, flyer, social és hirdetés egy közös kampányból.', live: true },
-            { icon: Gamepad2, name: 'Streamer & Gamer Studio', desc: 'OBS overlay, alert, scene, thumbnail, emote, badge és merch.', live: true },
-            { icon: Wand2, name: 'Extra Design Studio', desc: 'Névjegy, meghívó, flyer, poszter, Tattoo, Planner és CNC CAM egy helyen.', live: true },
+            { icon: Sparkles, name: 'CREATE', desc: 'Briefből induló alkotási folyamat és generálás.' },
+            { icon: Briefcase, name: 'BRAND STUDIO', desc: 'Logó, színpaletta, tipográfia, brand voice és Brand Kit.' },
+            { icon: LayoutTemplate, name: 'WEB ARCHITECT', desc: 'Struktúra, UX/UI, reszponzivitás és információs architektúra.' },
+            { icon: Users, name: 'CONTENT & GROWTH', desc: 'Tartalom, SEO, kampány és értékesítési kreatívok.' },
+            { icon: Wand2, name: 'IMAGE STUDIO', desc: 'AI képgenerálás és vizuális kreatívok.' },
+            { icon: Video, name: 'MEDIA STUDIO', desc: 'Videó, rövidformátum, storyboard és UGC.' },
+            { icon: Wand2, name: 'SOCIAL STUDIO', desc: 'Social post, story és platformváltozatok.' },
+            { icon: LayoutTemplate, name: 'TEMPLATE STUDIO', desc: 'Sablonillesztés és variációk.' },
+            { icon: Wand2, name: 'EXTRA DESIGN STUDIO', desc: 'Névjegy, meghívó, flyer, plakát, poszter, Tattoo, Planner és CNC.' },
+            { icon: Gamepad2, name: 'STREAMER & GAMER STUDIO', desc: 'Overlay, alert, scene, thumbnail, emote és badge.' },
+            { icon: Briefcase, name: 'MERCH FACTORY', desc: 'Póló, hoodie, bögre, sapka és sticker artwork.' },
+            { icon: Check, name: 'QA AGENT', desc: 'Validáció, minőségellenőrzés és acceptance.' },
           ].map((m) => (
             <div key={m.name} className="vp-card p-6">
               <div className="mb-4 flex items-center justify-between">
@@ -157,34 +161,17 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-6 py-20">
           <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Agent csapat</h2>
           <p className="mx-auto mb-12 max-w-2xl text-center text-sm leading-relaxed text-ink-300">
-            A Wantera projektcsalád tizenhét repójából összegyűjtött képességek. Az{' '}
-            <span className="text-emerald-400">aktív</span> agent ma is fut a generálásban; az{' '}
-            <span className="text-ink-200">épülő</span> a következő körök munkája — és ezt a
-            felület ki is mondja, mert egy agent, ami nem fut, nem hazudik működést.
+            A felhasználó a DESIGNLY fő moduljait látja. A háttérben a VYRON CORE a briefhez illő specialistákat automatikusan választja ki és koordinálja.
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {FULL_AGENT_TEAM.map((agent) => (
-              <div
-                key={agent.id}
-                className={`rounded-xl border px-4 py-3.5 ${
-                  agent.status === 'live'
-                    ? 'border-emerald-500/25 bg-emerald-500/[0.06]'
-                    : 'border-line bg-panel/50'
-                }`}
-              >
+            {PUBLIC_AGENT_MODULES.map((module) => (
+              <div key={module.id} className="rounded-xl border border-line bg-panel-hi/50 px-4 py-3.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold tracking-wider text-ink-100">
-                    {agent.name}
-                  </span>
-                  {agent.status === 'live' ? (
-                    <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                  ) : (
-                    <Clock className="h-3.5 w-3.5 shrink-0 text-ink-400" />
-                  )}
+                  <span className="text-[11px] font-semibold tracking-wider text-ink-100">{module.name}</span>
+                  <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                 </div>
-                <p className="mt-1.5 text-[11px] leading-snug text-ink-300">{agent.role}</p>
-                <p className="mt-1 font-mono text-[10px] text-ink-400">{agent.source}</p>
+                <p className="mt-1.5 text-[11px] leading-snug text-ink-300">{module.role}</p>
               </div>
             ))}
           </div>
