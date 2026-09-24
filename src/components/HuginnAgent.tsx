@@ -31,7 +31,7 @@ export default function HuginnAgent(){
  const [messages,setMessages]=useState<Message[]>([{role:"huginn",text:"HUGINN online. VYRON CORE irányítja a DESIGNLY agentcsapatot. Kérdezz bátran."}]);
  async function send(message=input.trim()){
   if(!message||busy)return; setInput(""); setMessages(m=>[...m,{role:"user",text:message}]); setBusy(true);
-  const url=(import.meta.env.VITE_SUPABASE_URL as string|undefined)?.trim()||"https://mxrgdcvmxzhocbdhtlhg.supabase.co";
+  const url="https://mxrgdcvmxzhocbdhtlhg.supabase.co";
   try{
    const controller=new AbortController(); const timeout=window.setTimeout(()=>controller.abort(),9000);
    const r=await fetch(url+"/functions/v1/designly-huginn",{method:"POST",headers:await authHeaders(false),body:JSON.stringify({message,language:new URLSearchParams(window.location.search).get("lang")||"hu"}),signal:controller.signal});
