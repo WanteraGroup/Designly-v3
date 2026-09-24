@@ -7,7 +7,19 @@
   "devCommand": "npm run dev",
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/app",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/app/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
       ]
