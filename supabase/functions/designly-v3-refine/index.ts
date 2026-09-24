@@ -1,3 +1,6 @@
+import { consumeCredits, ensureProfile, refundCredits, requestUser } from "../_shared/auth.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
+
 const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization, X-Client-Info, Apikey"};
 const buckets=new Map<string,number[]>();
 function rateLimited(req:Request){const key=(req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")||"guest").split(",")[0].trim().slice(0,80);const now=Date.now();const recent=(buckets.get(key)||[]).filter((t)=>now-t<60000);if(recent.length>=20)return true;recent.push(now);buckets.set(key,recent);if(buckets.size>2000){for(const [k,times] of buckets){if(times.every((t)=>now-t>=60000))buckets.delete(k);}}return false;}
@@ -5,16 +8,16 @@ function json(data:unknown,status=200){return new Response(JSON.stringify(data),
 Deno.serve(async(req:Request)=>{
 if(req.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders});
 if(req.method!=="POST")return json({error:"METHOD_NOT_ALLOWED"},405);
-if(rateLimited(req))return json({error:"RATE_LIMITED",message:"Túl sok szerkesztési kérés rövid idő alatt."},429);
+const user=await requestUser(req);if(!user)return json({error:"UNAUTHORIZED",message:"Jelentkezz be a szerkesztő használatához."},401);if(!await consumeRateLimit(req,user.id,20,"refine"))return json({error:"RATE_LIMITED",message:"Túl sok szerkesztési kérés rövid idő alatt."},429);
 try{
 const b=await req.json().catch(()=>({}));const doc=b.document;const instruction=typeof b.instruction==="string"?b.instruction.trim().slice(0,1200):"";const language=typeof b.language==="string"?b.language.slice(0,8):"hu";
 if(!doc||!instruction)return json({error:"INVALID_REQUEST",message:"Dokumentum és utasítás szükséges."},400);
 const key=Deno.env.get("GROQ_API_KEY")||Deno.env.get("AI_API_KEY")||"";
 if(!key){const l=instruction.toLowerCase();const edits:any[]=[];if(/világos|vilagos|light|fényes/.test(l))edits.push({path:"site.theme.mode",value:"light"});if(/sötét|sotet|dark/.test(l))edits.push({path:"site.theme.mode",value:"dark"});return json({success:true,reply:edits.length?"VYRON CORE: módosítás alkalmazva.":"VYRON CORE: nincs AI provider; változatlan dokumentum.",edits});}
-const schema={type:"object",additionalProperties:false,properties:{reply:{type:"string"},edits:{type:"array",items:{type:"object",additionalProperties:false,properties:{path:{type:"string"},value:{type:"string"}},required:["path","value"]}}},required:["reply","edits"]};
+await ensureProfile(user.id);const cost=Number(Deno.env.get("DESIGNLY_REFINE_COST")||"1");const charged=await consumeCredits(user.id,cost,"designly-v3-refine");if(!charged)return json({error:"INSUFFICIENT_CREDITS",message:"Elfogytak a kreditek."},402);const schema={type:"object",additionalProperties:false,properties:{reply:{type:"string"},edits:{type:"array",items:{type:"object",additionalProperties:false,properties:{path:{type:"string"},value:{type:"string"}},required:["path","value"]}}},required:["reply","edits"]};
 const prompt="You are VYRON CORE leading the DESIGNLY refine team. Apply only requested changes to existing fields. Return JSON only. Language: "+language+"\nInstruction: "+instruction+"\nDocument: "+JSON.stringify(doc).slice(0,30000);
 const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:Deno.env.get("DESIGNLY_GROQ_MODEL")||"openai/gpt-oss-120b",messages:[{role:"system",content:"Return strict JSON only."},{role:"user",content:prompt}],temperature:0.15,max_tokens:1400,response_format:{type:"json_schema",json_schema:{name:"designly_v3_refine",strict:true,schema}}})});
-if(!r.ok)return json({error:"REFINE_PROVIDER_ERROR",message:"A VYRON CORE finomító réteg nem tudott választ adni."},502);
+if(!r.ok){try{await refundCredits(user.id,cost,"designly-v3-refine provider refund");}catch(refundError){console.error("refine refund failed",refundError);}return json({error:"REFINE_PROVIDER_ERROR",message:"A VYRON CORE finomító réteg nem tudott választ adni."},502);}
 const d=await r.json();const raw=d.choices?.[0]?.message?.content;if(typeof raw!=="string")return json({error:"BAD_RESPONSE",message:"A finomító agent üres választ adott."},502);
 const p=JSON.parse(raw);const edits=Array.isArray(p.edits)?p.edits.slice(0,20).filter((x:any)=>x&&typeof x.path==="string"&&typeof x.value==="string"):[];const safe=edits.filter((x:any)=>/^(site\.|blocks\.)/.test(x.path)&&!/(__proto__|constructor|prototype)/.test(x.path));
 return json({success:true,reply:String(p.reply||"Módosítás elkészült."),edits:safe});
