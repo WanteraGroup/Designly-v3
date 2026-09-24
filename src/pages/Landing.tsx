@@ -138,25 +138,33 @@ export default function Landing() {
             { icon: LayoutTemplate, name: 'WEB ARCHITECT', desc: 'Struktúra, UX/UI, reszponzivitás és információs architektúra.' },
             { icon: Users, name: 'CONTENT & GROWTH', desc: 'Tartalom, SEO, kampány és értékesítési kreatívok.' },
             { icon: Wand2, name: 'IMAGE STUDIO', desc: 'AI képgenerálás és vizuális kreatívok.' },
-            { icon: Video, name: 'MEDIA STUDIO', desc: 'Videó, rövidformátum, storyboard és UGC.' },
+            { icon: Video, name: 'MEDIA STUDIO', desc: 'Video- és rövidformátumú gyártási terv, storyboard, UGC és AI keyframe.' },
             { icon: Wand2, name: 'SOCIAL STUDIO', desc: 'Social post, story és platformváltozatok.' },
             { icon: LayoutTemplate, name: 'TEMPLATE STUDIO', desc: 'Sablonillesztés és variációk.' },
             { icon: Wand2, name: 'EXTRA DESIGN STUDIO', desc: 'Névjegy, meghívó, flyer, plakát, poszter, Tattoo, Planner és CNC.' },
             { icon: Gamepad2, name: 'STREAMER & GAMER STUDIO', desc: 'Overlay, alert, scene, thumbnail, emote és badge.' },
             { icon: Briefcase, name: 'MERCH FACTORY', desc: 'Póló, hoodie, bögre, sapka és sticker artwork.' },
             { icon: Check, name: 'QA AGENT', desc: 'Validáció, minőségellenőrzés és acceptance.' },
-          ].map((m) => (
-            <div key={m.name} className="vp-card p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <m.icon className="h-5 w-5 text-accent" />
-                <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                  <Check className="h-3 w-3" /> AKTÍV
-                </span>
-              </div>
-              <h3 className="font-display text-lg text-ink-100">{m.name}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-300">{m.desc}</p>
-            </div>
-          ))}
+          ].map((m) => {
+            const href =
+              m.name === 'CREATE' ? '/app' :
+              m.name === 'MEDIA STUDIO' ? '/app?tab=media' :
+              m.name === 'TEMPLATE STUDIO' ? '/app?tab=templates' :
+              m.name === 'STREAMER & GAMER STUDIO' ? '/app?tab=gamer' :
+              '/app?tab=studio';
+            return (
+              <a key={m.name} href={href} className="vp-card group block p-6 transition hover:border-accent/50">
+                <div className="mb-4 flex items-center justify-between">
+                  <m.icon className="h-5 w-5 text-accent" />
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <Check className="h-3 w-3" /> AKTÍV
+                  </span>
+                </div>
+                <h3 className="font-display text-lg text-ink-100 group-hover:text-accent">{m.name}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-300">{m.desc}</p>
+              </a>
+            );
+          })}
         </div>
       </section>
 
