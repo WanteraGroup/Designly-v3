@@ -7,7 +7,7 @@ export { GatewayError } from './gateway';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+import { authHeaders } from './supabase-client';
 
 export const buildSite = generateSite;
 
@@ -22,10 +22,7 @@ export async function refineSite(
   try {
     res = await fetch(`${FUNCTIONS_URL}/designly-v3-refine`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(ANON_KEY ? { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY } : {}),
-      },
+      headers: await authHeaders(true),
       body: JSON.stringify({
         document: site,
         instruction: instruction.slice(0, 1200),
