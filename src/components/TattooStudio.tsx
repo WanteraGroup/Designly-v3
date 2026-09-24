@@ -32,92 +32,100 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number):Pr
   if(!srcCtx) throw new Error('A képfeldolgozó nem indult.');
   srcCtx.drawImage(bitmap,0,0); bitmap.close();
 
-  const srcData=srcCtx.getImageData(0,0,src.width,src.height);
-  const w=src.width,h=src.height,srcPx=srcData.data;
+  const w=src.width,h=src.height;
+  const srcData=srcCtx.getImageData(0,0,w,h);
+  const p=srcData.data;
   const mask=new Uint8Array(w*h);
 
-  // Tattoo ink is intentionally constrained to dark, near-neutral pixels.
-  // This rejects most skin tones and photo/background color while preserving black/grey linework.
-  const minX=Math.floor(w*0.06), maxX=Math.ceil(w*0.94);
-  const minY=Math.floor(h*0.02), maxY=Math.ceil(h*0.98);
+  const isSkin=(r:number,g:number,b:number)=>{
+    const warm=r>g+10 && g>b+8;
+    const range=Math.max(r,g,b)-Math.min(r,g,b);
+    return warm && r>70 && g>35 && b>20 && range>18;
+  };
+
+  const minX=Math.floor(w*0.04), maxX=Math.ceil(w*0.96);
+  const minY=Math.floor(h*0.015), maxY=Math.ceil(h*0.985);
+
+  // Only accept neutral dark ink. Reject white paper, light grey skin and warm skin.
   for(let y=minY;y<maxY;y++) for(let x=minX;x<maxX;x++){
     const i=(y*w+x)*4;
-    const r=srcPx[i],g=srcPx[i+1],b=srcPx[i+2];
+    const r=p[i],g=p[i+1],b=p[i+2];
     const lum=0.2126*r+0.7152*g+0.0722*b;
     const chroma=Math.max(r,g,b)-Math.min(r,g,b);
-    if(lum<threshold && chroma<42) mask[y*w+x]=1;
+    const neutralInk=lum<threshold && chroma<52 && !isSkin(r,g,b);
+    if(neutralInk) mask[y*w+x]=1;
   }
 
-  // Connected-component filtering:
-  // discard page/background masses and keep only compact, centered ink structures.
+  // Connected components remove speckles and large page/body regions.
   const seen=new Uint8Array(w*h);
   const kept=new Uint8Array(w*h);
-  const queueX=new Int32Array(w*h);
-  const queueY=new Int32Array(w*h);
+  const qx=new Int32Array(Math.min(w*h,1600000));
+  const qy=new Int32Array(Math.min(w*h,1600000));
   const neighbors=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
-  const minComponent=Math.max(8,Math.floor(w*h*0.000008));
-  const maxComponent=Math.floor(w*h*0.16);
-  let keptCount=0,minBX=w,minBY=h,maxBX=0,maxBY=0;
+  const minComponent=Math.max(24,Math.floor(w*h*0.000008));
+  const maxComponent=Math.floor(w*h*0.11);
 
+  let bestCount=0,bestMinX=w,bestMinY=h,bestMaxX=0,bestMaxY=0;
+  const components:Array<{indices:number[];minX:number;minY:number;maxX:number;maxY:number;score:number}>=[];
   for(let sy=minY;sy<maxY;sy++) for(let sx=minX;sx<maxX;sx++){
     const si=sy*w+sx;
     if(!mask[si]||seen[si]) continue;
-
     let head=0,tail=0;
     const indices:number[]=[];
     let cminX=w,cminY=h,cmaxX=0,cmaxY=0;
-    queueX[tail]=sx; queueY[tail]=sy; tail++; seen[si]=1;
-
+    qx[tail]=sx; qy[tail]=sy; tail++; seen[si]=1;
     while(head<tail){
-      const x=queueX[head],y=queueY[head]; head++;
-      const idx=y*w+x; indices.push(idx);
+      const x=qx[head],y=qy[head];head++;
+      const idx=y*w+x;indices.push(idx);
       if(x<cminX)cminX=x;if(x>cmaxX)cmaxX=x;if(y<cminY)cminY=y;if(y>cmaxY)cmaxY=y;
-
       for(const [dx,dy] of neighbors){
         const nx=x+dx,ny=y+dy;
-        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY) continue;
+        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY)continue;
         const ni=ny*w+nx;
-        if(mask[ni]&&!seen[ni]){seen[ni]=1;queueX[tail]=nx;queueY[tail]=ny;tail++;}
+        if(mask[ni]&&!seen[ni]){seen[ni]=1;qx[tail]=nx;qy[tail]=ny;tail++;}
       }
     }
-
     const size=indices.length;
-    const touchesOuterBorder=cminX<=Math.floor(w*0.07)||cmaxX>=Math.ceil(w*0.93)||cminY<=Math.floor(h*0.015)||cmaxY>=Math.ceil(h*0.985);
-    const cx=(cminX+cmaxX)/2/w, cy=(cminY+cmaxY)/2/h;
-    const centered=cx>0.20&&cx<0.80&&cy>0.04&&cy<0.96;
-
-    if(size>=minComponent && size<=maxComponent && !touchesOuterBorder && centered){
-      for(const idx of indices) kept[idx]=1;
-      keptCount+=size;
-      if(cminX<minBX)minBX=cminX;if(cminY<minBY)minBY=cminY;if(cmaxX>maxBX)maxBX=cmaxX;if(cmaxY>maxBY)maxBY=cmaxY;
+    if(size>=minComponent && size<=maxComponent){
+      const bw=cmaxX-cminX+1,bh=cmaxY-cminY+1;
+      const cx=(cminX+cmaxX)/2/w,cy=(cminY+cmaxY)/2/h;
+      const compact=Math.min(1,(bw*bh)/(size*18));
+      const centered=1-Math.min(1,Math.abs(cx-.5)*1.6+Math.abs(cy-.5)*.25);
+      const score=size*0.45+centered*size*0.4+compact*size*0.15;
+      components.push({indices,minX:cminX,minY:cminY,maxX:cmaxX,maxY:cmaxY,score});
     }
   }
 
-  if(!keptCount) throw new Error('Nem sikerült izolálni a tattoo motívumot. Próbálj tiszta fekete vonalmunka briefet.');
+  // Keep the dominant centered components that together form the tattoo motif.
+  components.sort((a,b)=>b.score-a.score);
+  const selected=components.slice(0,8);
+  for(const c of selected){
+    for(const idx of c.indices) kept[idx]=1;
+    bestCount+=c.indices.length;
+    if(c.minX<bestMinX)bestMinX=c.minX;if(c.minY<bestMinY)bestMinY=c.minY;
+    if(c.maxX>bestMaxX)bestMaxX=c.maxX;if(c.maxY>bestMaxY)bestMaxY=c.maxY;
+  }
 
-  const pad=Math.max(16,Math.round(Math.min(w,h)*0.035));
-  const bx0=Math.max(0,minBX-pad),by0=Math.max(0,minBY-pad);
-  const bx1=Math.min(w,maxBX+pad+1),by1=Math.min(h,maxBY+pad+1);
+  if(!bestCount) throw new Error('Nem sikerült elkülöníteni a tattoo motívumot.');
+
+  const pad=Math.max(20,Math.round(Math.min(w,h)*0.04));
+  const bx0=Math.max(0,bestMinX-pad),by0=Math.max(0,bestMinY-pad);
+  const bx1=Math.min(w,bestMaxX+pad+1),by1=Math.min(h,bestMaxY+pad+1);
   const outW=bx1-bx0,outH=by1-by0;
 
-  const canvas=document.createElement('canvas'); canvas.width=outW; canvas.height=outH;
-  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('A stencil kimenet nem indult.');
+  const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;
+  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('A stencil kimenet nem indult.');
   const out=ctx.createImageData(outW,outH);
 
   for(let y=0;y<outH;y++) for(let x=0;x<outW;x++){
     const si=(by0+y)*w+(bx0+x),di=(y*outW+x)*4,ink=kept[si]===1;
-    if(transparent){
-      out.data[di]=12; out.data[di+1]=12; out.data[di+2]=12; out.data[di+3]=ink?255:0;
-    } else {
-      const v=ink?0:255;
-      out.data[di]=v; out.data[di+1]=v; out.data[di+2]=v; out.data[di+3]=255;
-    }
+    const v=ink?0:255;
+    out.data[di]=v;out.data[di+1]=v;out.data[di+2]=v;out.data[di+3]=transparent?(ink?255:0):255;
   }
 
   ctx.putImageData(out,0,0);
   return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
-    b=>b?resolve(b):reject(new Error('Stencil PNG export hiba.')),
-    'image/png'
+    b=>b?resolve(b):reject(new Error('Stencil PNG export hiba.')),'image/png'
   ));
 }
 async function guideSheet(blob:Blob,opts:{grid:boolean;center:boolean;mirror:boolean}):Promise<Blob>{
