@@ -251,12 +251,6 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="overflow-hidden rounded-3xl border border-accent/20 bg-panel/40 shadow-2xl">
-          <img src={designlyHeroImage} alt="DESIGNLY — A jövőt nem várjuk. Mi építjük." draggable={false} className="h-auto w-full object-cover" />
-        </div>
-      </section>
-
       <section className="mx-auto max-w-4xl px-6 py-20 text-center">
         <p className="font-display text-3xl leading-snug text-ink-100 sm:text-5xl">
           „A JÖVŐT NEM VÁRJUK.
