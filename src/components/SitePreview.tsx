@@ -1,4 +1,11 @@
 import type { SiteDocument, SiteBlock, GalleryImage } from '../lib/site-schema';
+import {
+  FormBlockView,
+  BookingBlockView,
+  ProductGridBlockView,
+  MapBlockView,
+  NewsletterBlockView,
+} from './FunctionalBlocks';
 
 export interface SiteRendererProps {
   document: SiteDocument;
@@ -61,7 +68,7 @@ export function SiteRenderer({ document: doc, embedded }: SiteRendererProps) {
       </header>
 
       {doc.blocks.map((block, i) => (
-        <Block key={i} block={block} theme={theme} accent={accent} light={light} />
+        <Block key={i} block={block} theme={theme} accent={accent} light={light} siteTitle={doc.site.title} />
       ))}
     </div>
   );
@@ -74,11 +81,13 @@ function Block({
   theme,
   accent,
   light,
+  siteTitle,
 }: {
   block: SiteBlock;
   theme: SiteDocument['site']['theme'];
   accent: string;
   light: boolean;
+  siteTitle: string;
 }) {
   const heading = { fontFamily: safeFont(theme.heading_font, 'Marcellus') };
   const btn = { background: accent, color: light ? '#ffffff' : '#0a0a12' };
@@ -266,6 +275,22 @@ function Block({
           </ul>
         </footer>
       );
+
+    /*
+     * A funkcionalis blokkok allapotot tartanak (urlap-erteke, bekuldes), ezert
+     * kulon komponensek — nem lehet oket a statikus switch-en belul leirni.
+     * A kliens renderelo es az exportalt HTML ugyanezt a szerzodest hasznalja:\n     * a preview-ban React, az exportban a `toStandaloneHtml` sajat urlapja.
+     */
+    case 'form':
+      return <FormBlockView block={block} siteTitle={siteTitle} accent={accent} />;
+    case 'booking':
+      return <BookingBlockView block={block} siteTitle={siteTitle} accent={accent} />;
+    case 'product-grid':
+      return <ProductGridBlockView block={block} accent={accent} />;
+    case 'map':
+      return <MapBlockView block={block} />;
+    case 'newsletter':
+      return <NewsletterBlockView block={block} siteTitle={siteTitle} accent={accent} />;
 
     default:
       return null;
