@@ -7,7 +7,7 @@ export async function generateCreativeVideo(prompt:string,duration:number,aspect
     method:"POST",
     headers:{
       "Content-Type":"application/json",
-      ...(ANON_KEY?{Authorization:`Bearer ${ANON_KEY},`}:{}),
+      ...(ANON_KEY?{Authorization:`Bearer ${ANON_KEY}`}:{}),
       ...(ANON_KEY?{apikey:ANON_KEY}:{})
     },
     body:JSON.stringify({prompt,duration,aspectRatio})
