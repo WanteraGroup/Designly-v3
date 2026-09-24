@@ -1,22 +1,34 @@
-# Designly v3 — Creative OS
+# DESIGNLY V3 — Creative OS
 
-AI alapú kreatív platform. A felhasználó leírja egy mondatban, mit szeretne — a rendszer megtervezi, felépíti és kirajzolja a kész oldalt, majd finomítani és exportálni lehet.
+AI-alapú kreatív platform. A felhasználó briefből indul, a VYRON CORE koordinálja a háttérspecialistákat, a DESIGNLY renderer felépíti az oldalt, majd az eredmény szerkeszthető és exportálható.
 
-Ez a `v3`: a generátor a gerinc, és a korábbi Designity-platformból az került át, ami ténylegesen szolgál — sablonkatalógus, brand kittek, kreditek, admin, i18n. A demo-szinti studiok (Tattoo, CNC, Streamer, Shopify, Music, Creator) szándékosan kimaradtak.
+## Fő felépítés
 
-## Folyam
+**VYRON CORE → DESIGNLY MASTER → specialisták → QA → eredmény**
 
-```
-brief ──► vey-generate (Edge Function) ──► blokklista ──► SitePreview ──► export
-                 │
-                 └──► vey-refine ──► diff ──► applyEdits
-```
+A felhasználó nem 20+ külön agentet kezel. A fő modulok:
 
-Egy hívás, egy kész dokumentum. A generálás Supabase Edge Functionben fut, a modell kulcsa szerveroldalon marad.
+- CREATE
+- BRAND STUDIO
+- WEB ARCHITECT
+- CONTENT & GROWTH
+- IMAGE STUDIO
+- MEDIA STUDIO
+- SOCIAL STUDIO
+- TEMPLATE STUDIO
+- EXTRA DESIGN STUDIO
+- STREAMER & GAMER STUDIO
+- MERCH FACTORY
+- QA AGENT
+- HUGINN
+
+Az EXTRA DESIGN STUDIO többek között névjegyet, meghívót, flyert, plakátot, posztert, hirdetést, brosúrát, étlapot, árlistát, bannert, prezentációt, Tattoo mintát, Plannert és CNC CAM kimenetet kezel.
+
+A STREAMER & GAMER STUDIO stream scene-eket, overlayeket, alertokat, thumbnailokat, emote-okat, badge-eket és merch artworköt kezel.
 
 ## Stack
 
-Vite + React 18 + TypeScript + Tailwind. Supabase (Postgres + Auth + Edge Functions), Groq a modellhez.
+Vite + React 18 + TypeScript + Tailwind. Supabase Postgres/Auth/Edge Functions. A szöveges agent runtime jelenleg Groq-alapú lehet, fallback móddal. A képgenerálás a DESIGNLY Qwen-Image-2.1 Edge Functionjén keresztül működik.
 
 ## Indítás
 
@@ -26,35 +38,50 @@ cp .env.example .env
 npm run dev
 ```
 
-## Edge Functionök
+Build ellenőrzés:
 
 ```bash
-supabase link --project-ref ovbzoxwwurklwawdvudf
-supabase secrets set GROQ_API_KEY=...
-supabase functions deploy vey-generate
-supabase functions deploy vey-refine
+npm run typecheck
+npm run build
 ```
 
-## Felépítés
+## Frontend útvonalak
 
-```
-src/
-  pages/Home.tsx              brief, generálás, előnézet, finomítás, export
-  components/SitePreview.tsx  a blokklista renderelője
-  lib/api.ts                  buildSite + refineSite
-  lib/site-schema.ts          típusok, parseSite, applyEdits
-  lib/export-html.ts          önálló HTML export
-supabase/functions/           vey-generate, vey-refine
-```
+- `/` — DESIGNLY landing
+- `/app` — generátor
+- `/app?tab=studio` — Extra Design Studio
+- `/app?tab=gamer` — Streamer & Gamer Studio
+- `/app?tab=templates` — sablonok
 
-## Miért blokklista, és nem HTML
+## Aktív Edge Functionök
 
-A modell **blokklistát** ad vissza, nem markupot. A renderelő birtokol minden elemet, ami a lapra kerül, tehát a generált szöveg mindig szöveges csomópont — soha nem HTML. A `parseSite` kidobja az allow-listen kívüli blokktípusokat, így egy félig hibás válasz rövidebb oldalt ad, nem hibát dob.
+- `designly-v3-agent` — VYRON CORE + specialisták
+- `designly-v3-refine` — természetes nyelvű szerkesztés
+- `designly-huginn` — HUGINN concierge
+- `designly-image` — Qwen-Image-2.1
+- `vey-images` — Unsplash kép-feloldás és attribúció
+- `designly-video` — külön legacy/provider réteg; a jelenlegi V3 UI nem hívja automatikusan
 
-Engedélyezett blokktípusok: `hero`, `features`, `about`, `services`, `pricing`, `gallery`, `testimonials`, `faq`, `contact`, `cta`, `footer`.
+A generátor és a finomító nem használja a Vercel AI Gateway-t. A provider kulcsok szerveroldalon vannak.
 
-A finomítás **diffet** ad vissza pontozott útvonalakon (`blocks.0.headline`, `site.theme.palette`), és az `applyEdits` a kliens saját példányán alkalmazza. Egy nem létező útvonal kimarad, tehát egy kitalált szerkesztés nem teszi tönkre az oldalt.
+## Adatmodell és biztonság
 
-## A prompt
+A generált weboldal allow-listelt blokksémát használ; a kliens soha nem renderel modell által visszaadott HTML-t.
 
-A rendszer-promptok a `supabase/functions/*/index.ts`-ben élnek, szerveroldalon — a böngészőből nem átírhatók. Ez az a szabály, ami a használható eredményt a generikustól elválasztja.
+A credit-ledger szerveroldali RPC-t használó részeknél az auth.uid ellenőrzés kötelező. A produkciós Supabase adatbázis hardening migrationje a `supabase/migrations/20260924112704_designly_hardening.sql` fájlban van.
+
+## CI és security
+
+GitHub Actions:
+
+- `.github/workflows/designly-ci.yml` — typecheck + Vite production build
+- `.github/workflows/designly-security.yml` — CodeQL
+- `.github/workflows/designly-dependency-review.yml` — dependency review
+
+GitHub Pages / Next.js deployment workflow nincs a V3-ban; a deployment célja Vercel.
+
+## Képforrások
+
+Az Unsplash képekhez a fotós neve és a forráslink megmarad a galériában és az exportált HTML-ben.
+
+A Qwen-Image-2.1 használata előtt kereskedelmi szolgáltatásnál a modell aktuális licencfeltételeit külön ellenőrizni kell.
