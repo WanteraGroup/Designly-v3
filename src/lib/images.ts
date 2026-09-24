@@ -6,9 +6,7 @@
 
 import type { SiteDocument } from './site-schema';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
-const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
-import { authHeaders } from './supabase-client';
+import { authHeaders, SUPABASE_URL } from './supabase-client';
 
 export interface ResolvedImage {
   query: string;
