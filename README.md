@@ -76,7 +76,7 @@ GitHub Actions:
 
 - `.github/workflows/designly-ci.yml` — typecheck + Vite production build
 - `.github/workflows/designly-security.yml` — CodeQL
-- `.github/workflows/designly-dependency-review.yml` — dependency review
+- GitHub Dependency Review nincs bekapcsolva, mert a repóban a Dependency graph jelenleg nincs engedélyezve; ezt külön GitHub Security beállításban lehet aktiválni.
 
 GitHub Pages / Next.js deployment workflow nincs a V3-ban; a deployment célja Vercel.
 
