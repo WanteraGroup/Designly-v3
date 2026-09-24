@@ -35,9 +35,24 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
           <p className="mt-2 text-sm text-white/60">
             Az oldal egy kliensoldali hibát kapott. Frissítsd az oldalt; a hiba részlete alább látható.
           </p>
-          <pre className="mt-4 overflow-auto rounded-xl bg-black/30 p-4 text-xs text-red-200">
-            {this.state.error.message}
-          </pre>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black"
+            >
+              Újratöltés
+            </button>
+            <a href="/" className="rounded-xl border border-white/15 px-4 py-2 text-xs font-semibold text-white/80">
+              Főoldal
+            </a>
+          </div>
+          <details className="mt-5">
+            <summary className="cursor-pointer text-xs text-white/50">Technikai részletek</summary>
+            <pre className="mt-3 overflow-auto rounded-xl bg-black/30 p-4 text-xs text-red-200">
+              {this.state.error.message}
+            </pre>
+          </details>
         </div>
       </div>
     );
