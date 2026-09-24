@@ -1,4 +1,4 @@
-import { authHeaders, SUPABASE_URL, supabase } from './supabase-client';
+import { AuthRequiredError, authHeaders, SUPABASE_URL, supabase } from './supabase-client';
 
 const FUNCTIONS_URL = SUPABASE_URL + '/functions/v1';
 
