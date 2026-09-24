@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Download, Grid3X3, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Download, Grid3X3, Plus, RotateCcw, Trash2, Sparkles } from 'lucide-react';
 import { studioT, disciplineT } from '../lib/studio-i18n';
 
 type Discipline = 'architecture'|'structure'|'electrical'|'lighting'|'plumbing'|'hvac'|'fire'|'data'|'mechanical';
@@ -41,6 +41,8 @@ export default function EngineeringPlanner({ language='hu' }: { language?: strin
   const [project,setProject]=useState({name:'Új műszaki terv',width:12000,height:8000,scale:50});
   const [elements,setElements]=useState<Element[]>(DEFAULT_ELEMENTS);
   const [selected,setSelected]=useState<string|null>(null);
+  const [prompt,setPrompt]=useState('');
+  const [promptStatus,setPromptStatus]=useState('');
   const current=useMemo(()=>DISCIPLINES.find(d=>d.id===discipline)!,[discipline]);
 
   function add(kind:ElementKind){
@@ -68,6 +70,71 @@ export default function EngineeringPlanner({ language='hu' }: { language?: strin
     setSelected(null);
   }
 
+  function generateFromPrompt(){
+    const raw=prompt.trim();
+    if(!raw){ setPromptStatus('Írj le egy helyiséget, méretet és szükséges szakágakat.'); return; }
+
+    const text=raw.toLowerCase().replace(/,/g,'.');
+    const dims=text.match(/(\\d+(?:[.]\\d+)?)\\s*[x×]\\s*(\\d+(?:[.]\\d+)?)/);
+    const parsedWidth=dims?Number(dims[1]):project.width;
+    const parsedHeight=dims?Number(dims[2]):project.height;
+    const mm=(v:number)=>Math.max(100,Math.round(v));
+    const nextProject={...project,width:mm(parsedWidth),height:mm(parsedHeight),name:raw.slice(0,80)};
+    const margin=700;
+    const wallW=Math.max(1200,nextProject.width-2*margin);
+    const wallH=Math.max(1200,nextProject.height-2*margin);
+    const next:Element[]=[
+      {id:'wall-top-'+Date.now(),kind:'wall',x:margin,y:margin,w:wallW,h:10,label:'Külső fal'},
+      {id:'wall-left-'+Date.now(),kind:'wall',x:margin,y:margin,w:10,h:wallH,label:'Külső fal'},
+      {id:'wall-bottom-'+Date.now(),kind:'wall',x:margin,y:margin+wallH,w:wallW,h:10,label:'Külső fal'},
+      {id:'wall-right-'+Date.now(),kind:'wall',x:margin+wallW,y:margin,w:10,h:wallH,label:'Külső fal'},
+    ];
+
+    const addPromptKind=(kind:ElementKind,count:number)=>{
+      for(let i=0;i<count;i++){
+        const id=kind+'-'+Date.now()+'-'+i;
+        const col=i%4,row=Math.floor(i/4);
+        const preset:Record<ElementKind,Partial<Element>>={
+          wall:{w:180,h:10},door:{w:90,h:10},window:{w:120,h:10},beam:{w:220,h:18},column:{w:24,h:24},socket:{w:18,h:18},switch:{w:18,h:18},light:{w:26,h:26},panel:{w:40,h:30},pipe:{w:120,h:8},drain:{w:20,h:20},duct:{w:150,h:20},sprinkler:{w:20,h:20},data:{w:18,h:18},machine:{w:100,h:80}
+        };
+        const p=preset[kind];
+        next.push({id,kind,x:900+col*220,y:1300+row*180,w:p.w||40,h:p.h||40,label:LABELS[kind]});
+      }
+    };
+
+    addPromptKind('door',Math.min(4,Math.max(1,(text.match(/ajt/g)||[]).length)));
+    addPromptKind('window',Math.min(6,Math.max(2,(text.match(/ablak/g)||[]).length)));
+
+    const disciplineRules:Array<[RegExp,ElementKind,number]>=[
+      [/dugalj|konnektor|aljzat/,'socket',6],
+      [/kapcsol/,'switch',4],
+      [/lámpa|világítás|vilagitas|led/,'light',6],
+      [/elosztó|eloszto|biztosíték|kismegszakító/,'panel',1],
+      [/adat|internet|lan|ethernet/,'data',4],
+      [/cső|cso|víz|viz|lefoly/,'pipe',4],
+      [/lefoly|összefoly/,'drain',2],
+      [/hvac|fűtés|futes|szellőzés|szellozes|légtechnika|legtechnika/,'duct',3],
+      [/sprinkler|tűzvédelem|tuzvedelem/,'sprinkler',4],
+      [/gép|gepesz|gépsor|gepsor|berendezés|berendezes/,'machine',2],
+      [/gerenda/,'beam',3],
+      [/oszlop/,'column',4],
+    ];
+    for(const [re,kind,count] of disciplineRules) if(re.test(text)) addPromptKind(kind,count);
+
+    const firstDiscipline=DISCIPLINES.find(d=>d.id==='electrical' && /villamos|elektromos|áram|aram/.test(text))
+      || DISCIPLINES.find(d=>d.id==='plumbing' && /víz|viz|lefoly/.test(text))
+      || DISCIPLINES.find(d=>d.id==='hvac' && /hvac|fűtés|futes|szell/.test(text))
+      || DISCIPLINES.find(d=>d.id==='structure' && /szerkezet|gerenda|oszlop/.test(text))
+      || DISCIPLINES.find(d=>d.id==='architecture' && /épület|epulet|alaprajz|szoba|ház|haz/.test(text));
+    if(firstDiscipline) setDiscipline(firstDiscipline.id);
+
+    setProject(nextProject);
+    setElements(next);
+    setSelected(null);
+    setPromptStatus('A prompt alapján elkészült a kiinduló műszaki terv. Az elemek még szabadon szerkeszthetők.');
+  }
+
+
   const selectedElement=elements.find(e=>e.id===selected)||null;
   const svgWidth=900, svgHeight=560;
 
@@ -77,6 +144,18 @@ export default function EngineeringPlanner({ language='hu' }: { language?: strin
         <div><div className='text-xs font-semibold text-ink-100'>{studioT(language,'engTitle')}</div><p className='mt-1 text-xs text-ink-400'>{studioT(language,'engDesc')}</p></div>
         <span className='rounded-full border border-cyan-500/30 px-3 py-1 text-[10px] text-cyan-300'>{studioT(language,'multi')}</span>
       </div>
+    </div>
+
+    <div className='rounded-2xl border border-accent/30 bg-accent/5 p-4'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div><div className='text-xs font-semibold text-ink-100'>PROMPT → MŰSZAKI TERV</div><p className='mt-1 text-xs text-ink-400'>Írd le természetes nyelven a helyiséget, méreteket és szakágakat. A rendszer ezekből szerkeszthető tervvázat készít.</p></div>
+        <Sparkles className='h-5 w-5 text-accent'/>
+      </div>
+      <div className='mt-3 grid gap-2 md:grid-cols-[1fr_auto]'>
+        <textarea className='vp-input min-h-[92px]' value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder='Pl. 12000x8000 mm-es műhely, két ajtó, 6 ablak, villamos hálózat 8 dugaljjal, 4 kapcsolóval, LED világítással, elosztóval, víz/lefolyó, HVAC és tűzvédelem.' />
+        <button type='button' className='vp-btn self-stretch md:min-w-[190px]' onClick={generateFromPrompt}><Sparkles className='h-4 w-4'/>{studioT(language,'process')}</button>
+      </div>
+      {promptStatus&&<p className='mt-2 text-[11px] text-accent'>{promptStatus}</p>}
     </div>
 
     <div className='grid gap-3 md:grid-cols-2'>
