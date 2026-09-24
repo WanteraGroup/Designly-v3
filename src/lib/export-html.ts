@@ -131,16 +131,20 @@ function renderBlock(b: SiteBlock, docTitle = ''): string {
   <dl>${b.items.map((i) => `<dt>${esc(i.q)}</dt><dd>${esc(i.a)}</dd>`).join('')}</dl>
 </section>`;
 
-    case 'contact':
+    case 'contact': {
+      const mail = b.email ? 'mailto:' + b.email : '';
+      const tel = b.phone ? 'tel:' + String(b.phone).replace(/[^+\d]/g, '') : '';
+      const rows = [
+        b.email ? `<li><a href="${esc(mail)}">${esc(b.email)}</a></li>` : '',
+        b.phone ? `<li><a href="${esc(tel)}">${esc(b.phone)}</a></li>` : '',
+        b.address ? `<li>${esc(b.address)}</li>` : '',
+      ].join('');
       return `<section>
   <h2>${esc(b.heading)}</h2>
   <p>${esc(b.body)}</p>
-  <ul class="plain">${[
-    b.email ? `<li><a href="${esc(`mailto:${b.email}`)}">${esc(b.email)}</a></li>` : '',
-    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`}">${esc(b.phone)}</a></li>` : '',
-    b.address ? `<li>${esc(b.address)}</li>` : '',
-  ].join('')}</ul>
+  <ul class="plain">${rows}</ul>
 </section>`;
+    }
 
     case 'form':
       return `<section>
