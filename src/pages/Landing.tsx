@@ -108,7 +108,7 @@ export default function Landing() {
           {[
             { value: `${PUBLIC_AGENT_MODULES.length}`, label: 'Fő modul' },
             { value: TEMPLATE_TOTAL.toLocaleString('hu-HU'), label: 'Sablon' },
-            { value: `${FULL_AGENT_TEAM.length}`, label: 'Belső specialisták' },
+            { value: `${featureCount}`, label: 'Kategória' },
             { value: `${LANGUAGES.length}`, label: 'Nyelv' },
           ].map((s) => (
             <div key={s.label} className="text-center">
