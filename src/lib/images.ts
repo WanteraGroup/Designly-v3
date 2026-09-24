@@ -54,8 +54,7 @@ export async function resolveImages(queries: string[]): Promise<ResolvedImage[]>
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${ANON_KEY}`,
-        apikey: ANON_KEY,
+        ...(ANON_KEY ? { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY } : {}),
       },
       body: JSON.stringify({ queries, perQuery: 3 }),
     });
