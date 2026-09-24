@@ -21,6 +21,15 @@ interface CtaLink {
   href: string;
 }
 
+export interface FormField {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'tel' | 'textarea' | 'select';
+  required: boolean;
+  options?: string[];
+  placeholder?: string;
+}
+
 export interface GalleryImage {
   query: string;
   caption: string;
@@ -41,7 +50,8 @@ export type SiteBlock =
   | { type: 'faq'; heading: string; items: { q: string; a: string }[] }
   | { type: 'contact'; heading: string; body: string; email: string; phone: string; address: string }
   | { type: 'cta'; headline: string; subheadline: string; cta: CtaLink }
-  | { type: 'footer'; text: string; links: { label: string; href: string }[] };
+  | { type: 'footer'; text: string; links: { label: string; href: string }[] }
+  | { type: 'form'; heading: string; body: string; fields: FormField[]; submitLabel: string; successMessage: string; endpoint: string; formId: string };
 
 export interface SiteDocument {
   site: SiteMeta;
@@ -54,7 +64,7 @@ export interface SiteEdit {
 }
 
 export const BLOCK_TYPES = [
-  'hero','features','about','services','pricing','gallery','testimonials','faq','contact','cta','footer',
+  'hero','features','about','services','pricing','gallery','testimonials','faq','contact','cta','footer','form',
 ] as const;
 
 const ALLOWED = new Set<string>(BLOCK_TYPES);
@@ -208,6 +218,28 @@ function normalizeBlock(raw: unknown): SiteBlock | null {
           label: text(x.label, 'Link').slice(0, 160),
           href: safeHref(x.href),
         })),
+      };
+    case 'form':
+      return {
+        type,
+        heading: text(b.heading, 'Kapcsolat'),
+        body: text(b.body),
+        fields: objectArray(b.fields).slice(0, 8).map((x, index) => {
+          const rawType = text(x.type, 'text');
+          const fieldType = ['text','email','tel','textarea','select'].includes(rawType) ? rawType as FormField['type'] : 'text';
+          return {
+            name: text(x.name, 'field_' + (index + 1)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80),
+            label: text(x.label, 'Mező').slice(0, 120),
+            type: fieldType,
+            required: Boolean(x.required),
+            ...(Array.isArray(x.options) ? { options: x.options.filter((v): v is string => typeof v === 'string').slice(0, 20).map((v) => v.slice(0, 120)) } : {}),
+            ...(text(x.placeholder) ? { placeholder: text(x.placeholder).slice(0, 160) } : {}),
+          };
+        }),
+        submitLabel: text(b.submitLabel, 'Küldés').slice(0, 100),
+        successMessage: text(b.successMessage, 'Köszönjük, az üzenetet elküldtük.').slice(0, 300),
+        endpoint: '/functions/v1/designly-form-submit',
+        formId: text(b.formId, crypto.randomUUID()).slice(0, 80),
       };
     default:
       return null;
