@@ -25,68 +25,100 @@ async function isolateInkPng(url:string,transparent:boolean,threshold:number):Pr
   if(!response.ok) throw new Error('A stencil forrása nem tölthető be.');
   const blob=await response.blob();
   const bitmap=await createImageBitmap(blob);
-  const src=document.createElement('canvas'); src.width=bitmap.width; src.height=bitmap.height;
-  const srcCtx=src.getContext('2d'); if(!srcCtx) throw new Error('A képfeldolgozó nem indult.');
+
+  const src=document.createElement('canvas');
+  src.width=bitmap.width; src.height=bitmap.height;
+  const srcCtx=src.getContext('2d');
+  if(!srcCtx) throw new Error('A képfeldolgozó nem indult.');
   srcCtx.drawImage(bitmap,0,0); bitmap.close();
 
   const srcData=srcCtx.getImageData(0,0,src.width,src.height);
   const w=src.width,h=src.height,srcPx=srcData.data;
   const mask=new Uint8Array(w*h);
-  const minX=Math.floor(w*0.05),maxX=Math.ceil(w*0.95),minY=Math.floor(h*0.02),maxY=Math.ceil(h*0.98);
+
+  // Tattoo ink is intentionally constrained to dark, near-neutral pixels.
+  // This rejects most skin tones and photo/background color while preserving black/grey linework.
+  const minX=Math.floor(w*0.06), maxX=Math.ceil(w*0.94);
+  const minY=Math.floor(h*0.02), maxY=Math.ceil(h*0.98);
   for(let y=minY;y<maxY;y++) for(let x=minX;x<maxX;x++){
     const i=(y*w+x)*4;
-    const lum=0.2126*srcPx[i]+0.7152*srcPx[i+1]+0.0722*srcPx[i+2];
-    if(lum<threshold) mask[y*w+x]=1;
+    const r=srcPx[i],g=srcPx[i+1],b=srcPx[i+2];
+    const lum=0.2126*r+0.7152*g+0.0722*b;
+    const chroma=Math.max(r,g,b)-Math.min(r,g,b);
+    if(lum<threshold && chroma<42) mask[y*w+x]=1;
   }
 
-  // Remove isolated noise and keep connected ink structures.
+  // Connected-component filtering:
+  // discard page/background masses and keep only compact, centered ink structures.
   const seen=new Uint8Array(w*h);
   const kept=new Uint8Array(w*h);
-  const minComponent=Math.max(18,Math.floor(w*h*0.00002));
   const queueX=new Int32Array(w*h);
   const queueY=new Int32Array(w*h);
-  const neighbors=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-  let minBX=w,minBY=h,maxBX=0,maxBY=0,keptCount=0;
+  const neighbors=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+  const minComponent=Math.max(8,Math.floor(w*h*0.000008));
+  const maxComponent=Math.floor(w*h*0.16);
+  let keptCount=0,minBX=w,minBY=h,maxBX=0,maxBY=0;
 
   for(let sy=minY;sy<maxY;sy++) for(let sx=minX;sx<maxX;sx++){
     const si=sy*w+sx;
-    if(!mask[si] || seen[si]) continue;
-    let head=0,tail=0,compMinX=w,compMinY=h,compMaxX=0,compMaxY=0;
-    queueX[tail]=sx; queueY[tail]=sy; tail++; seen[si]=1;
+    if(!mask[si]||seen[si]) continue;
+
+    let head=0,tail=0;
     const indices:number[]=[];
+    let cminX=w,cminY=h,cmaxX=0,cmaxY=0;
+    queueX[tail]=sx; queueY[tail]=sy; tail++; seen[si]=1;
+
     while(head<tail){
-      const x=queueX[head],y=queueY[head];head++;
-      const idx=y*w+x;indices.push(idx);
-      if(x<compMinX)compMinX=x;if(x>compMaxX)compMaxX=x;if(y<compMinY)compMinY=y;if(y>compMaxY)compMaxY=y;
+      const x=queueX[head],y=queueY[head]; head++;
+      const idx=y*w+x; indices.push(idx);
+      if(x<cminX)cminX=x;if(x>cmaxX)cmaxX=x;if(y<cminY)cminY=y;if(y>cmaxY)cmaxY=y;
+
       for(const [dx,dy] of neighbors){
         const nx=x+dx,ny=y+dy;
-        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY)continue;
+        if(nx<minX||nx>=maxX||ny<minY||ny>=maxY) continue;
         const ni=ny*w+nx;
         if(mask[ni]&&!seen[ni]){seen[ni]=1;queueX[tail]=nx;queueY[tail]=ny;tail++;}
       }
     }
-    if(indices.length>=minComponent){
+
+    const size=indices.length;
+    const touchesOuterBorder=cminX<=Math.floor(w*0.07)||cmaxX>=Math.ceil(w*0.93)||cminY<=Math.floor(h*0.015)||cmaxY>=Math.ceil(h*0.985);
+    const cx=(cminX+cmaxX)/2/w, cy=(cminY+cmaxY)/2/h;
+    const centered=cx>0.20&&cx<0.80&&cy>0.04&&cy<0.96;
+
+    if(size>=minComponent && size<=maxComponent && !touchesOuterBorder && centered){
       for(const idx of indices) kept[idx]=1;
-      keptCount+=indices.length;
-      if(compMinX<minBX)minBX=compMinX;if(compMinY<minBY)minBY=compMinY;if(compMaxX>maxBX)maxBX=compMaxX;if(compMaxY>maxBY)maxBY=compMaxY;
+      keptCount+=size;
+      if(cminX<minBX)minBX=cminX;if(cminY<minBY)minBY=cminY;if(cmaxX>maxBX)maxBX=cmaxX;if(cmaxY>maxBY)maxBY=cmaxY;
     }
   }
 
-  if(!keptCount) throw new Error('Nem sikerült elkülöníteni a tattoo motívumot. Próbálj kontrasztosabb promptot.');
+  if(!keptCount) throw new Error('Nem sikerült izolálni a tattoo motívumot. Próbálj tiszta fekete vonalmunka briefet.');
 
-  const pad=Math.max(12,Math.round(Math.min(w,h)*0.025));
-  const bx0=Math.max(0,minBX-pad),by0=Math.max(0,minBY-pad),bx1=Math.min(w,maxBX+pad+1),by1=Math.min(h,maxBY+pad+1);
+  const pad=Math.max(16,Math.round(Math.min(w,h)*0.035));
+  const bx0=Math.max(0,minBX-pad),by0=Math.max(0,minBY-pad);
+  const bx1=Math.min(w,maxBX+pad+1),by1=Math.min(h,maxBY+pad+1);
   const outW=bx1-bx0,outH=by1-by0;
+
   const canvas=document.createElement('canvas'); canvas.width=outW; canvas.height=outH;
   const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('A stencil kimenet nem indult.');
   const out=ctx.createImageData(outW,outH);
+
   for(let y=0;y<outH;y++) for(let x=0;x<outW;x++){
     const si=(by0+y)*w+(bx0+x),di=(y*outW+x)*4,ink=kept[si]===1;
-    const v=ink?0:255;
-    out.data[di]=v;out.data[di+1]=v;out.data[di+2]=v;out.data[di+3]=transparent?(ink?255:0):255;
+    if(transparent){
+      out.data[di]=12; out.data[di+1]=12; out.data[di+2]=12; out.data[di+3]=ink?255:0;
+    } else {
+      const v=ink?0:255;
+      out.data[di]=v; out.data[di+1]=v; out.data[di+2]=v; out.data[di+3]=255;
+    }
   }
+
   ctx.putImageData(out,0,0);
-  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Stencil PNG export hiba.')),'image/png'));
+  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
+    b=>b?resolve(b):reject(new Error('Stencil PNG export hiba.')),
+    'image/png'
+  ));
 }
 async function guideSheet(blob:Blob,opts:{grid:boolean;center:boolean;mirror:boolean}):Promise<Blob>{
   const bitmap=await createImageBitmap(blob); const w=bitmap.width,h=bitmap.height;
