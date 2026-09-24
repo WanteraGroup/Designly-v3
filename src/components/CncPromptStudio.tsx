@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { localizedCncExample, studioT } from '../lib/studio-i18n';
 import { AlertTriangle, Download, Play, ShieldCheck } from 'lucide-react';
 
 type Controller='GRBL'|'LinuxCNC'|'Mach3'|'Fanuc'|'Haas'|'Siemens';
@@ -48,7 +49,7 @@ function generateGcode(op:Operation, feed:number, plunge:number, spindle:number,
 }
 
 export default function CncPromptStudio(){
-  const [prompt,setPrompt]=useState('Marj 80x50 mm-es téglalapot 4 mm mélyen, 700 mm/perc előtolással, GRBL vezérlőre.');
+  const [prompt,setPrompt]=useState(() => localizedCncExample(language));
   const [parsed,setParsed]=useState<ReturnType<typeof parsePrompt>|null>(null);
   const [controller,setController]=useState<Controller>('GRBL');
   const [tool,setTool]=useState(6);
@@ -65,22 +66,22 @@ export default function CncPromptStudio(){
 
   return <section className='space-y-4'>
     <div className='rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4'>
-      <div className='flex items-start gap-3'><AlertTriangle className='mt-0.5 h-5 w-5 text-amber-300'/><div><div className='text-xs font-semibold text-ink-100'>CNC PROMPT → G-KÓD</div><p className='mt-1 text-xs text-ink-400'>Természetes nyelvű promptból paraméterezett CAM művelet készül. A kód csak előnézet/export; gépre küldés előtt szimuláció és gépspecifikus ellenőrzés szükséges.</p></div></div>
+      <div className='flex items-start gap-3'><AlertTriangle className='mt-0.5 h-5 w-5 text-amber-300'/><div><div className='text-xs font-semibold text-ink-100'>{studioT(language,'cncTitle')}</div><p className='mt-1 text-xs text-ink-400'>{studioT(language,'cncDesc')}</p></div></div>
     </div>
     <textarea rows={4} className='vp-input' value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder='Pl. Készíts 120x80 mm-es zsebet 3 mm mélyen, 6 mm-es szerszámmal.'/>
     <div className='grid gap-3 sm:grid-cols-3'>
-      <label className='text-xs text-ink-400'>Vezérlő<select className='vp-input mt-1' value={controller} onChange={e=>setController(e.target.value as Controller)}>{['GRBL','LinuxCNC','Mach3','Fanuc','Haas','Siemens'].map(v=><option key={v}>{v}</option>)}</select></label>
-      <label className='text-xs text-ink-400'>Szerszám Ø<select className='vp-input mt-1' value={tool} onChange={e=>setTool(Number(e.target.value))}>{[3,4,6,8,10,12].map(v=><option key={v} value={v}>{v} mm</option>)}</select></label>
-      <label className='text-xs text-ink-400'>Biztonsági Z<input className='vp-input mt-1' type='number' min='1' value={safeZ} onChange={e=>setSafeZ(Math.max(1,Number(e.target.value)||1))}/></label>
-      <label className='text-xs text-ink-400'>Előtolás<input className='vp-input mt-1' type='number' min='1' value={feed} onChange={e=>setFeed(Math.max(1,Number(e.target.value)||1))}/></label>
-      <label className='text-xs text-ink-400'>Merülés<input className='vp-input mt-1' type='number' min='1' value={plunge} onChange={e=>setPlunge(Math.max(1,Number(e.target.value)||1))}/></label>
-      <label className='text-xs text-ink-400'>Fordulat<input className='vp-input mt-1' type='number' min='1' value={spindle} onChange={e=>setSpindle(Math.max(1,Number(e.target.value)||1))}/></label>
+      <label className='text-xs text-ink-400'>{studioT(language,'controller')}<select className='vp-input mt-1' value={controller} onChange={e=>setController(e.target.value as Controller)}>{['GRBL','LinuxCNC','Mach3','Fanuc','Haas','Siemens'].map(v=><option key={v}>{v}</option>)}</select></label>
+      <label className='text-xs text-ink-400'>{studioT(language,'tool')}<select className='vp-input mt-1' value={tool} onChange={e=>setTool(Number(e.target.value))}>{[3,4,6,8,10,12].map(v=><option key={v} value={v}>{v} mm</option>)}</select></label>
+      <label className='text-xs text-ink-400'>{studioT(language,'safeZ')}<input className='vp-input mt-1' type='number' min='1' value={safeZ} onChange={e=>setSafeZ(Math.max(1,Number(e.target.value)||1))}/></label>
+      <label className='text-xs text-ink-400'>{studioT(language,'feed')}<input className='vp-input mt-1' type='number' min='1' value={feed} onChange={e=>setFeed(Math.max(1,Number(e.target.value)||1))}/></label>
+      <label className='text-xs text-ink-400'>{studioT(language,'plunge')}<input className='vp-input mt-1' type='number' min='1' value={plunge} onChange={e=>setPlunge(Math.max(1,Number(e.target.value)||1))}/></label>
+      <label className='text-xs text-ink-400'>{studioT(language,'spindle')}<input className='vp-input mt-1' type='number' min='1' value={spindle} onChange={e=>setSpindle(Math.max(1,Number(e.target.value)||1))}/></label>
     </div>
-    <button type='button' className='vp-btn' onClick={build} disabled={!prompt.trim()}><Play className='h-4 w-4'/>Prompt feldolgozása</button>
-    {parsed&&<div className='rounded-2xl border border-line bg-canvas/50 p-4'><div className='mb-2 text-xs font-semibold text-ink-100'>ÉRTELMEZETT MŰVELET</div><div className='grid grid-cols-2 gap-2 text-xs text-ink-300 sm:grid-cols-4'><div>Típus: {parsed.kind}</div><div>Méret: {parsed.width}×{parsed.height} mm</div><div>Max. mélység: {parsed.depth} mm</div><div>Ø: {parsed.diameter} mm</div></div></div>}
+    <button type='button' className='vp-btn' onClick={build} disabled={!prompt.trim()}><Play className='h-4 w-4'/{studioT(language,'process')}</button>
+    {parsed&&<div className='rounded-2xl border border-line bg-canvas/50 p-4'><div className='mb-2 text-xs font-semibold text-ink-100'{studioT(language,'interpreted')}</div><div className='grid grid-cols-2 gap-2 text-xs text-ink-300 sm:grid-cols-4'><div{studioT(language,'type')}: {parsed.kind}</div><div{studioT(language,'size')}: {parsed.width}×{parsed.height} mm</div><div{studioT(language,'maxDepth')}: {parsed.depth} mm</div><div{studioT(language,'diameter')}: {parsed.diameter} mm</div></div></div>}
     {gcode&&<pre className='max-h-96 overflow-auto rounded-2xl border border-line bg-black p-4 text-[11px] leading-5 text-ink-200'>{gcode}</pre>}
     {gcode&&<div className='flex flex-wrap items-center gap-2'>
-      <button type='button' className='vp-btn' onClick={()=>download('designly-prompt-cnc.nc',gcode,'text/plain;charset=utf-8')}><Download className='h-4 w-4'/>G-kód export</button>
+      <button type='button' className='vp-btn' onClick={()=>download('designly-prompt-cnc.nc',gcode,'text/plain;charset=utf-8')}><Download className='h-4 w-4'/{studioT(language,'exportG')}</button>
       <button type='button' className='vp-btn-ghost' onClick={()=>setConfirmed(v=>!v)}><ShieldCheck className='h-4 w-4'/>{confirmed?'Ellenőrzés rögzítve':'Szimuláció / ellenőrzés elvégezve'}</button>
     </div>}
     {gcode&&<div className={'rounded-xl border p-3 text-xs '+(confirmed?'border-emerald-500/30 bg-emerald-500/10 text-emerald-200':'border-amber-500/30 bg-amber-500/10 text-amber-200')}>{confirmed?'A felhasználó jelezte, hogy ellenőrizte a pályát. Ettől a kód még nem tekintendő gépbiztosnak.':'NE indítsd gépen közvetlenül. Ellenőrizd a koordinátarendszert, nullpontot, szerszámot, munkadarabot, előtolást, fordulatot, Z-biztonságot és vezérlő-kompatibilitást.'}</div>}
