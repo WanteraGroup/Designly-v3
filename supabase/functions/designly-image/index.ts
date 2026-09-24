@@ -388,6 +388,7 @@ Deno.serve(async (req) => {
   }
 
   const prompt = (body.prompt ?? "").trim();
+  const requestedAspectRatio = (body.aspectRatio ?? "1:1").trim();
   const mode = body.mode === "edit" ? "edit" : "generate";
   if (mode === "edit") {
     if (!RUNPOD_KEY) return json({ error: "RUNPOD_NOT_CONFIGURED", message: "A Nano Banana 2 Edithez nincs beállítva RunPod API-kulcs." }, 503);
@@ -435,7 +436,6 @@ Deno.serve(async (req) => {
   }
 
 
-  const requestedAspectRatio = (body.aspectRatio ?? "1:1").trim();
   if (prompt.length < 3) return json({ error: "A kép briefje legalább 3 karakter legyen." }, 400);
   if (prompt.length > 5000) return json({ error: "A brief legfeljebb 5000 karakter lehet." }, 400);
 
