@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Bird, ChevronDown, Send, Sparkles, X, ArrowRight } from "lucide-react";
+import { authHeaders } from "../lib/supabase-client";
 type Action = "landing"|"services"|"agents"|"templates"|"pricing"|"contact"|"create"|"extra"|"gamer"|"workflow";
 type Message={role:"huginn"|"user";text:string;action?:Action};
 const ACTIONS:Record<Action,{label:string;href:string}>={
@@ -33,7 +34,7 @@ export default function HuginnAgent(){
   const url=(import.meta.env.VITE_SUPABASE_URL as string|undefined)?.trim()||"https://mxrgdcvmxzhocbdhtlhg.supabase.co";
   try{
    const controller=new AbortController(); const timeout=window.setTimeout(()=>controller.abort(),9000);
-   const r=await fetch(url+"/functions/v1/designly-huginn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message,language:new URLSearchParams(window.location.search).get("lang")||"hu"}),signal:controller.signal});
+   const r=await fetch(url+"/functions/v1/designly-huginn",{method:"POST",headers:await authHeaders(false),body:JSON.stringify({message,language:new URLSearchParams(window.location.search).get("lang")||"hu"}),signal:controller.signal});
    window.clearTimeout(timeout);
    const d=await r.json().catch(()=>({}));
    if(!r.ok)throw new Error(d.message||d.error||"HUGINN hiba");
