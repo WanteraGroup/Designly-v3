@@ -134,23 +134,24 @@ function renderBlock(b: SiteBlock): string {
       return `<section>
   <h2>${esc(b.heading)}</h2>
   <p>${esc(b.body)}</p>
-  <ul class="plain">${[b.email, b.phone, b.address]
-    .filter(Boolean)
-    .map((v) => `<li>${esc(v)}</li>`)
-    .join('')}</ul>
+  <ul class="plain">${[
+    b.email ? `<li><a href="${esc(`mailto:${b.email}`)}">${esc(b.email)}</a></li>` : '',
+    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`)}">${esc(b.phone)}</a></li>` : '',
+    b.address ? `<li>${esc(b.address)}</li>` : '',
+  ].join('')}</ul>
 </section>`;
 
     case 'cta':
       return `<section class="hero">
   <h2>${esc(b.headline)}</h2>
   <p class="lead">${esc(b.subheadline)}</p>
-  <a class="btn" href="${esc(b.cta.href)}">${esc(b.cta.label)}</a>
+  <a class="btn" href="${esc(safeHref(b.cta.href))}">${esc(b.cta.label)}</a>
 </section>`;
 
     case 'footer':
       return `<footer>
   <p>${esc(b.text)}</p>
-  <ul class="plain">${b.links.map((l) => `<li>${esc(l.label)}</li>`).join('')}</ul>
+  <ul class="plain">${b.links.map((l) => `<li><a href="${esc(safeHref(l.href))}">${esc(l.label)}</a></li>`).join('')}</ul>
 </footer>`;
   }
 }
