@@ -56,6 +56,7 @@ const RUNPOD_ENDPOINT = (Deno.env.get("DESIGNLY_RUNPOD_ENDPOINT") ?? "https://ap
 const ALLOW_PUBLIC_FALLBACK = (Deno.env.get("DESIGNLY_IMAGE_ALLOW_PUBLIC_FALLBACK") ?? "false").toLowerCase() === "true";
 
 type ProviderName = "private" | "runpod" | "public";
+type NanoBananaEditResolution = "1k" | "2k" | "4k";
 
 function providerChain(): ProviderName[] {
   const configured = (Deno.env.get("DESIGNLY_IMAGE_PROVIDERS") ?? "")
@@ -93,6 +94,43 @@ const RATIO_SIZES: Record<string, [number, number]> = {
   "2:3": [1056, 1584],
   "21:9": [1664, 714],
 };
+
+async function runNanoBanana2Edit(images: string[], prompt: string, resolution: NanoBananaEditResolution, aspectRatio: string): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; costUsd: number }> {
+  if (!RUNPOD_KEY) throw new Error("RUNPOD_NOT_CONFIGURED");
+  const endpoint = "https://api.runpod.ai/v2/google-nano-banana-2-edit/runsync";
+  const timeoutMs = Number(Deno.env.get("DESIGNLY_IMAGE_TIMEOUT_MS") || "300000");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${RUNPOD_KEY}` },
+    body: JSON.stringify({
+      input: {
+        images,
+        prompt,
+        resolution,
+        aspect_ratio: aspectRatio,
+        output_format: "png",
+      },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Nano Banana 2 Edit HTTP ${response.status}: ${text.slice(0, 500)}`);
+  let payload: { status?: string; output?: { image_url?: string; cost?: number }; error?: string };
+  try { payload = JSON.parse(text); } catch { throw new Error("Nano Banana 2 Edit response is not JSON"); }
+  if (payload.status !== "COMPLETED" || !payload.output?.image_url) {
+    throw new Error(`Nano Banana 2 Edit failed: ${payload.error ?? "no image returned"}`);
+  }
+  const image = await fetch(payload.output.image_url, { signal: AbortSignal.timeout(60_000) });
+  if (!image.ok) throw new Error(`Nano Banana 2 Edit image download failed (${image.status})`);
+  const [width, height] = RATIO_SIZES[aspectRatio] ?? RATIO_SIZES["1:1"];
+  return {
+    bytes: await image.arrayBuffer(),
+    model: "Google Nano Banana 2 Edit",
+    width,
+    height,
+    costUsd: Number(payload.output.cost ?? 0),
+  };
+}
 
 async function runDesignlyEngine(prompt: string, aspectRatio: string): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
   if (!ENGINE_URL || !ENGINE_KEY) throw new Error("DESIGNLY_ENGINE_NOT_CONFIGURED");
@@ -342,7 +380,7 @@ Deno.serve(async (req) => {
     return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
   }
 
-  let body: { prompt?: string; aspectRatio?: string };
+  let body: { prompt?: string; aspectRatio?: string; mode?: string; images?: unknown; resolution?: string };
   try {
     body = await req.json();
   } catch {
@@ -350,6 +388,53 @@ Deno.serve(async (req) => {
   }
 
   const prompt = (body.prompt ?? "").trim();
+  const mode = body.mode === "edit" ? "edit" : "generate";
+  if (mode === "edit") {
+    if (!RUNPOD_KEY) return json({ error: "RUNPOD_NOT_CONFIGURED", message: "A Nano Banana 2 Edithez nincs beállítva RunPod API-kulcs." }, 503);
+    if (!Array.isArray(body.images) || body.images.length < 1 || body.images.length > 14 || body.images.some((x) => typeof x !== "string")) {
+      return json({ error: "INVALID_EDIT_IMAGES", message: "Az AI Edit 1–14 képet fogad." }, 400);
+    }
+    const imageUrls = body.images as string[];
+    const supabaseOrigin = new URL(Deno.env.get("SUPABASE_URL") ?? "").origin;
+    if (imageUrls.some((url) => {
+      try { return new URL(url).origin !== supabaseOrigin; } catch { return true; }
+    })) {
+      return json({ error: "INVALID_EDIT_IMAGE_URL", message: "Csak a Designly saját Storage URL-je használható referencia-képként." }, 400);
+    }
+    const resolution = body.resolution === "2k" || body.resolution === "4k" ? body.resolution : "1k";
+    const editCost = resolution === "4k"
+      ? Number(Deno.env.get("DESIGNLY_NANO_BANANA_2_EDIT_COST_4K") || "20")
+      : resolution === "2k"
+        ? Number(Deno.env.get("DESIGNLY_NANO_BANANA_2_EDIT_COST_2K") || "15")
+        : Number(Deno.env.get("DESIGNLY_NANO_BANANA_2_EDIT_COST_1K") || "10");
+    const editPrompt = prompt;
+    await ensureProfile(user.id);
+    const chargedEdit = await consumeCredits(user.id, editCost, "designly-image:nano-banana-2-edit");
+    if (!chargedEdit) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
+    try {
+      const generated = await runNanoBanana2Edit(imageUrls, editPrompt, resolution, requestedAspectRatio);
+      const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
+      return json({
+        url: imageUrl,
+        width: generated.width,
+        height: generated.height,
+        requestedAspectRatio,
+        outputAspectRatio: requestedAspectRatio,
+        description: "Google Nano Banana 2 Edit — RunPod Public Endpoint",
+        model: generated.model,
+        provider: "RunPod",
+        resolution,
+        providerCostUsd: generated.costUsd,
+      });
+    } catch (error) {
+      try { await refundCredits(user.id, editCost, "designly-image:nano-banana-2-edit refund"); } catch (refundError) { console.error("edit refund failed", refundError); }
+      console.error("Nano Banana 2 Edit error", error);
+      const { code, message } = classifyProviderError(error);
+      return json({ error: code, message }, 502);
+    }
+  }
+
+
   const requestedAspectRatio = (body.aspectRatio ?? "1:1").trim();
   if (prompt.length < 3) return json({ error: "A kép briefje legalább 3 karakter legyen." }, 400);
   if (prompt.length > 5000) return json({ error: "A brief legfeljebb 5000 karakter lehet." }, 400);
