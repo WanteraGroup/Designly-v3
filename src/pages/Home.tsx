@@ -57,8 +57,16 @@ function HomeWorkspace() {
   const [brief, setBrief] = useState('');
   const [language, setLanguage] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get('lang');
-    return requested && LANGUAGES.some((item) => item.code === requested) ? requested : 'hu';
+    if (requested && LANGUAGES.some((item) => item.code === requested)) return requested;
+    const saved = window.localStorage.getItem('designly-language');
+    return saved && LANGUAGES.some((item) => item.code === saved) ? saved : 'hu';
   });
+  useEffect(() => {
+    window.localStorage.setItem('designly-language', language);
+    const url = new URL(window.location.href);
+    url.searchParams.set('lang', language);
+    window.history.replaceState({}, '', url.toString());
+  }, [language]);
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
   const [tab, setTab] = useState<'generator' | 'studio' | 'media' | 'gamer' | 'templates'>(() => {
@@ -276,7 +284,7 @@ function HomeWorkspace() {
 
       {tab === 'studio' && (
         <section className="relative mx-auto max-w-6xl px-6 pb-24">
-          <CreativeStudio initialTool={new URLSearchParams(window.location.search).get('tool') ?? undefined} />
+          <CreativeStudio language={language} initialTool={new URLSearchParams(window.location.search).get('tool') ?? undefined} />
         </section>
       )}
 
