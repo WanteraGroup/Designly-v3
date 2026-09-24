@@ -1,3 +1,6 @@
+import { requestUser } from "../_shared/auth.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
+
 // vey-images — a galeriablokkok image_query-jet valodi kepekre csereli.
 //
 // A generator nem rajzol: a modell egy rovid angol keresokifejezest ad minden
@@ -91,6 +94,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
+  const user = await requestUser(req);
+  if (!user) return json({ error: 'UNAUTHORIZED', message: 'Jelentkezz be a képkereséshez.' }, 401);
+  if (!await consumeRateLimit(req, user.id, 20, 'images')) {
+    return json({ error: 'RATE_LIMITED', message: 'Túl sok képkeresési kérés rövid idő alatt.' }, 429);
+  }
+
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -98,12 +107,6 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const rateKey = (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'guest').split(',')[0].trim().slice(0, 80);
-  const now = Date.now();
-  const recent = (cacheRate.get(rateKey) ?? []).filter((t) => now - t < 60_000);
-  if (recent.length >= 20) return json({ error: 'RATE_LIMITED', message: 'Túl sok képkeresési kérés rövid idő alatt.' }, 429);
-  recent.push(now);
-  cacheRate.set(rateKey, recent);
   const queries = (body.queries ?? [])
     .map((q) => String(q).trim())
     .filter(Boolean)
