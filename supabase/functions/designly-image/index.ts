@@ -236,25 +236,98 @@ async function pollRunpod(
 }
 
 async function runQwen(prompt: string): Promise<string> {
-(error: unknown): { code: string; message: string } {
+  const start = await fetch(`${HF_SPACE}/gradio_api/call/${HF_FN}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data: [prompt, 28] }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  const startText = await start.text();
+  if (!start.ok) {
+    throw new Error(`Qwen Image Space indítása sikertelen (${start.status}): ${startText.slice(0, 400)}`);
+  }
+
+  let eventId: string | undefined;
+  try {
+    eventId = JSON.parse(startText).event_id;
+  } catch {
+    const match = startText.match(/"event_id"\s*:\s*"([^"]+)"/);
+    eventId = match?.[1];
+  }
+  if (!eventId) throw new Error("A Qwen Image Space nem adott event_id értéket.");
+
+  const result = await fetch(
+    `${HF_SPACE}/gradio_api/call/${HF_FN}/${encodeURIComponent(eventId)}`,
+    {
+      headers: { Accept: "text/event-stream" },
+      signal: AbortSignal.timeout(115_000),
+    },
+  );
+
+  const stream = await result.text();
+  if (!result.ok) {
+    throw new Error(`Qwen Image eredmény lekérése sikertelen (${result.status}): ${stream.slice(0, 400)}`);
+  }
+
+  const lines = stream.split(/\r?\n/);
+  let eventName = "";
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      eventName = line.slice(6).trim();
+      continue;
+    }
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (!payload) continue;
+
+    if (eventName === "error") {
+      throw new Error(`Qwen Image generation failed: ${payload.slice(0, 400)}`);
+    }
+    if (eventName !== "complete") continue;
+
+    try {
+      const parsed = JSON.parse(payload);
+      const candidates = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of candidates) {
+        if (typeof item === "string" && (item.startsWith("/") || item.startsWith("http"))) {
+          return toAbsoluteFileUrl(item);
+        }
+        if (item && typeof item === "object") {
+          const candidate = (item as Record<string, unknown>).url ?? (item as Record<string, unknown>).path;
+          if (typeof candidate === "string") return toAbsoluteFileUrl(candidate);
+          if (Array.isArray(candidate) && typeof candidate[0] === "string") {
+            return toAbsoluteFileUrl(candidate[0]);
+          }
+        }
+      }
+    } catch {
+      // Ignore non-JSON SSE lines such as progress messages.
+    }
+  }
+
+  throw new Error("A Qwen Image generátor nem küldött complete eseményt képpel.");
+}
+
+function classifyProviderError(error: unknown): { code: string; message: string } {
   const msg = error instanceof Error ? error.message : String(error);
   if (/\(429\)/.test(msg) || /quota|rate limit|too many requests|anonymous/i.test(msg)) {
     return {
       code: "PROVIDER_QUOTA",
-      message: "A Qwen képgenerátor pillanatnyi nyilvános kvótája betelt. Várj, majd próbáld újra.",
+      message: "A képgenerátor pillanatnyi kvótája betelt. Várj, majd próbáld újra.",
     };
   }
   if (/\(5\d\d\)/.test(msg)) {
     return {
       code: "PROVIDER_UNAVAILABLE",
-      message: "A Qwen képgenerátor szolgáltatása pillanatnyilag nem válaszol. Próbáld újra később.",
+      message: "A képgenerátor szolgáltatása pillanatnyilag nem válaszol. Próbáld újra később.",
     };
   }
   if (/timed out|timeout|AbortError|túllépte/i.test(msg)) {
     return { code: "PROVIDER_TIMEOUT", message: "A generálás túllépte az időkeretet. Próbáld újra." };
   }
-  if (/nem adott képet|complete eseményt|generation failed/i.test(msg)) {
-    return { code: "PROVIDER_EMPTY", message: "A Qwen generátor nem adott vissza képet erre a briefre." };
+  if (/nem adott képet|complete eseményt|generation failed|did not return an image/i.test(msg)) {
+    return { code: "PROVIDER_EMPTY", message: "A képgenerátor nem adott vissza képet erre a briefre." };
   }
   return { code: "PROVIDER_ERROR", message: "A képgenerálás nem sikerült." };
 }
@@ -293,55 +366,12 @@ Deno.serve(async (req) => {
 
   try {
     const compiledPrompt = compilePrompt(prompt);
-
-    if (ENGINE_URL && ENGINE_KEY) {
-      try {
-        const generated = await runDesignlyEngine(compiledPrompt, requestedAspectRatio);
-        const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
-        return json({
-          url: imageUrl,
-          width: generated.width,
-          height: generated.height,
-          requestedAspectRatio,
-          outputAspectRatio: requestedAspectRatio,
-          description: "Designly saját GPU Image Engine",
-          model: generated.model,
-          provider: "Designly Image Engine",
-          seed: generated.seed || undefined,
-          steps: Number(Deno.env.get("DESIGNLY_IMAGE_STEPS") || "40"),
-        });
-      } catch (engineError) {
-        console.error("designly-image private engine error", engineError);
-        if (!ALLOW_PUBLIC_FALLBACK) throw engineError;
-      }
-    }
-
-    const imageUrl = await runQwen(compiledPrompt);
-    return json({
-      url: imageUrl,
-      width: 2048,
-      height: 2048,
-      requestedAspectRatio,
-      outputAspectRatio: "1:1",
-      description: "Ideiglenes publikus Qwen fallback",
-      model: "Qwen-Image-2.1",
-      provider: "Hugging Face public fallback",
-      steps: 28,
-    });
-  } catch (error) {
-    try {
-      await refundCredits(user.id, cost, "designly-image provider/runtime refund");
-    } catch (refundError) {
-      console.error("image refund failed", refundError);
-    }
-    console.error("designly-image qwen error", error);
-    const { code, message } = classifyProviderError(error);
-    return json({ error: code, message }, 502);
-  }
-});  try {
-    const compiledPrompt = compilePrompt(prompt);
     const chain = providerChain();
     let lastError: unknown;
+
+    if (!chain.length) {
+      throw new Error("DESIGNLY_IMAGE_NO_PROVIDER");
+    }
 
     for (const provider of chain) {
       try {
@@ -397,3 +427,14 @@ Deno.serve(async (req) => {
     }
 
     throw lastError ?? new Error("DESIGNLY_IMAGE_NO_PROVIDER");
+  } catch (error) {
+    try {
+      await refundCredits(user.id, cost, "designly-image provider/runtime refund");
+    } catch (refundError) {
+      console.error("image refund failed", refundError);
+    }
+    console.error("designly-image provider error", error);
+    const { code, message } = classifyProviderError(error);
+    return json({ error: code, message }, 502);
+  }
+});
