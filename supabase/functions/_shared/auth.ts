@@ -4,6 +4,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
+// Temporary product test mode: authenticated users can exercise credit-metered
+// features without consuming credits. Set DESIGNLY_FREE_TEST_MODE=false when
+// the paid credit system is ready to be re-enabled.
+export const FREE_TEST_MODE = (Deno.env.get("DESIGNLY_FREE_TEST_MODE") ?? "true").toLowerCase() === "true";
+
 export function adminClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Supabase service credentials are not configured.");
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -40,6 +45,7 @@ export async function ensureProfile(userId: string): Promise<void> {
 }
 
 export async function consumeCredits(userId: string, amount: number, description: string): Promise<boolean> {
+  if (FREE_TEST_MODE) return true;
   const admin = adminClient();
   const { data, error } = await admin.rpc("deduct_credits", {
     p_user_id: userId,
@@ -51,7 +57,7 @@ export async function consumeCredits(userId: string, amount: number, description
 }
 
 export async function refundCredits(userId: string, amount: number, description: string): Promise<void> {
-  if (amount <= 0) return;
+  if (FREE_TEST_MODE || amount <= 0) return;
   const admin = adminClient();
   const { error } = await admin.rpc("refund_credits", {
     p_user_id: userId,
