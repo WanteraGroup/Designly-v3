@@ -62,6 +62,7 @@ async function runQwen(prompt: string): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data: [prompt, 28] }),
+    signal: AbortSignal.timeout(30_000),
   });
 
   const startText = await start.text();
@@ -78,85 +79,79 @@ async function runQwen(prompt: string): Promise<string> {
   }
   if (!eventId) throw new Error("A Qwen Image Space nem adott event_id értéket.");
 
-  const deadline = Date.now() + 110_000;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+  // Gradio returns a live SSE stream for the event. Read it once until
+  // complete/error instead of repeatedly opening the same event endpoint.
+  const result = await fetch(
+    `${HF_SPACE}/gradio_api/call/${HF_FN}/${encodeURIComponent(eventId)}`,
+    {
+      headers: { Accept: "text/event-stream" },
+      signal: AbortSignal.timeout(115_000),
+    },
+  );
 
-    const result = await fetch(
-      `${HF_SPACE}/gradio_api/call/${HF_FN}/${encodeURIComponent(eventId)}`,
-      { headers: { Accept: "text/event-stream" } },
-    );
+  const stream = await result.text();
+  if (!result.ok) {
+    throw new Error(`Qwen Image eredmény lekérése sikertelen (${result.status}): ${stream.slice(0, 400)}`);
+  }
 
-    const stream = await result.text();
-    if (!result.ok) {
-      throw new Error(`Qwen Image eredmény lekérése sikertelen (${result.status}): ${stream.slice(0, 400)}`);
+  const lines = stream.split(/\r?\n/);
+  let eventName = "";
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      eventName = line.slice(6).trim();
+      continue;
     }
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (!payload) continue;
 
-    const lines = stream.split(/\r?\n/);
-    let eventName = "";
-    for (const line of lines) {
-      if (line.startsWith("event:")) {
-        eventName = line.slice(6).trim();
-        continue;
-      }
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload) continue;
+    if (eventName === "error") {
+      throw new Error(`Qwen Image generation failed: ${payload.slice(0, 400)}`);
+    }
+    if (eventName !== "complete") continue;
 
-      if (eventName === "error") {
-        throw new Error("Qwen Image generation failed.");
-      }
-      if (eventName !== "complete") continue;
-
-      try {
-        const parsed = JSON.parse(payload);
-        const candidates = Array.isArray(parsed) ? parsed : [parsed];
-        for (const item of candidates) {
-          if (typeof item === "string" && (item.startsWith("/") || item.startsWith("http"))) {
-            return toAbsoluteFileUrl(item);
-          }
-          if (item && typeof item === "object") {
-            const candidate = item.url ?? item.path;
-            if (typeof candidate === "string") return toAbsoluteFileUrl(candidate);
-            if (Array.isArray(candidate) && typeof candidate[0] === "string") {
-              return toAbsoluteFileUrl(candidate[0]);
-            }
+    try {
+      const parsed = JSON.parse(payload);
+      const candidates = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of candidates) {
+        if (typeof item === "string" && (item.startsWith("/") || item.startsWith("http"))) {
+          return toAbsoluteFileUrl(item);
+        }
+        if (item && typeof item === "object") {
+          const candidate = item.url ?? item.path;
+          if (typeof candidate === "string") return toAbsoluteFileUrl(candidate);
+          if (Array.isArray(candidate) && typeof candidate[0] === "string") {
+            return toAbsoluteFileUrl(candidate[0]);
           }
         }
-      } catch {
-        // Ignore non-JSON SSE lines such as progress messages.
       }
+    } catch {
+      // Ignore non-JSON SSE lines such as progress messages.
     }
   }
 
-  throw new Error("A Qwen Image generálás túllépte a 110 másodperces várakozási időt.");
-}
-
-async function runQwenWithRetry(prompt: string): Promise<string> {
-  let lastError: unknown;
-  for (const wait of [0, 4000, 8000]) {
-    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-    try {
-      return await runQwen(prompt);
-    } catch (error) {
-      lastError = error;
-      const msg = error instanceof Error ? error.message : String(error);
-      if (!/\(5\d\d\)|Space|event_id/i.test(msg)) throw error;
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  throw new Error("A Qwen Image generátor nem küldött complete eseményt képpel.");
 }
 
 function classifyProviderError(error: unknown): { code: string; message: string } {
   const msg = error instanceof Error ? error.message : String(error);
-  if (/\(5\d\d\)/.test(msg)) {
-    return { code: "PROVIDER_UNAVAILABLE", message: "A képgenerátor átmenetileg nem elérhető. Próbáld újra fél perc múlva." };
+  if (/\(429\)/.test(msg) || /quota|rate limit|too many requests|anonymous/i.test(msg)) {
+    return {
+      code: "PROVIDER_QUOTA",
+      message: "A Qwen képgenerátor pillanatnyi nyilvános kvótája betelt. Várj, majd próbáld újra.",
+    };
   }
-  if (/várakozási időt|túllépte/i.test(msg)) {
+  if (/\(5\d\d\)/.test(msg)) {
+    return {
+      code: "PROVIDER_UNAVAILABLE",
+      message: "A Qwen képgenerátor szolgáltatása pillanatnyilag nem válaszol. Próbáld újra később.",
+    };
+  }
+  if (/timed out|timeout|AbortError|túllépte/i.test(msg)) {
     return { code: "PROVIDER_TIMEOUT", message: "A generálás túllépte az időkeretet. Próbáld újra." };
   }
-  if (/nem adott képet|\[DONE\]|generation failed/i.test(msg)) {
-    return { code: "PROVIDER_EMPTY", message: "A generátor nem adott képet erre a briefre. Fogalmazd át." };
+  if (/nem adott képet|complete eseményt|generation failed/i.test(msg)) {
+    return { code: "PROVIDER_EMPTY", message: "A Qwen generátor nem adott vissza képet erre a briefre." };
   }
   return { code: "PROVIDER_ERROR", message: "A képgenerálás nem sikerült." };
 }
@@ -194,7 +189,7 @@ Deno.serve(async (req) => {
   if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
 
   try {
-    const imageUrl = await runQwenWithRetry(compilePrompt(prompt));
+    const imageUrl = await runQwen(compilePrompt(prompt));
     return json({
       url: imageUrl,
       width: 2048,
