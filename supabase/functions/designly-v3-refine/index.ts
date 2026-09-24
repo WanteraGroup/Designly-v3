@@ -10,7 +10,24 @@ try{
 const b=await req.json().catch(()=>({}));const doc=b.document;const instruction=typeof b.instruction==="string"?b.instruction.trim().slice(0,1200):"";const language=typeof b.language==="string"?b.language.slice(0,8):"hu";
 if(!doc||!instruction)return json({error:"INVALID_REQUEST",message:"Dokumentum és utasítás szükséges."},400);
 const key=Deno.env.get("GROQ_API_KEY")||Deno.env.get("AI_API_KEY")||"";
-if(!key){const l=instruction.toLowerCase();const edits:any[]=[];if(/világos|vilagos|light|fényes/.test(l))edits.push({path:"site.theme.mode",value:"light"});if(/sötét|sotet|dark/.test(l))edits.push({path:"site.theme.mode",value:"dark"});return json({success:true,reply:edits.length?"VYRON CORE: módosítás alkalmazva.":"VYRON CORE: nincs AI provider; változatlan dokumentum.",edits});}
+if(!key){
+/*
+ * Provider nelkuli fallback.
+ *
+ * A korabbi valtozat ket kulon `if`-fel dolgozott, es a magyar toldalekolt
+ * alakok mindket agra illeszkedtek: a "legyen vilagosabb" szoben ott a
+ * `vilagos` ES a `sotet` to is, tehat mindket edit bekerult, es a masodik
+ * felulirta az elsot — a felhasznalo vilagost kert es sotetet kapott.
+ *
+ * Ezert: EGY ag fut (else if), es a mintak szohatarral illeszkednek, hogy a
+ * toldalekolt alak (vilagosabb, fenyesebb, sotetit) is helyesen keruljon a
+ * sajat agara. A vegso `sotet` ag zar, mert a magyar helyesirasban a hosszu o
+ * es az o is elofordul ugyanabban a szoban (sotet / sotet).
+ */
+const l=instruction.toLowerCase();const edits:any[]=[];
+if(/\b(világos|világosabb|világosít|világosíts|light|lighter|fényes|fényesebb)\b/.test(l))edits.push({path:"site.theme.mode",value:"light"});
+else if(/\b(sötét|sötétebb|sötétít|dark|darker|noir|fekete)\b/.test(l))edits.push({path:"site.theme.mode",value:"dark"});
+return json({success:true,reply:edits.length?"VYRON CORE: módosítás alkalmazva.":"VYRON CORE: nincs AI provider, ezért fallback módban csak a színmód módosítható (világos / sötét). A többi szerkesztéshez provider kulcs szükséges.",edits});}
 const schema={type:"object",additionalProperties:false,properties:{reply:{type:"string"},edits:{type:"array",items:{type:"object",additionalProperties:false,properties:{path:{type:"string"},value:{type:"string"}},required:["path","value"]}}},required:["reply","edits"]};
 const prompt="You are VYRON CORE leading the DESIGNLY refine team. Apply only requested changes to existing fields. Return JSON only. Language: "+language+"\nInstruction: "+instruction+"\nDocument: "+JSON.stringify(doc).slice(0,30000);
 const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:Deno.env.get("DESIGNLY_GROQ_MODEL")||"openai/gpt-oss-120b",messages:[{role:"system",content:"Return strict JSON only."},{role:"user",content:prompt}],temperature:0.15,max_tokens:1400,response_format:{type:"json_schema",json_schema:{name:"designly_v3_refine",strict:true,schema}}})});
