@@ -1,16 +1,11 @@
 import { adminClient, consumeCredits, ensureProfile, refundCredits, requestUser } from "../_shared/auth.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
+import { corsHeadersFor } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const json = (body: unknown, status = 200) =>
+const json = (body: unknown, status = 200, req: Request) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeadersFor(req), "Content-Type": "application/json" },
   });
 
 function compilePrompt(input: string): string {
@@ -371,152 +366,88 @@ function classifyProviderError(error: unknown): { code: string; message: string 
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeadersFor(req) });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, req);
 
   const user = await requestUser(req);
-  if (!user) return json({ error: "UNAUTHORIZED", message: "Jelentkezz be a képgeneráláshoz." }, 401);
+  if (!user) return json({ error: "UNAUTHORIZED", message: "Jelentkezz be a képgeneráláshoz." }, 401, req);
   if (!await consumeRateLimit(req, user.id, 4, "image")) {
-    return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
+    return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429, req);
   }
 
-  let body: { prompt?: string; aspectRatio?: string; mode?: string; images?: unknown; resolution?: string };
+  let body: { prompt?: string; aspectRatio?: string; edit?: boolean; images?: string[]; resolution?: NanoBananaEditResolution };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json({ error: "INVALID_JSON" }, 400, req);
   }
 
-  const prompt = (body.prompt ?? "").trim();
-  const requestedAspectRatio = (body.aspectRatio ?? "1:1").trim();
-  const allowedRatios = new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9", "4:5"]);
-  if (!allowedRatios.has(requestedAspectRatio)) return json({ error: "Nem támogatott képarány: " + requestedAspectRatio }, 400);
-  const mode = body.mode === "edit" ? "edit" : "generate";
-  if (mode === "edit") {
-    if (!RUNPOD_KEY) return json({ error: "RUNPOD_NOT_CONFIGURED", message: "A Nano Banana 2 Edithez nincs beállítva RunPod API-kulcs." }, 503);
-    if (!Array.isArray(body.images) || body.images.length < 1 || body.images.length > 14 || body.images.some((x) => typeof x !== "string")) {
-      return json({ error: "INVALID_EDIT_IMAGES", message: "Az AI Edit 1–14 képet fogad." }, 400);
-    }
-    const imageUrls = body.images as string[];
-    const supabaseOrigin = new URL(Deno.env.get("SUPABASE_URL") ?? "").origin;
-    if (imageUrls.some((url) => {
-      try { return new URL(url).origin !== supabaseOrigin; } catch { return true; }
-    })) {
-      return json({ error: "INVALID_EDIT_IMAGE_URL", message: "Csak a Designly saját Storage URL-je használható referencia-képként." }, 400);
-    }
-    const resolution = body.resolution === "2k" || body.resolution === "4k" ? body.resolution : "1k";
-    const editCost = resolution === "4k"
-      ? Number(Deno.env.get("DESIGNLY_NANO_BANANA_2_EDIT_COST_4K") || "20")
-      : resolution === "2k"
-        ? Number(Deno.env.get("DESIGNLY_NANO_BANANA_2_EDIT_COST_2K") || "15")
-        : Number(Deno.env.get("DESIGNLY_NANO_BANANA_2_EDIT_COST_1K") || "10");
-    const editPrompt = prompt;
-    await ensureProfile(user.id);
-    const chargedEdit = await consumeCredits(user.id, editCost, "designly-image:nano-banana-2-edit");
-    if (!chargedEdit) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
-    try {
-      const generated = await runNanoBanana2Edit(imageUrls, editPrompt, resolution, requestedAspectRatio);
-      const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
-      return json({
-        url: imageUrl,
-        width: generated.width,
-        height: generated.height,
-        requestedAspectRatio,
-        outputAspectRatio: requestedAspectRatio,
-        description: "Google Nano Banana 2 Edit — RunPod Public Endpoint",
-        model: generated.model,
-        provider: "RunPod",
-        resolution,
-        providerCostUsd: generated.costUsd,
-      });
-    } catch (error) {
-      try { await refundCredits(user.id, editCost, "designly-image:nano-banana-2-edit refund"); } catch (refundError) { console.error("edit refund failed", refundError); }
-      console.error("Nano Banana 2 Edit error", error);
-      const { code, message } = classifyProviderError(error);
-      return json({ error: code, message }, 502);
-    }
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 4000) : "";
+  const aspectRatio = typeof body.aspectRatio === "string" ? body.aspectRatio.trim() : "1:1";
+  const wantsEdit = body.edit === true && Array.isArray(body.images) && body.images.length > 0;
+  const resolution: NanoBananaEditResolution = body.resolution === "2k" || body.resolution === "4k" ? body.resolution : "1k";
+
+  if (!prompt) return json({ error: "INVALID_REQUEST", message: "A prompt kötelező." }, 400, req);
+
+  const chain = providerChain();
+  if (chain.length === 0) {
+    return json({
+      error: "IMAGE_PROVIDER_NOT_CONFIGURED",
+      message: "Nincs képgenerátor provider beállítva.",
+    }, 503, req);
   }
 
-
-  if (prompt.length < 3) return json({ error: "A kép briefje legalább 3 karakter legyen." }, 400);
-  if (prompt.length > 5000) return json({ error: "A brief legfeljebb 5000 karakter lehet." }, 400);
-
-  const cost = Number(Deno.env.get("DESIGNLY_IMAGE_COST") || "4");
+  const cost = Number(Deno.env.get(wantsEdit ? "DESIGNLY_IMAGE_EDIT_COST" : "DESIGNLY_IMAGE_COST") || "2");
   await ensureProfile(user.id);
-  const charged = await consumeCredits(user.id, cost, "designly-image");
-  if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
+  const charged = await consumeCredits(user.id, cost, wantsEdit ? "designly-image-edit" : "designly-image");
+  if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402, req);
 
-  try {
-    const compiledPrompt = compilePrompt(prompt);
-    const chain = providerChain();
-    let lastError: unknown;
-
-    if (!chain.length) {
-      throw new Error("DESIGNLY_IMAGE_NO_PROVIDER");
-    }
-
-    for (const provider of chain) {
-      try {
-        if (provider === "private") {
-          const generated = await runDesignlyEngine(compiledPrompt, requestedAspectRatio);
-          const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
-          return json({
-            url: imageUrl,
-            width: generated.width,
-            height: generated.height,
-            requestedAspectRatio,
-            outputAspectRatio: requestedAspectRatio,
-            description: "Designly saját GPU Image Engine",
-            model: generated.model,
-            provider: "Designly Image Engine",
-            seed: generated.seed || undefined,
-            steps: Number(Deno.env.get("DESIGNLY_IMAGE_STEPS") || "40"),
-          });
-        }
-
-        if (provider === "runpod") {
-          const generated = await runRunpod(compiledPrompt, requestedAspectRatio);
-          const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
-          return json({
-            url: imageUrl,
-            width: generated.width,
-            height: generated.height,
-            requestedAspectRatio,
-            outputAspectRatio: requestedAspectRatio,
-            description: "Qwen Image — RunPod Public Endpoint",
-            model: generated.model,
-            provider: "RunPod",
-            seed: generated.seed || undefined,
-          });
-        }
-
-        const imageUrl = await runQwen(compiledPrompt);
-        return json({
-          url: imageUrl,
-          width: 2048,
-          height: 2048,
-          requestedAspectRatio,
-          outputAspectRatio: "1:1",
-          description: "Ideiglenes publikus Qwen fallback",
-          model: "Qwen-Image-2.1",
-          provider: "Hugging Face public fallback",
-          steps: 28,
-        });
-      } catch (providerError) {
-        lastError = providerError;
-        console.error(`designly-image provider "${provider}" failed`, providerError);
-      }
-    }
-
-    throw lastError ?? new Error("DESIGNLY_IMAGE_NO_PROVIDER");
-  } catch (error) {
+  const errors: string[] = [];
+  for (const provider of chain) {
     try {
-      await refundCredits(user.id, cost, "designly-image provider/runtime refund");
-    } catch (refundError) {
-      console.error("image refund failed", refundError);
+      let bytes: ArrayBuffer;
+      let model: string;
+      let width: number;
+      let height: number;
+
+      if (wantsEdit) {
+        const result = await runNanoBanana2Edit(body.images as string[], prompt, resolution, aspectRatio);
+        bytes = result.bytes; model = result.model; width = result.width; height = result.height;
+      } else if (provider === "private") {
+        const result = await runDesignlyEngine(compilePrompt(prompt), aspectRatio);
+        bytes = result.bytes; model = result.model; width = result.width; height = result.height;
+      } else if (provider === "runpod") {
+        const result = await runRunpod(compilePrompt(prompt), aspectRatio);
+        bytes = result.bytes; model = result.model; width = result.width; height = result.height;
+      } else {
+        const url = await runQwen(compilePrompt(prompt));
+        const image = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+        if (!image.ok) throw new Error(`Qwen image download failed (${image.status})`);
+        bytes = await image.arrayBuffer();
+        model = "Qwen Image (public Space)";
+        const fallbackSize = RATIO_SIZES[aspectRatio] ?? RATIO_SIZES["1:1"];
+        width = fallbackSize[0]; height = fallbackSize[1];
+      }
+
+      const url = await storeGeneratedImage(user.id, bytes);
+      return json({
+        url,
+        model,
+        provider: provider === "private" ? "Designly Image Engine" : provider === "runpod" ? "RunPod" : "Hugging Face public fallback",
+        width,
+        height,
+        requestedAspectRatio: aspectRatio,
+        outputAspectRatio: `${width}:${height}`,
+        cost,
+      }, 200, req);
+    } catch (error) {
+      const classified = classifyProviderError(error);
+      errors.push(`${provider}: ${classified.code}`);
+      console.error("designly-image provider failed", provider, error);
     }
-    console.error("designly-image provider error", error);
-    const { code, message } = classifyProviderError(error);
-    return json({ error: code, message }, 502);
   }
+
+  try { await refundCredits(user.id, cost, "designly-image all providers failed"); } catch (refundError) { console.error("image refund failed", refundError); }
+  const classified = classifyProviderError(new Error(errors.join(" | ")));
+  return json({ error: classified.code, message: classified.message, providers: errors }, 502, req);
 });
