@@ -1,7 +1,7 @@
 project_id = "mxrgdcvmxzhocbdhtlhg"
 
 [functions.designly-v3-agent]
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/designly-v3-agent/index.ts"
 
 [functions.designly-v3-refine]
