@@ -424,7 +424,7 @@ Deno.serve(async (req) => {
     return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429, req);
   }
 
-  let body: { prompt?: string; aspectRatio?: string; edit?: boolean; images?: string[]; resolution?: NanoBananaEditResolution };
+  let body: { prompt?: string; aspectRatio?: string; edit?: boolean; mode?: string; images?: string[]; resolution?: NanoBananaEditResolution };
   try {
     body = await req.json();
   } catch {
@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
 
   const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 4000) : "";
   const aspectRatio = typeof body.aspectRatio === "string" ? body.aspectRatio.trim() : "1:1";
-  const wantsEdit = body.edit === true && Array.isArray(body.images) && body.images.length > 0;
+  const wantsEdit = (body.edit === true || body.mode === "edit") && Array.isArray(body.images) && body.images.length > 0;
   const resolution: NanoBananaEditResolution = body.resolution === "2k" || body.resolution === "4k" ? body.resolution : "1k";
 
   if (!prompt) return json({ error: "INVALID_REQUEST", message: "A prompt kötelező." }, 400, req);
