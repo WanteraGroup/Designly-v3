@@ -37,7 +37,7 @@ const ASSETS:Asset[]=[
 {id:'merch-shirt',label:'Gaming T-Shirt',group:'Merch',platform:'Shopify / POD',size:'4500×5400',desc:{hu:'Gyártható pólóminta.',en:'Production-ready t-shirt artwork.'},ratio:'3:4'},
 {id:'merch-hoodie',label:'Gaming Hoodie',group:'Merch',platform:'Shopify / POD',size:'4500×5400',desc:{hu:'Kapucnis pulóver master artwork.',en:'Hoodie master artwork.'},ratio:'3:4'},
 {id:'merch-mug',label:'Gaming Mug',group:'Merch',platform:'Shopify / POD',size:'2700×1120',desc:{hu:'Bögre wrap artwork.',en:'Mug wrap artwork.'},ratio:'16:9'},
-{id:'merch-cap',label:'Gaming Cap',group:'Shopify / POD',size:'3000×3000',desc:{hu:'Sapka embléma.',en:'Cap emblem.'},ratio:'1:1'},
+{id:'merch-cap',label:'Gaming Cap',group:'Merch',platform:'Shopify / POD',size:'3000×3000',desc:{hu:'Sapka embléma.',en:'Cap emblem.'},ratio:'1:1'},
 {id:'merch-sticker',label:'Sticker Pack',group:'Merch',platform:'Shopify / POD',size:'2000×2000',desc:{hu:'Matrica pack.',en:'Sticker pack.'},ratio:'1:1'}];
 const RATIO=Object.fromEntries(ASSETS.map(a=>[a.id,a.ratio]));
 const GROUP_ICON:Record<string,typeof Sparkles>={Scenes:MonitorPlay,Overlays:Layers3,Widgets:Box,Alerts:Bell,Branding:Palette,Social:ImageIcon,Community:Star,'Motion FX':Video,Merch:Shirt};
