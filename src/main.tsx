@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import './styles.css';
 
 const Landing = lazy(() => import('./pages/Landing'));
@@ -75,5 +76,6 @@ createRoot(root).render(
         </Routes>
       </Suspense>
     </BrowserRouter>
+    <SpeedInsights />
   </AppErrorBoundary>,
 );
