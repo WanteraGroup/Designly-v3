@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { SiteDocument, SiteBlock, GalleryImage } from '../lib/site-schema';
+import { SUPABASE_URL } from '../lib/supabase-client';
 
 export interface SiteRendererProps {
   document: SiteDocument;
@@ -241,6 +243,72 @@ function Block({
           </ul>
         </section>
       );
+
+    case 'form': {
+      function FormBlock() {
+        const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+        async function submit(event: React.FormEvent<HTMLFormElement>) {
+          event.preventDefault();
+          if (status === 'sending' || status === 'sent') return;
+          setStatus('sending');
+          const form = event.currentTarget;
+          const data = Object.fromEntries(new FormData(form).entries());
+          delete data.website;
+          try {
+            const endpoint = block.endpoint.startsWith('http')
+              ? block.endpoint
+              : SUPABASE_URL + block.endpoint;
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                formId: block.formId,
+                siteTitle: theme.heading_font ? document?.title ?? '' : '',
+                data,
+                website: (new FormData(form).get('website') as string) || '',
+              }),
+            });
+            if (!res.ok) throw new Error('submit');
+            setStatus('sent');
+            form.reset();
+          } catch {
+            setStatus('error');
+          }
+        }
+        return (
+          <section id="form" className="px-6 py-16">
+            <div className="mx-auto max-w-2xl">
+              <h2 className="text-2xl" style={heading}>{block.heading}</h2>
+              <p className="mt-3 text-sm opacity-70">{block.body}</p>
+              <form onSubmit={submit} className="mt-6 space-y-3 rounded-2xl p-5" style={cardBorder}>
+                <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
+                {block.fields.map((field) => (
+                  <label key={field.name} className="block text-sm">
+                    <span className="mb-1.5 block opacity-80">{field.label}{field.required ? ' *' : ''}</span>
+                    {field.type === 'textarea' ? (
+                      <textarea name={field.name} required={field.required} placeholder={field.placeholder} rows={5} className="w-full rounded-xl border bg-transparent px-3 py-2 outline-none" style={{ borderColor: accent + '55' }} />
+                    ) : field.type === 'select' ? (
+                      <select name={field.name} required={field.required} className="w-full rounded-xl border bg-transparent px-3 py-2 outline-none" style={{ borderColor: accent + '55' }}>
+                        <option value="">Válassz…</option>
+                        {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    ) : (
+                      <input type={field.type} name={field.name} required={field.required} placeholder={field.placeholder} className="w-full rounded-xl border bg-transparent px-3 py-2 outline-none" style={{ borderColor: accent + '55' }} />
+                    )}
+                  </label>
+                ))}
+                <button type="submit" disabled={status === 'sending' || status === 'sent'} className="rounded-xl px-6 py-3 text-sm font-semibold" style={btn}>
+                  {status === 'sending' ? 'Küldés…' : status === 'sent' ? 'Elküldve' : block.submitLabel}
+                </button>
+                {status === 'sent' && <p className="text-sm text-emerald-400">{block.successMessage}</p>}
+                {status === 'error' && <p className="text-sm text-red-400">Az üzenetet nem sikerült elküldeni. Próbáld újra később.</p>}
+              </form>
+            </div>
+          </section>
+        );
+      }
+      return <FormBlock />;
+    }
 
     case 'cta':
       return (
