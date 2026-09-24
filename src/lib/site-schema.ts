@@ -2,6 +2,16 @@
  * DESIGNLY V3 — strict site document contract.
  * Renderer output is limited to the allow-listed block types below.
  */
+import { isAllowedEndpoint, FUNCTIONAL_BLOCK_TYPES } from './functional-blocks';
+import type {
+  BookingBlock,
+  FormBlock,
+  FormField,
+  MapBlock,
+  NewsletterBlock,
+  ProductGridBlock,
+} from './functional-blocks';
+
 export interface SiteTheme {
   mode: 'dark' | 'light';
   palette: string[];
@@ -30,7 +40,7 @@ export interface GalleryImage {
   source?: string;
 }
 
-export type SiteBlock =
+export type StaticBlock =
   | { type: 'hero'; eyebrow: string; headline: string; subheadline: string; cta: CtaLink }
   | { type: 'features'; heading: string; items: { title: string; text: string }[] }
   | { type: 'about'; heading: string; body: string }
@@ -42,6 +52,21 @@ export type SiteBlock =
   | { type: 'contact'; heading: string; body: string; email: string; phone: string; address: string }
   | { type: 'cta'; headline: string; subheadline: string; cta: CtaLink }
   | { type: 'footer'; text: string; links: { label: string; href: string }[] };
+
+/**
+ * A renderelheto blokk: a statikus bemutatkozo blokkok ES a funkcionalis
+ * blokkok (urlap, foglalas, termeklista, terkep, hirlevel).
+ *
+ * A funkcionalis blokkok tipusai a `functional-blocks.ts`-bol jonnek, hogy a
+ * szerzodes egy helyen legyen — a `parseSite` itt csak szur, nem ujradefinial.
+ */
+export type SiteBlock =
+  | StaticBlock
+  | FormBlock
+  | BookingBlock
+  | ProductGridBlock
+  | MapBlock
+  | NewsletterBlock;
 
 export interface SiteDocument {
   site: SiteMeta;
@@ -55,6 +80,7 @@ export interface SiteEdit {
 
 export const BLOCK_TYPES = [
   'hero','features','about','services','pricing','gallery','testimonials','faq','contact','cta','footer',
+  ...FUNCTIONAL_BLOCK_TYPES,
 ] as const;
 
 const ALLOWED = new Set<string>(BLOCK_TYPES);
@@ -107,11 +133,126 @@ function stringArray(v: unknown, max = 12): string[] {
     : [];
 }
 
+/*
+ * A funkcionalis blokkok mezoszetovaltoi.
+ *
+ * A `siteId` es a `formId` azert kell, mert a fogado vegpont ezekbol tudja,
+ * melyik generalt oldalhoz tartozik a bekuldes. A generalt oldal ezt a sajat
+ * dokumentumabol kapja, nem keresbol — igy a latogato nem tud mas oldal neveben
+ * bekuldeni.
+ */
+const FIELD_NAME = /^[a-z0-9_]{1,40}$/;
+const FIELD_TYPES = ['text', 'email', 'tel', 'textarea', 'select', 'date', 'time'] as const;
+
+export function normalizeFormFields(v: unknown): FormField[] {
+  return objectArray(v)
+    .slice(0, 24)
+    .map((x) => {
+      const name = text(x.name).trim().toLowerCase();
+      const type = FIELD_TYPES.includes(text(x.type).trim() as typeof FIELD_TYPES[number])
+        ? (text(x.type).trim() as FormField['type'])
+        : 'text';
+      return {
+        name: FIELD_NAME.test(name) ? name : '',
+        label: text(x.label, 'Mező').slice(0, 160),
+        type,
+        required: x.required === true,
+        ...(type === 'select' ? { options: stringArray(x.options, 20) } : {}),
+        ...(text(x.placeholder) ? { placeholder: text(x.placeholder).slice(0, 200) } : {}),
+      };
+    })
+    /*
+     * Egy ervenytelen nevu mezo kimarad: a backend ezt a nevet kapja kulcskent,
+     * es egy szabalytalan kulcs vagy elveszne, vagy (rosszabb esetben) egy
+     * nem kivant oszlopba irna. Inkább kevesebb mezo, mint nemkivant.
+     */
+    .filter((f) => f.name !== '');
+}
+
+function functionalBlock(b: Record<string, unknown>): SiteBlock | null {
+  const endpoint = (fallback: string) => (isAllowedEndpoint(b.endpoint) ? String(b.endpoint).trim() : fallback);
+
+  switch (b.type) {
+    case 'form':
+      return {
+        type: 'form',
+        heading: text(b.heading, 'Írj nekünk').slice(0, 140),
+        body: text(b.body).slice(0, 800),
+        fields: normalizeFormFields(b.fields),
+        submitLabel: text(b.submitLabel, 'Küldés').slice(0, 80),
+        endpoint: endpoint('designly-form-submit'),
+        successMessage: text(b.successMessage, 'Köszönjük, megkaptuk az üzenetedet.').slice(0, 300),
+      };
+    case 'booking':
+      return {
+        type: 'booking',
+        heading: text(b.heading, 'Időpontfoglalás').slice(0, 140),
+        body: text(b.body).slice(0, 800),
+        services: objectArray(b.services).slice(0, 12).map((x) => ({
+          name: text(x.name, 'Szolgáltatás').slice(0, 140),
+          duration: text(x.duration, '—').slice(0, 60),
+          price: text(x.price, '—').slice(0, 120),
+        })),
+        availability: objectArray(b.availability).slice(0, 7).map((x) => ({
+          day: text(x.day, 'Hétfő').slice(0, 40),
+          from: text(x.from, '09:00').slice(0, 10),
+          to: text(x.to, '17:00').slice(0, 10),
+        })),
+        endpoint: endpoint('designly-booking'),
+        successMessage: text(b.successMessage, 'A foglalási kérésedet megkaptuk.').slice(0, 300),
+      };
+    case 'product-grid':
+      return {
+        type: 'product-grid',
+        heading: text(b.heading, 'Termékek').slice(0, 140),
+        body: text(b.body).slice(0, 800),
+        products: objectArray(b.products).slice(0, 24).map((x) => ({
+          name: text(x.name, 'Termék').slice(0, 160),
+          description: text(x.description).slice(0, 600),
+          price: text(x.price, '—').slice(0, 120),
+          imageQuery: text(x.imageQuery, 'product photography').slice(0, 240),
+          ...(safeMediaUrl(x.imageUrl) ? { imageUrl: safeMediaUrl(x.imageUrl) } : {}),
+          sku: text(x.sku).slice(0, 60),
+        })),
+        mode: b.mode === 'cart' ? 'cart' : 'inquiry',
+        endpoint: endpoint('designly-cart'),
+      };
+    case 'map':
+      return {
+        type: 'map',
+        heading: text(b.heading, 'Helyszín').slice(0, 140),
+        /*
+         * A modell nem tud koordinatat, es nem is kell neki: cimet ad, amit a
+         * renderelo geokodol (vagy terkep-linkke alakít). Egy hamis lat/lng par
+         * rosszabb lenne, mint egy cim, amit lehet ellenorizni.
+         */
+        address: text(b.address).slice(0, 400),
+        mode: b.mode === 'link' ? 'link' : 'embed',
+      };
+    case 'newsletter':
+      return {
+        type: 'newsletter',
+        heading: text(b.heading, 'Hírlevél').slice(0, 140),
+        body: text(b.body).slice(0, 600),
+        placeholder: text(b.placeholder, 'Az email címed').slice(0, 120),
+        submitLabel: text(b.submitLabel, 'Feliratkozás').slice(0, 80),
+        endpoint: endpoint('designly-subscribe'),
+        successMessage: text(b.successMessage, 'Köszönjük, hamarosan jelentkezünk.').slice(0, 300),
+      };
+    default:
+      return null;
+  }
+}
+
 function normalizeBlock(raw: unknown): SiteBlock | null {
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
   const type = b.type;
   if (typeof type !== 'string' || !ALLOWED.has(type)) return null;
+
+  if ((FUNCTIONAL_BLOCK_TYPES as readonly string[]).includes(type)) {
+    return functionalBlock(b);
+  }
 
   switch (type) {
     case 'hero':
