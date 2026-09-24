@@ -266,6 +266,7 @@ function Block({
                 siteTitle: block.heading,
                 data,
                 website: (new FormData(form).get('website') as string) || '',
+                sourceUrl: window.location.href,
               }),
             });
             if (!res.ok) throw new Error('submit');
