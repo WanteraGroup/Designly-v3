@@ -29,8 +29,11 @@ function download(name:string,data:BlobPart,type:string){const blob=new Blob([da
 function cncGcode(w:number,h:number,depth:number,feed:number,plunge:number,spindle:number,controller:string){const d=Math.max(.2,Math.abs(depth));const step=Math.max(.2,d/2);const out=['%','( DESIGNLY CNC CAM )','( CONTROLLER: '+controller+' )','G21 G90 G17 G94','G0 Z5','M3 S'+Math.round(spindle)];for(let z=-step;z>=-d-1e-6;z-=step){const zz=Math.max(z,-d).toFixed(3);out.push('(DEPTH '+zz+' MM)','G0 X0 Y0','G1 Z'+zz+' F'+Math.round(plunge),'G1 X'+w.toFixed(3)+' Y0 F'+Math.round(feed),'G1 X'+w.toFixed(3)+' Y'+h.toFixed(3),'G1 X0 Y'+h.toFixed(3),'G1 X0 Y0','G0 Z5');if(z<=-d)break;}out.push('M5','M30','%');return out.join('\n');}
 function plannerSvg(w:number,h:number,label:string){const safeW=Math.max(1,w),safeH=Math.max(1,h),W=900,H=600,scale=Math.min(760/safeW,450/safeH),rw=safeW*scale,rh=safeH*scale,x=(W-rw)/2,y=(H-rh)/2;return '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="100%" height="100%" fill="#090a0d"/><rect x="'+x+'" y="'+y+'" width="'+rw+'" height="'+rh+'" fill="#13161c" stroke="#c9a45c" stroke-width="3"/><text x="450" y="45" fill="#c9a45c" font-size="22" text-anchor="middle">DESIGNLY PLANNER</text><text x="450" y="570" fill="#eee8dc" font-size="18" text-anchor="middle">'+safeW+' × '+safeH+' mm · '+label+'</text></svg>';}
 
-export default function CreativeStudio(){
- const [tool,setTool]=useState<ToolId>('brand');
+export default function CreativeStudio({ initialTool }: { initialTool?: string }) {
+ const [tool,setTool]=useState<ToolId>(() => {
+  const candidate=initialTool as ToolId;
+  return TOOLS.some((item)=>item.id===candidate) ? candidate : 'brand';
+ });
  const [brief,setBrief]=useState('');
  const [style,setStyle]=useState('premium');
  const [busy,setBusy]=useState(false);
