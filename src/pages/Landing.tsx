@@ -1,4 +1,4 @@
-import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Clock, Briefcase, Video, Languages, Gamepad2 } from 'lucide-react';
+import { Sparkles, Users, LayoutTemplate, Wand2, Download, Check, Briefcase, Video, Languages, Gamepad2 } from 'lucide-react';
 import { LANGUAGES } from '../lib/constants';
 import { FULL_AGENT_TEAM, PUBLIC_AGENT_MODULES } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
@@ -34,7 +34,13 @@ export default function Landing() {
             {['Szolgáltatások', 'Agentek', 'Sablonok', 'Árak', 'Kapcsolat'].map((item) => (
               <a
                 key={item}
-                href={item === 'Agentek' ? '#agents' : item === 'Sablonok' ? '#templates' : '#'}
+                href={
+                  item === 'Szolgáltatások' ? '#services' :
+                  item === 'Agentek' ? '#agents' :
+                  item === 'Sablonok' ? '#templates' :
+                  item === 'Árak' ? '#pricing' :
+                  '#contact'
+                }
                 className="transition hover:text-ink-100"
               >
                 {item}
@@ -47,6 +53,9 @@ export default function Landing() {
               className="border-none bg-transparent text-xs text-ink-200 outline-none"
               defaultValue="hu"
               aria-label="Nyelv"
+              onChange={(e) => {
+                window.location.href = '/app?lang=' + encodeURIComponent(e.target.value);
+              }}
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code} className="bg-canvas">
@@ -103,7 +112,7 @@ export default function Landing() {
           {[
             { value: `${PUBLIC_AGENT_MODULES.length}`, label: 'Fő modul' },
             { value: TEMPLATE_TOTAL.toLocaleString('hu-HU'), label: 'Sablon' },
-            { value: `${FULL_AGENT_TEAM.length - PUBLIC_AGENT_MODULES.length}`, label: 'Háttérspecialista' },
+            { value: `${FULL_AGENT_TEAM.length}`, label: 'Belső specialista' },
             { value: `${LANGUAGES.length}`, label: 'Nyelv' },
           ].map((s) => (
             <div key={s.label} className="text-center">
@@ -116,7 +125,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-20">
+      <section id="services" className="mx-auto max-w-6xl px-6 py-20">
         <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Mit kínálunk?</h2>
         <p className="mx-auto mb-12 max-w-xl text-center text-sm text-ink-300">
           Website, Brand Kit, kampány és a klasszikus DESIGNLY extra műhelyek egy folyamatban.
@@ -140,15 +149,9 @@ export default function Landing() {
             <div key={m.name} className="vp-card p-6">
               <div className="mb-4 flex items-center justify-between">
                 <m.icon className="h-5 w-5 text-accent" />
-                {m.live ? (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                    <Check className="h-3 w-3" /> AKTÍV
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[10px] text-ink-400">
-                    <Clock className="h-3 w-3" /> HAMAROSAN
-                  </span>
-                )}
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                  <Check className="h-3 w-3" /> AKTÍV
+                </span>
               </div>
               <h3 className="font-display text-lg text-ink-100">{m.name}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-300">{m.desc}</p>
@@ -223,7 +226,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="border-y border-line bg-panel/40">
+      <section id="pricing" className="border-y border-line bg-panel/40">
         <div className="mx-auto max-w-3xl px-6 py-20">
           <h2 className="mb-3 text-center font-display text-3xl text-ink-100">Árak</h2>
           <p className="mx-auto mb-10 max-w-xl text-center text-sm leading-relaxed text-ink-300">
@@ -267,7 +270,7 @@ export default function Landing() {
         </a>
       </section>
 
-      <footer className="border-t border-line bg-panel/40">
+      <footer id="contact" className="border-t border-line bg-panel/40">
         <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-3">
