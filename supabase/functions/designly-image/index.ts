@@ -50,17 +50,6 @@ function compilePrompt(input: string): string {
 }
 
 const HF_SPACE = "https://akhaliq-qwen-image-2-1-workflow.hf.space";
-const rateBuckets = new Map<string, number[]>();
-function rateLimited(req: Request): boolean {
-  const key = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "guest").split(",")[0].trim().slice(0, 80);
-  const now = Date.now();
-  const recent = (rateBuckets.get(key) || []).filter((t) => now - t < 60_000);
-  if (recent.length >= 4) return true;
-  recent.push(now);
-  rateBuckets.set(key, recent);
-  return false;
-}
-
 function toAbsoluteFileUrl(value: string): string {
   if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith("/")) return HF_SPACE + value;
