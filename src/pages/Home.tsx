@@ -379,6 +379,11 @@ function HomeWorkspace() {
 
               {site && (
                 <div className="mt-8">
+                  {runtimeMode === 'fallback' && (
+                    <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+                      A VYRON CORE AI provider jelenleg nem adott választ. Ez egy előnézeti fallback vázlat; a generálás nem számít valódi AI-futtatásnak.
+                    </div>
+                  )}
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="font-display text-lg text-ink-100">{site.site.title}</h2>
                     <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
