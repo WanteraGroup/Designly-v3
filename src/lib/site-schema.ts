@@ -77,6 +77,12 @@ function safeHref(v: unknown, fallback = '#'): string {
   return fallback;
 }
 
+function safeMediaUrl(v: unknown): string {
+  const url = typeof v === 'string' ? v.trim() : '';
+  if (/^https?:\/\//i.test(url) || /^\//.test(url)) return url.slice(0, 4000);
+  return '';
+}
+
 function text(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v.slice(0, 8000) : fallback;
 }
@@ -152,7 +158,7 @@ function normalizeBlock(raw: unknown): SiteBlock | null {
       const images = objectArray(b.images).slice(0, 8).map((x) => ({
         query: text(x.query, 'modern design').slice(0, 240),
         caption: text(x.caption).slice(0, 400),
-        ...(text(x.url) ? { url: text(x.url, '').slice(0, 4000) } : {}),
+        ...(safeMediaUrl(x.url) ? { url: safeMediaUrl(x.url) } : {}),
         ...(text(x.alt) ? { alt: text(x.alt, '').slice(0, 400) } : {}),
         ...(text(x.author) ? { author: text(x.author, '').slice(0, 200) } : {}),
         ...(text(x.source) ? { source: text(x.source, '').slice(0, 4000) } : {}),
@@ -248,6 +254,8 @@ export function applyEdits(doc: SiteDocument, edits: SiteEdit[]): SiteDocument {
     if (!edit || typeof edit.path !== 'string' || !edit.path.trim()) continue;
     const parts = edit.path.split('.').filter(Boolean);
     if (!parts.length) continue;
+    if (parts.some((part) => ['__proto__', 'prototype', 'constructor'].includes(part))) continue;
+    if (!(parts[0] === 'site' || parts[0] === 'blocks')) continue;
 
     let cursor: Record<string, unknown> = next;
     let ok = true;
