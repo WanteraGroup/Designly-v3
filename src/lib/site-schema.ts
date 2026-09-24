@@ -7,6 +7,7 @@ export interface SiteTheme {
   palette: string[];
   heading_font: string;
   body_font: string;
+  background_image?: string;
 }
 
 export interface SiteMeta {
@@ -264,6 +265,7 @@ export function parseSite(raw: unknown): SiteDocument | null {
           : ['#c9a45c'],
         heading_font: safeFont(theme.heading_font, 'Marcellus'),
         body_font: safeFont(theme.body_font, 'Inter'),
+        ...(typeof theme.background_image === 'string' && /^https?:\/\//i.test(theme.background_image.trim()) ? { background_image: theme.background_image.trim().slice(0, 4000) } : {}),
       },
       nav: Array.isArray(doc.site.nav)
         ? doc.site.nav
