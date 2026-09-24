@@ -12,11 +12,13 @@ import {
   Check,
   ArrowLeft,
   LayoutTemplate,
+  Languages,
+  Library,
 } from 'lucide-react';
 import { buildSite, refineSite, type SiteDocument } from '../lib/api';
 import { downloadSiteHtml, toStandaloneHtml } from '../lib/export-html';
 import { collectImageQueries, resolveImages, applyImages } from '../lib/images';
-import { DESIGN_STYLES, LANGUAGES } from '../lib/constants';
+import { DESIGN_STYLES, LANGUAGES, formatNumber, type LanguageCode } from '../lib/constants';
 import { PUBLIC_AGENT_MODULES } from '../lib/agents';
 import { CATEGORY_SPECS, specFor, briefFromTemplate } from '../lib/brief';
 import { getDesignlyTemplate, TEMPLATE_TOTAL } from '../lib/templates';
@@ -32,11 +34,65 @@ import MediaStudio from '../components/MediaStudio';
 import { createProject, hydrateProjects, listProjects, saveProject, saveProjectCloud, type StudioProject } from '../lib/project-store';
 import AuthGate from '../components/AuthGate';
 
-const EXAMPLES = [
-  'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
-  'Modern étterem oldal, étlappal és nyitvatartással',
-  'Egy fitneszterem bemutatkozó oldala bérletárakkal',
+/** A pelda-briefek nyelv szerint. A brief nyelve az, amit a modell lat. */
+const EXAMPLES: { hu: string; en: string }[] = [
+  { hu: 'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel', en: 'A dark, premium hair salon website with prices and booking' },
+  { hu: 'Modern étterem oldal, étlappal és nyitvatartással', en: 'Modern restaurant site with a menu and opening hours' },
+  { hu: 'Egy fitneszterem bemutatkozó oldala bérletárakkal', en: 'An introductory gym website with membership prices' },
 ];
+
+/**
+ * A workspace feluleti szovegei.
+ *
+ * A `hu` a referencia: minden kulcsnak itt KELL lennie. A `t()` a magyarra esik
+ * vissza, tehat egy hianyzo kulcs sosem irja ki a kulcsnevet.
+ */
+const UI: Record<string, { hu: string; en: string }> = {
+  'tab.generator': { hu: 'Generátor', en: 'Generator' },
+  'tab.studio': { hu: 'Extra Stúdió', en: 'Extra Studio' },
+  'tab.media': { hu: 'Video Studio', en: 'Video Studio' },
+  'tab.gamer': { hu: 'Streamer & Gamer', en: 'Streamer & Gamer' },
+  'saved.open': { hu: 'Mentett projektek', en: 'Saved projects' },
+  'saved.fallbackName': { hu: 'Mentett projekt', en: 'Saved project' },
+  'brief.label': { hu: 'Mit építsünk?', en: 'What should we build?' },
+  'brief.placeholder': { hu: 'Például: Egy sötét, prémium fodrászszalon weboldala árakkal és foglalással.', en: 'For example: A dark, premium hair salon website with prices and booking.' },
+  'brief.style': { hu: 'Stílus', en: 'Style' },
+  'brief.building': { hu: 'Építés…', en: 'Building…' },
+  'brief.newPage': { hu: 'Új oldal', en: 'New page' },
+  'brief.buildPage': { hu: 'Oldal elkészítése', en: 'Build the page' },
+  'brief.downloadHtml': { hu: 'HTML letöltése', en: 'Download HTML' },
+  'progress.core': { hu: 'VYRON CORE felbontja a briefet, a DESIGNLY MASTER és a kiválasztott specialisták összeállítják az oldalt.', en: 'VYRON CORE breaks down the brief; DESIGNLY MASTER and the selected specialists assemble the page.' },
+  'progress.images': { hu: 'Fotók keresése a galériákhoz…', en: 'Finding photos for the galleries…' },
+  'fallback.warning': { hu: 'A VYRON CORE AI provider jelenleg nem adott választ. Ez egy előnézeti fallback vázlat; a generálás nem számít valódi AI-futtatásnak.', en: 'The VYRON CORE AI provider did not answer. This is a preview fallback draft; the run does not count as a real AI generation.' },
+  'site.sections': { hu: 'szekció', en: 'sections' },
+  'action.save': { hu: 'Mentés', en: 'Save' },
+  'action.preview': { hu: 'Előnézet új lapon', en: 'Preview in new tab' },
+  'action.json': { hu: 'JSON export', en: 'JSON export' },
+  'action.edit': { hu: 'Szerkesztés', en: 'Edit' },
+  'action.newProject': { hu: 'Új projekt', en: 'New project' },
+  'action.saved': { hu: 'Elmentve', en: 'Saved' },
+  'editor.close': { hu: 'Szerkesztő bezárása', en: 'Close editor' },
+  'editor.open': { hu: 'Szerkesztő megnyitása', en: 'Open editor' },
+  'editor.label': { hu: 'Változtass egy dolgot', en: 'Change one thing' },
+  'editor.placeholder': { hu: 'Pl. legyen világosabb a színvilág', en: 'E.g. make the palette lighter' },
+  'editor.applying': { hu: 'Módosítás…', en: 'Applying…' },
+  'editor.apply': { hu: 'Alkalmaz', en: 'Apply' },
+  'editor.note': { hu: 'A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.', en: 'Refinement only rewrites what you asked for — the structure stays.' },
+  'templates.hint': { hu: 'kategória — a sablon struktúra és hangnem, nem kész oldal.', en: 'category — a template is structure and tone, not a finished page.' },
+  'templates.back': { hu: 'Vissza a főoldalra', en: 'Back to the landing page' },
+  'team.title': { hu: 'DESIGNLY WORKSPACE', en: 'DESIGNLY WORKSPACE' },
+  'team.boss': { hu: 'FŐNÖK:', en: 'LEAD:' },
+  'team.aiRuntime': { hu: 'AI RUNTIME', en: 'AI RUNTIME' },
+  'team.fallback': { hu: 'ELŐNÉZETI FALLBACK', en: 'PREVIEW FALLBACK' },
+  'team.concierge': { hu: 'CONCIERGE', en: 'CONCIERGE' },
+  'team.lead': { hu: 'VEZÉR', en: 'LEAD' },
+  'team.executed': { hu: 'FUTOTT', en: 'RAN' },
+  'team.selected': { hu: 'KIVÁLASZTVA', en: 'SELECTED' },
+  'team.notRun': { hu: 'NEM FUTOTT', en: 'DID NOT RUN' },
+  'team.available': { hu: 'ELÉRHETŐ', en: 'AVAILABLE' },
+  'team.flow': { hu: 'VYRON CORE → DESIGNLY MASTER → specialisták a háttérben → eredmény', en: 'VYRON CORE → DESIGNLY MASTER → specialists in the background → result' },
+  'lang.label': { hu: 'Nyelv', en: 'Language' },
+};
 
 function openStandalonePreview(site: SiteDocument) {
   const html = toStandaloneHtml(site);
@@ -55,18 +111,23 @@ export default function Home() {
 
 function HomeWorkspace() {
   const [brief, setBrief] = useState('');
-  const [language, setLanguage] = useState(() => {
+  const [language, setLanguage] = useState<LanguageCode>(() => {
     const requested = new URLSearchParams(window.location.search).get('lang');
-    if (requested && LANGUAGES.some((item) => item.code === requested)) return requested;
+    if (requested && LANGUAGES.some((item) => item.code === requested)) return requested as LanguageCode;
     const saved = window.localStorage.getItem('designly-language');
-    return saved && LANGUAGES.some((item) => item.code === saved) ? saved : 'hu';
+    return saved && LANGUAGES.some((item) => item.code === saved) ? saved as LanguageCode : 'hu';
   });
+
+  /** A felulet nyelve: magyar referencia, angolra esik vissza minden mas. */
+  const t = (key: string) => (language === 'hu' ? UI[key]?.hu : (UI[key]?.en ?? UI[key]?.hu)) ?? key;
+
   useEffect(() => {
     window.localStorage.setItem('designly-language', language);
     const url = new URL(window.location.href);
     url.searchParams.set('lang', language);
     window.history.replaceState({}, '', url.toString());
   }, [language]);
+
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
   const [tab, setTab] = useState<'generator' | 'studio' | 'media' | 'gamer' | 'templates'>(() => {
@@ -187,16 +248,18 @@ function HomeWorkspace() {
             DESIGNLY <span className="text-accent">V3</span>
           </span>
         </a>
-        <label className="text-xs text-ink-300">
-          <span className="sr-only">Nyelv</span>
+        <label className="flex items-center gap-2 text-xs text-ink-300">
+          <Languages className="h-3.5 w-3.5 text-ink-500" aria-hidden="true" />
+          <span className="sr-only">{t('lang.label')}</span>
           <select
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            onChange={(e) => setLanguage(e.target.value as LanguageCode)}
+            aria-label={t('lang.label')}
             className="border-none bg-transparent text-ink-200 outline-none"
           >
             {LANGUAGES.map((l) => (
               <option key={l.code} value={l.code} className="bg-canvas">
-                {l.flag}
+                {l.flag} · {l.name}
               </option>
             ))}
           </select>
@@ -209,7 +272,7 @@ function HomeWorkspace() {
           onClick={() => setSavedProjects(listProjects())}
           className="vp-btn-ghost text-xs"
         >
-          <Save className="h-3.5 w-3.5" /> Mentett projektek ({savedProjects.length})
+          <Save className="h-3.5 w-3.5" /> {t('saved.open')} ({savedProjects.length})
         </button>
       </div>
       {savedProjects.length > 0 && (
@@ -230,33 +293,27 @@ function HomeWorkspace() {
               className="rounded-xl border border-line bg-panel/70 px-4 py-3 text-left transition hover:border-accent/50"
             >
               <div className="text-xs font-semibold text-ink-100">{project.name}</div>
-              <div className="mt-1 line-clamp-2 text-[11px] text-ink-400">{project.brief || 'Mentett projekt'}</div>
+              <div className="mt-1 line-clamp-2 text-[11px] text-ink-400">{project.brief || t('saved.fallbackName')}</div>
             </button>
           ))}
         </div>
       )}
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
-        {(['generator', 'studio', 'media', 'gamer', 'templates'] as const).map((t) => (
+        {(['generator', 'studio', 'media', 'gamer', 'templates'] as const).map((tabId) => (
           <button
-            key={t}
+            key={tabId}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => setTab(tabId)}
             className={`rounded-full border px-4 py-1.5 text-xs transition ${
-              tab === t
+              tab === tabId
                 ? 'border-accent/70 bg-accent/15 text-accent'
                 : 'border-line text-ink-300 hover:text-ink-100'
             }`}
           >
-            {t === 'generator'
-              ? 'Generátor'
-              : t === 'studio'
-                ? 'Extra Stúdió'
-                : t === 'media'
-                  ? 'Video Studio'
-                  : t === 'gamer'
-                    ? 'Streamer & Gamer'
-                  : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
+            {tabId === 'templates'
+              ? <span className="inline-flex items-center gap-1.5"><Library className="h-3.5 w-3.5" />{formatNumber(TEMPLATE_TOTAL, language)}</span>
+              : t(`tab.${tabId}`)}
           </button>
         ))}
       </div>
@@ -294,7 +351,7 @@ function HomeWorkspace() {
             <div>
               <div className="vp-card p-5">
                 <label htmlFor="brief" className="mb-2 block text-xs text-ink-400">
-                  Mit építsünk?
+                  {t('brief.label')}
                 </label>
                 <textarea
                   id="brief"
@@ -304,12 +361,12 @@ function HomeWorkspace() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void generate();
                   }}
-                  placeholder="Például: Egy sötét, prémium fodrászszalon weboldala árakkal és foglalással."
+                  placeholder={t('brief.placeholder')}
                   className="vp-input resize-none"
                 />
 
                 <div className="mt-5">
-                  <span className="mb-2 block text-xs text-ink-400">Stílus</span>
+                  <span className="mb-2 block text-xs text-ink-400">{t('brief.style')}</span>
                   <div className="flex flex-wrap gap-2">
                     {DESIGN_STYLES.slice(0, 14).map((s) => (
                       <button
@@ -340,7 +397,7 @@ function HomeWorkspace() {
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {busy ? 'Építés…' : site ? 'Új oldal' : 'Oldal elkészítése'}
+                    {busy ? t('brief.building') : site ? t('brief.newPage') : t('brief.buildPage')}
                   </button>
                   {site && (
                     <button
@@ -349,7 +406,7 @@ function HomeWorkspace() {
                       className="vp-btn-ghost"
                     >
                       <Download className="h-4 w-4" />
-                      HTML letöltése
+                      {t('brief.downloadHtml')}
                     </button>
                   )}
                   <span className="text-xs text-ink-400">Cmd / Ctrl + Enter</span>
@@ -358,12 +415,12 @@ function HomeWorkspace() {
                 <div className="mt-5 flex flex-wrap gap-2">
                   {EXAMPLES.map((ex) => (
                     <button
-                      key={ex}
+                      key={ex.hu}
                       type="button"
-                      onClick={() => setBrief(ex)}
+                      onClick={() => setBrief(language === 'hu' ? ex.hu : ex.en)}
                       className="rounded-full border border-line px-3 py-1 text-xs text-ink-300 transition hover:border-accent/50 hover:text-ink-100"
                     >
-                      {ex}
+                      {language === 'hu' ? ex.hu : ex.en}
                     </button>
                   ))}
                 </div>
@@ -372,14 +429,14 @@ function HomeWorkspace() {
               {busy && (
                 <div className="mt-5 flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-ink-300">
                   <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                  VYRON CORE felbontja a briefet, a DESIGNLY MASTER és a kiválasztott specialisták összeállítják az oldalt.
+                  {t('progress.core')}
                 </div>
               )}
 
               {imagesLoading && (
                 <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-2.5 text-xs text-ink-400">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-                  Fotók keresése a galériákhoz…
+                  {t('progress.images')}
                 </div>
               )}
 
@@ -393,12 +450,12 @@ function HomeWorkspace() {
                 <div className="mt-8">
                   {runtimeMode === 'fallback' && (
                     <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
-                      A VYRON CORE AI provider jelenleg nem adott választ. Ez egy előnézeti fallback vázlat; a generálás nem számít valódi AI-futtatásnak.
+                      {t('fallback.warning')}
                     </div>
                   )}
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="font-display text-lg text-ink-100">{site.site.title}</h2>
-                    <span className="text-xs text-ink-400">{site.blocks.length} szekció</span>
+                    <span className="text-xs text-ink-400">{site.blocks.length} {t('site.sections')}</span>
                   </div>
 
                   <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-panel/80 p-3">
@@ -419,37 +476,37 @@ function HomeWorkspace() {
                       setSavedNotice(true);
                       window.setTimeout(() => setSavedNotice(false), 1800);
                     }} className="vp-btn">
-                      <Save className="h-4 w-4" /> Mentés
+                      <Save className="h-4 w-4" /> {t('action.save')}
                     </button>
                     <button type="button" onClick={() => {
                       try { openStandalonePreview(site); setError(null); }
                       catch (e) { setError(e instanceof Error ? e.message : String(e)); }
                     }} className="vp-btn-ghost">
-                      <LayoutTemplate className="h-4 w-4" /> Előnézet új lapon
+                      <LayoutTemplate className="h-4 w-4" /> {t('action.preview')}
                     </button>
                     <button type="button" onClick={() => downloadSiteHtml(site, brief)} className="vp-btn-ghost">
-                      <Download className="h-4 w-4" /> HTML letöltés
+                      <Download className="h-4 w-4" /> {t('brief.downloadHtml')}
                     </button>
                     <button type="button" onClick={() => {
                       const blob = new Blob([JSON.stringify(site, null, 2)], { type: 'application/json;charset=utf-8' });
                       const url = URL.createObjectURL(blob); const a = document.createElement('a');
                       a.href = url; a.download = (site.site.title || 'designly-site').toLowerCase().replace(/[^a-z0-9]+/gi, '-') + '.json'; a.click(); URL.revokeObjectURL(url);
                     }} className="vp-btn-ghost">
-                      <FileJson className="h-4 w-4" /> JSON export
+                      <FileJson className="h-4 w-4" /> {t('action.json')}
                     </button>
                     <button type="button" onClick={() => {
                       setEditorOpen(true);
                       window.setTimeout(() => refineRef.current?.focus(), 0);
                     }} className={editorOpen ? "vp-btn" : "vp-btn-ghost"}>
-                      <Pencil className="h-4 w-4" /> Szerkesztés
+                      <Pencil className="h-4 w-4" /> {t('action.edit')}
                     </button>
                     <button type="button" onClick={() => {
                       setSite(null); setInstruction(''); setReply(null); setSavedProjectId(null); setSavedNotice(false); setEditorOpen(false);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }} className="vp-btn-ghost">
-                      <RefreshCw className="h-4 w-4" /> Új projekt
+                      <RefreshCw className="h-4 w-4" /> {t('action.newProject')}
                     </button>
-                    {savedNotice && <span className="ml-auto flex items-center gap-1 text-xs text-emerald-300"><Check className="h-3.5 w-3.5" /> Elmentve</span>}
+                    {savedNotice && <span className="ml-auto flex items-center gap-1 text-xs text-emerald-300"><Check className="h-3.5 w-3.5" /> {t('action.saved')}</span>}
                   </div>
 
                   <SiteRenderer document={site} />
@@ -466,13 +523,13 @@ function HomeWorkspace() {
                       className="flex items-center gap-2 text-xs text-ink-300 hover:text-ink-100"
                     >
                       <Pencil className="h-3.5 w-3.5 text-accent" />
-                      {editorOpen ? 'Szerkesztő bezárása' : 'Szerkesztő megnyitása'}
+                      {editorOpen ? t('editor.close') : t('editor.open')}
                     </button>
 
                     {editorOpen && (
                       <div className="mt-4">
                         <label htmlFor="refine" className="mb-2 block text-xs text-ink-400">
-                          Változtass egy dolgot
+                          {t('editor.label')}
                         </label>
                         <div className="flex gap-3">
                           <input
@@ -483,7 +540,7 @@ function HomeWorkspace() {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') void refine();
                             }}
-                            placeholder="Pl. legyen világosabb a színvilág"
+                            placeholder={t('editor.placeholder')}
                             className="vp-input flex-1"
                           />
                           <button
@@ -493,7 +550,7 @@ function HomeWorkspace() {
                             className="vp-btn"
                           >
                             {refining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                            {refining ? 'Módosítás…' : 'Alkalmaz'}
+                            {refining ? t('editor.applying') : t('editor.apply')}
                           </button>
                         </div>
 
@@ -504,7 +561,7 @@ function HomeWorkspace() {
                         )}
 
                         <p className="mt-3 text-xs text-ink-400">
-                          A finomítás csak azt írja át, amit kértél — a szerkezet megmarad.
+                          {t('editor.note')}
                         </p>
                       </div>
                     )}
@@ -512,7 +569,7 @@ function HomeWorkspace() {
               )}
             </div>
 
-            <AgentTeam plannedAgentIds={plannedAgentIds} runtimeAgents={runtimeAgents} runtimeMode={runtimeMode} />
+            <AgentTeam plannedAgentIds={plannedAgentIds} runtimeAgents={runtimeAgents} runtimeMode={runtimeMode} t={t} />
           </div>
         </section>
       )}
@@ -537,7 +594,7 @@ function HomeWorkspace() {
           </div>
 
           <p className="mb-5 text-xs text-ink-400">
-            {specFor(category).label} kategória — a sablon struktúra és hangnem, nem kész oldal.
+            {specFor(category).label} {t('templates.hint')}
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -568,7 +625,7 @@ function HomeWorkspace() {
           <div className="mt-10 text-center">
             <a href="/" className="vp-btn-ghost">
               <LayoutTemplate className="h-4 w-4" />
-              Vissza a főoldalra
+              {t('templates.back')}
             </a>
           </div>
         </section>
@@ -585,18 +642,18 @@ function HomeWorkspace() {
  * generalasban, a `planned` pedig helyet jelol a kovetkezo koroknek. Egy
  * agent, ami a listan van, de nem fut, nem hazudik mukodest.
  */
-function AgentTeam({ plannedAgentIds, runtimeAgents, runtimeMode }: { plannedAgentIds: string[]; runtimeAgents: string[]; runtimeMode: 'ai' | 'fallback' }) {
+function AgentTeam({ plannedAgentIds, runtimeAgents, runtimeMode, t }: { plannedAgentIds: string[]; runtimeAgents: string[]; runtimeMode: 'ai' | 'fallback'; t: (key: string) => string }) {
   return (
     <aside className="vp-card h-fit p-5">
       <div className="mb-4 flex items-center gap-2">
         <Users className="h-4 w-4 text-accent" />
-        <h2 className="font-display text-sm tracking-[0.14em] text-ink-100">DESIGNLY WORKSPACE</h2>
+        <h2 className="font-display text-sm tracking-[0.14em] text-ink-100">{t('team.title')}</h2>
       </div>
       <div className="mb-4 rounded-lg border border-line bg-panel-hi/50 px-3 py-2 text-[10px] text-ink-300">
         <div className="flex items-center justify-between gap-2">
-          <span>FŐNÖK: <b className="text-ink-100">VYRON CORE</b></span>
+          <span>{t('team.boss')} <b className="text-ink-100">VYRON CORE</b></span>
           <span className={runtimeMode === 'ai' ? 'text-emerald-400' : 'text-amber-300'}>
-            {runtimeMode === 'ai' ? 'AI RUNTIME' : 'ELŐNÉZETI FALLBACK'}
+            {runtimeMode === 'ai' ? t('team.aiRuntime') : t('team.fallback')}
           </span>
         </div>
       </div>
@@ -610,15 +667,15 @@ function AgentTeam({ plannedAgentIds, runtimeAgents, runtimeMode }: { plannedAge
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-semibold tracking-wider text-ink-100">{module.name}</span>
                 {special ? (
-                  <span className="text-[10px] text-cyan-300">{module.id === 'huginn' ? 'CONCIERGE' : 'VEZÉR'}</span>
+                  <span className="text-[10px] text-cyan-300">{module.id === 'huginn' ? t('team.concierge') : t('team.lead')}</span>
                 ) : executed ? (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400"><Check className="h-3 w-3" /> FUTOTT</span>
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400"><Check className="h-3 w-3" /> {t('team.executed')}</span>
                 ) : planned ? (
                   <span className={runtimeMode === 'ai' ? 'flex items-center gap-1 text-[10px] text-cyan-300' : 'flex items-center gap-1 text-[10px] text-amber-300'}>
-                    <Check className="h-3 w-3" /> {runtimeMode === 'ai' ? 'KIVÁLASZTVA' : 'NEM FUTOTT'}
+                    <Check className="h-3 w-3" /> {runtimeMode === 'ai' ? t('team.selected') : t('team.notRun')}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-ink-500">ELÉRHETŐ</span>
+                  <span className="text-[10px] text-ink-500">{t('team.available')}</span>
                 )}
               </div>
               <p className="mt-1 text-[11px] leading-snug text-ink-300">{module.role}</p>
@@ -626,7 +683,7 @@ function AgentTeam({ plannedAgentIds, runtimeAgents, runtimeMode }: { plannedAge
           );
         })}
       </div>
-      <p className="mt-4 text-[10px] leading-relaxed text-ink-400">VYRON CORE → DESIGNLY MASTER → specialisták a háttérben → eredmény</p>
+      <p className="mt-4 text-[10px] leading-relaxed text-ink-400">{t('team.flow')}</p>
     </aside>
   );
 }
