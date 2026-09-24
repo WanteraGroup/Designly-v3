@@ -89,7 +89,7 @@ async function runQwen(prompt: string): Promise<string> {
 
     const stream = await result.text();
     if (!result.ok) {
-      throw new Error(`Qwen Image eredmény lekérése sikertelen (${result.status}).`);
+      throw new Error(`Qwen Image eredmény lekérése sikertelen (${result.status}): ${stream.slice(0, 400)}`);
     }
 
     const lines = stream.split(/\r?\n/);
