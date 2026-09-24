@@ -49,14 +49,36 @@ function compilePrompt(input: string): string {
   ].join("\n");
 }
 
-const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\/$/, "");
+const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\\/$/, "");
 const ENGINE_KEY = Deno.env.get("DESIGNLY_IMAGE_ENGINE_KEY") ?? "";
+const RUNPOD_KEY = Deno.env.get("RUNPOD_API_KEY") ?? "";
+const RUNPOD_ENDPOINT = (Deno.env.get("DESIGNLY_RUNPOD_ENDPOINT") ?? "https://api.runpod.ai/v2/qwen-image-t2i").replace(/\\/$/, "");
 const ALLOW_PUBLIC_FALLBACK = (Deno.env.get("DESIGNLY_IMAGE_ALLOW_PUBLIC_FALLBACK") ?? "false").toLowerCase() === "true";
+
+type ProviderName = "private" | "runpod" | "public";
+
+function providerChain(): ProviderName[] {
+  const configured = (Deno.env.get("DESIGNLY_IMAGE_PROVIDERS") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) as ProviderName[];
+
+  const installed: ProviderName[] = [];
+  if (ENGINE_URL && ENGINE_KEY) installed.push("private");
+  if (RUNPOD_KEY) installed.push("runpod");
+  if (ALLOW_PUBLIC_FALLBACK) installed.push("public");
+
+  if (configured.length) {
+    const selected = installed.filter((p) => configured.includes(p));
+    if (selected.length) return selected;
+  }
+  return installed;
+}
 
 const HF_SPACE = "https://akhaliq-qwen-image-2-1-workflow.hf.space";
 const HF_FN = "text_to_image";
 function toAbsoluteFileUrl(value: string): string {
-  if (/^https?:\/\//i.test(value)) return value;
+  if (/^https?:\\/\\//i.test(value)) return value;
   if (value.startsWith("/")) return HF_SPACE + value;
   return HF_SPACE + "/" + value;
 }
@@ -74,13 +96,9 @@ const RATIO_SIZES: Record<string, [number, number]> = {
 
 async function runDesignlyEngine(prompt: string, aspectRatio: string): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
   if (!ENGINE_URL || !ENGINE_KEY) throw new Error("DESIGNLY_ENGINE_NOT_CONFIGURED");
-
   const response = await fetch(ENGINE_URL + "/generate", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Designly-Engine-Key": ENGINE_KEY,
-    },
+    headers: { "Content-Type": "application/json", "X-Designly-Engine-Key": ENGINE_KEY },
     body: JSON.stringify({
       prompt,
       aspectRatio,
@@ -88,15 +106,12 @@ async function runDesignlyEngine(prompt: string, aspectRatio: string): Promise<{
     }),
     signal: AbortSignal.timeout(Number(Deno.env.get("DESIGNLY_IMAGE_TIMEOUT_MS") || "300000")),
   });
-
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Designly Image Engine HTTP ${response.status}: ${text.slice(0, 500)}`);
   }
-
   const bytes = await response.arrayBuffer();
   if (!bytes.byteLength) throw new Error("Designly Image Engine returned an empty image");
-
   const [width, height] = RATIO_SIZES[aspectRatio] ?? RATIO_SIZES["1:1"];
   return {
     bytes,
@@ -116,89 +131,112 @@ async function storeGeneratedImage(userId: string, bytes: ArrayBuffer): Promise<
     upsert: false,
   });
   if (error) throw new Error("A generált kép mentése sikertelen: " + error.message);
-
   const { data } = admin.storage.from("designly-generations").getPublicUrl(path);
   if (!data.publicUrl) throw new Error("A generált kép publikus URL-je nem jött létre.");
   return data.publicUrl;
 }
 
-async function runQwen(prompt: string): Promise<string> {
-  const start = await fetch(`${HF_SPACE}/gradio_api/call/${HF_FN}`, {
+async function runRunpod(prompt: string, aspectRatio: string): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
+  if (!RUNPOD_KEY) throw new Error("RUNPOD_NOT_CONFIGURED");
+  const [width, height] = RATIO_SIZES[aspectRatio] ?? RATIO_SIZES["1:1"];
+  const timeoutMs = Number(Deno.env.get("DESIGNLY_IMAGE_TIMEOUT_MS") || "300000");
+  const size = `${width}*${height}`;
+
+  const response = await fetch(RUNPOD_ENDPOINT + "/runsync", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data: [prompt, 28] }),
-    signal: AbortSignal.timeout(30_000),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${RUNPOD_KEY}`,
+    },
+    body: JSON.stringify({
+      input: {
+        prompt,
+        negative_prompt: "low quality, blurry, distorted anatomy, malformed hands, duplicate objects, unreadable text",
+        size,
+        seed: Math.floor(Math.random() * 2 ** 31),
+      },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
-  const startText = await start.text();
-  if (!start.ok) {
-    throw new Error(`Qwen Image Space indítása sikertelen (${start.status}): ${startText.slice(0, 400)}`);
-  }
+  const text = await response.text();
+  if (!response.ok) throw new Error(`RunPod HTTP ${response.status}: ${text.slice(0, 500)}`);
 
-  let eventId: string | undefined;
+  let payload: { status?: string; id?: string; output?: unknown; error?: string };
   try {
-    eventId = JSON.parse(startText).event_id;
+    payload = JSON.parse(text);
   } catch {
-    const match = startText.match(/"event_id"\s*:\s*"([^"]+)"/);
-    eventId = match?.[1];
-  }
-  if (!eventId) throw new Error("A Qwen Image Space nem adott event_id értéket.");
-
-  // Gradio returns a live SSE stream for the event. Read it once until
-  // complete/error instead of repeatedly opening the same event endpoint.
-  const result = await fetch(
-    `${HF_SPACE}/gradio_api/call/${HF_FN}/${encodeURIComponent(eventId)}`,
-    {
-      headers: { Accept: "text/event-stream" },
-      signal: AbortSignal.timeout(115_000),
-    },
-  );
-
-  const stream = await result.text();
-  if (!result.ok) {
-    throw new Error(`Qwen Image eredmény lekérése sikertelen (${result.status}): ${stream.slice(0, 400)}`);
+    throw new Error(`RunPod response is not JSON: ${text.slice(0, 300)}`);
   }
 
-  const lines = stream.split(/\r?\n/);
-  let eventName = "";
-  for (const line of lines) {
-    if (line.startsWith("event:")) {
-      eventName = line.slice(6).trim();
-      continue;
-    }
-    if (!line.startsWith("data:")) continue;
-    const payload = line.slice(5).trim();
-    if (!payload) continue;
-
-    if (eventName === "error") {
-      throw new Error(`Qwen Image generation failed: ${payload.slice(0, 400)}`);
-    }
-    if (eventName !== "complete") continue;
-
-    try {
-      const parsed = JSON.parse(payload);
-      const candidates = Array.isArray(parsed) ? parsed : [parsed];
-      for (const item of candidates) {
-        if (typeof item === "string" && (item.startsWith("/") || item.startsWith("http"))) {
-          return toAbsoluteFileUrl(item);
-        }
-        if (item && typeof item === "object") {
-          const candidate = item.url ?? item.path;
-          if (typeof candidate === "string") return toAbsoluteFileUrl(candidate);
-          if (Array.isArray(candidate) && typeof candidate[0] === "string") {
-            return toAbsoluteFileUrl(candidate[0]);
-          }
-        }
-      }
-    } catch {
-      // Ignore non-JSON SSE lines such as progress messages.
-    }
+  if (payload.status && payload.status !== "COMPLETED") {
+    if (!payload.id) throw new Error(`RunPod status ${payload.status} without job id`);
+    return await pollRunpod(payload.id, width, height, timeoutMs);
   }
 
-  throw new Error("A Qwen Image generátor nem küldött complete eseményt képpel.");
+  return await extractRunpodImage(payload, width, height);
 }
 
-function classifyProviderError(error: unknown): { code: string; message: string } {
+async function extractRunpodImage(
+  payload: { output?: unknown; status?: string; error?: string },
+  width: number,
+  height: number,
+): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
+  if (payload.status === "FAILED") throw new Error(`RunPod job failed: ${payload.error ?? "unknown error"}`);
+
+  const output = Array.isArray(payload.output) ? payload.output[0] : payload.output;
+  const imageUrl = output && typeof output === "object"
+    ? ((output as Record<string, unknown>).image_url ?? (output as Record<string, unknown>).image)
+    : undefined;
+
+  if (typeof imageUrl !== "string" || !imageUrl) {
+    throw new Error("RunPod did not return an image URL");
+  }
+
+  const image = await fetch(imageUrl, { signal: AbortSignal.timeout(60_000) });
+  if (!image.ok) throw new Error(`RunPod image download failed (${image.status})`);
+
+  return {
+    bytes: await image.arrayBuffer(),
+    model: "Qwen Image (RunPod)",
+    width,
+    height,
+    seed: output && typeof output === "object"
+      ? String((output as Record<string, unknown>).seed ?? "")
+      : "",
+  };
+}
+
+async function pollRunpod(
+  jobId: string,
+  width: number,
+  height: number,
+  timeoutMs: number,
+): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const response = await fetch(`${RUNPOD_ENDPOINT}/status/${encodeURIComponent(jobId)}`, {
+      headers: { Authorization: `Bearer ${RUNPOD_KEY}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`RunPod status HTTP ${response.status}: ${text.slice(0, 300)}`);
+    let data: { status?: string; output?: unknown; error?: string };
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`RunPod status is not JSON: ${text.slice(0, 300)}`);
+    }
+    if (data.status === "FAILED") throw new Error(`RunPod job failed: ${data.error ?? "unknown error"}`);
+    if (data.status !== "COMPLETED") continue;
+    return await extractRunpodImage(data, width, height);
+  }
+  throw new Error("RunPod generation exceeded the configured timeout.");
+}
+
+async function runQwen(prompt: string): Promise<string> {
+(error: unknown): { code: string; message: string } {
   const msg = error instanceof Error ? error.message : String(error);
   if (/\(429\)/.test(msg) || /quota|rate limit|too many requests|anonymous/i.test(msg)) {
     return {
@@ -300,4 +338,62 @@ Deno.serve(async (req) => {
     const { code, message } = classifyProviderError(error);
     return json({ error: code, message }, 502);
   }
-});
+});  try {
+    const compiledPrompt = compilePrompt(prompt);
+    const chain = providerChain();
+    let lastError: unknown;
+
+    for (const provider of chain) {
+      try {
+        if (provider === "private") {
+          const generated = await runDesignlyEngine(compiledPrompt, requestedAspectRatio);
+          const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
+          return json({
+            url: imageUrl,
+            width: generated.width,
+            height: generated.height,
+            requestedAspectRatio,
+            outputAspectRatio: requestedAspectRatio,
+            description: "Designly saját GPU Image Engine",
+            model: generated.model,
+            provider: "Designly Image Engine",
+            seed: generated.seed || undefined,
+            steps: Number(Deno.env.get("DESIGNLY_IMAGE_STEPS") || "40"),
+          });
+        }
+
+        if (provider === "runpod") {
+          const generated = await runRunpod(compiledPrompt, requestedAspectRatio);
+          const imageUrl = await storeGeneratedImage(user.id, generated.bytes);
+          return json({
+            url: imageUrl,
+            width: generated.width,
+            height: generated.height,
+            requestedAspectRatio,
+            outputAspectRatio: requestedAspectRatio,
+            description: "Qwen Image — RunPod Public Endpoint",
+            model: generated.model,
+            provider: "RunPod",
+            seed: generated.seed || undefined,
+          });
+        }
+
+        const imageUrl = await runQwen(compiledPrompt);
+        return json({
+          url: imageUrl,
+          width: 2048,
+          height: 2048,
+          requestedAspectRatio,
+          outputAspectRatio: "1:1",
+          description: "Ideiglenes publikus Qwen fallback",
+          model: "Qwen-Image-2.1",
+          provider: "Hugging Face public fallback",
+          steps: 28,
+        });
+      } catch (providerError) {
+        lastError = providerError;
+        console.error(`designly-image provider "${provider}" failed`, providerError);
+      }
+    }
+
+    throw lastError ?? new Error("DESIGNLY_IMAGE_NO_PROVIDER");
