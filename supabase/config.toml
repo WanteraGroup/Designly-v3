@@ -8,6 +8,10 @@ entrypoint = "./functions/designly-v3-agent/index.ts"
 verify_jwt = false
 entrypoint = "./functions/designly-v3-refine/index.ts"
 
+[functions.designly-huginn]
+verify_jwt = false
+entrypoint = "./functions/designly-huginn/index.ts"
+
 [functions.designly-image]
 verify_jwt = false
 entrypoint = "./functions/designly-image/index.ts"
