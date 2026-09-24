@@ -249,6 +249,7 @@ function Block({
       );
 
     case 'form': {
+      const formBlock = block;
       function FormBlock() {
         const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
         async function submit(event: FormEvent<HTMLFormElement>) {
@@ -259,15 +260,15 @@ function Block({
           const data = Object.fromEntries(new FormData(form).entries());
           delete data.website;
           try {
-            const endpoint = block.endpoint.startsWith('http')
-              ? block.endpoint
-              : SUPABASE_URL + block.endpoint;
+            const endpoint = formBlock.endpoint.startsWith('http')
+              ? formBlock.endpoint
+              : SUPABASE_URL + formBlock.endpoint;
             const res = await fetch(endpoint, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                formId: block.formId,
-                siteTitle: block.heading,
+                formId: formBlock.formId,
+                siteTitle: formBlock.heading,
                 data,
                 website: (new FormData(form).get('website') as string) || '',
                 sourceUrl: window.location.href,
@@ -283,11 +284,11 @@ function Block({
         return (
           <section id="form" className="px-6 py-16">
             <div className="mx-auto max-w-2xl">
-              <h2 className="text-2xl" style={heading}>{block.heading}</h2>
-              <p className="mt-3 text-sm opacity-70">{block.body}</p>
+              <h2 className="text-2xl" style={heading}>{formBlock.heading}</h2>
+              <p className="mt-3 text-sm opacity-70">{formBlock.body}</p>
               <form onSubmit={submit} className="mt-6 space-y-3 rounded-2xl p-5" style={cardBorder}>
                 <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
-                {block.fields.map((field) => (
+                {formBlock.fields.map((field) => (
                   <label key={field.name} className="block text-sm">
                     <span className="mb-1.5 block opacity-80">{field.label}{field.required ? ' *' : ''}</span>
                     {field.type === 'textarea' ? (
@@ -303,9 +304,9 @@ function Block({
                   </label>
                 ))}
                 <button type="submit" disabled={status === 'sending' || status === 'sent'} className="rounded-xl px-6 py-3 text-sm font-semibold" style={btn}>
-                  {status === 'sending' ? 'Küldés…' : status === 'sent' ? 'Elküldve' : block.submitLabel}
+                  {status === 'sending' ? 'Küldés…' : status === 'sent' ? 'Elküldve' : formBlock.submitLabel}
                 </button>
-                {status === 'sent' && <p className="text-sm text-emerald-400">{block.successMessage}</p>}
+                {status === 'sent' && <p className="text-sm text-emerald-400">{formBlock.successMessage}</p>}
                 {status === 'error' && <p className="text-sm text-red-400">Az üzenetet nem sikerült elküldeni. Próbáld újra később.</p>}
               </form>
             </div>
