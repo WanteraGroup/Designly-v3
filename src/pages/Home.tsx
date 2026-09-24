@@ -245,7 +245,7 @@ function HomeWorkspace() {
               : t === 'studio'
                 ? 'Extra Stúdió'
                 : t === 'media'
-                  ? 'Media Studio'
+                  ? 'Video Studio'
                   : t === 'gamer'
                     ? 'Streamer & Gamer'
                   : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
