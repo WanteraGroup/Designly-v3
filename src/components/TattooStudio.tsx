@@ -133,13 +133,46 @@ async function guideSheet(blob:Blob,opts:{grid:boolean;center:boolean;mirror:boo
   const bitmap=await createImageBitmap(blob); const w=bitmap.width,h=bitmap.height;
   const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
   const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('A munkalap export nem indult.');
-  ctx.clearRect(0,0,w,h); ctx.drawImage(bitmap,0,0); bitmap.close();
-  ctx.save(); ctx.strokeStyle='rgba(201,164,92,.45)'; ctx.lineWidth=Math.max(1,Math.round(w/1000)); ctx.setLineDash([8,8]);
-  if(opts.grid){ for(let i=1;i<4;i++){const x=w*i/4,y=h*i/4;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();} }
-  if(opts.center){ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();}
-  if(opts.mirror){ctx.beginPath();ctx.moveTo(w/2-3,0);ctx.lineTo(w/2-3,h);ctx.stroke();ctx.beginPath();ctx.moveTo(w/2+3,0);ctx.lineTo(w/2+3,h);ctx.stroke();}
+
+  // Always start from an opaque white technical sheet. The sheet source is the
+  // already-isolated stencil PNG, never the original AI/mockup image.
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,w,h);
+  ctx.drawImage(bitmap,0,0);
+  bitmap.close();
+
+  ctx.save();
+  ctx.strokeStyle='rgba(70,70,70,.55)';
+  ctx.fillStyle='rgba(70,70,70,.9)';
+  ctx.lineWidth=Math.max(1,Math.round(w/1200));
+  ctx.setLineDash([8,8]);
+
+  if(opts.grid){
+    for(let i=1;i<4;i++){
+      const x=w*i/4,y=h*i/4;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    }
+  }
+  if(opts.center){
+    ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();
+  }
+  if(opts.mirror){
+    ctx.setLineDash([4,6]);
+    ctx.beginPath();ctx.moveTo(w/2-3,0);ctx.lineTo(w/2-3,h);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(w/2+3,0);ctx.lineTo(w/2+3,h);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.font='600 '+Math.max(12,Math.round(w/90))+'px sans-serif';
+  ctx.textAlign='left';
+  ctx.fillText('DESIGNLY TATTOO • STENCIL WORKSHEET',Math.max(12,Math.round(w*.03)),Math.max(22,Math.round(h*.04)));
+  ctx.font=Math.max(10,Math.round(w/130))+'px sans-serif';
+  ctx.fillText('CENTER / GRID / MIRROR guides — print reference',Math.max(12,Math.round(w*.03)),Math.max(38,Math.round(h*.065)));
   ctx.restore();
-  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Munkalap export hiba.')),'image/png'));
+
+  return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
+    b=>b?resolve(b):reject(new Error('Munkalap export hiba.')),'image/png'
+  ));
 }
 
 export default function TattooStudio({language='hu'}:{language?:string}){
@@ -172,7 +205,7 @@ export default function TattooStudio({language='hu'}:{language?:string}){
       const generated=await generateCreativeImage(prompt,ratio);
       const alpha=await isolateInkPng(generated.url,true,inkLevel);
       const st=await isolateInkPng(generated.url,false,inkLevel);
-      const sh=await guideSheet(alpha,{grid,center,mirror});
+      const sh=await guideSheet(st,{grid,center,mirror});
       setTransparent(alpha); setStencil(st); setSheet(sh); setPreviewUrl(URL.createObjectURL(alpha));
     }catch(e){ setError(e instanceof Error?e.message:t(language,'error')); }
     finally{ setBusy(false); }
