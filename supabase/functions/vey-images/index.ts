@@ -1,5 +1,6 @@
 import { requestUser } from "../_shared/auth.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 // vey-images — a galeriablokkok image_query-jet valodi kepekre csereli.
 //
@@ -78,19 +79,13 @@ async function unsplash(query: string, perQuery: number): Promise<ImageHit[]> {
 }
 
 Deno.serve(async (req) => {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
     });
 
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeadersFor(req) });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const user = await requestUser(req);
