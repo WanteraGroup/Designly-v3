@@ -90,10 +90,11 @@ async function runSpecialist(key:string,model:string,agent:string,brief:string,l
 
 async function generateQwenBackground(prompt:string):Promise<string>{
   const base="https://akhaliq-qwen-image-2-1-workflow.hf.space";
-  const start=await fetch(base+"/gradio_api/call/generated_image",{
+  const fn="text_to_image";
+  const start=await fetch(base+"/gradio_api/call/"+fn,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({data:[prompt]}),
+    body:JSON.stringify({data:[prompt,28]}),
     signal:AbortSignal.timeout(90000)
   });
   if(!start.ok) throw new Error("Qwen Image start HTTP "+start.status);
