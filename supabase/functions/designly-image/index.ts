@@ -151,7 +151,12 @@ async function runQwen(prompt: string): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const user = await requestUser(req);\n  if (!user) return json({ error: "UNAUTHORIZED", message: "Jelentkezz be a képgeneráláshoz." }, 401);\n  if (!await consumeRateLimit(req, user.id, 4, "image")) return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
+
+  const user = await requestUser(req);
+  if (!user) return json({ error: "UNAUTHORIZED", message: "Jelentkezz be a képgeneráláshoz." }, 401);
+  if (!await consumeRateLimit(req, user.id, 4, "image")) {
+    return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
+  }
 
   let body: { prompt?: string; aspectRatio?: string };
   try {
@@ -161,8 +166,19 @@ Deno.serve(async (req) => {
   }
 
   const prompt = (body.prompt ?? "").trim();
+  const requestedAspectRatio = (body.aspectRatio ?? "1:1").trim();
   if (prompt.length < 3) return json({ error: "A kép briefje legalább 3 karakter legyen." }, 400);
   if (prompt.length > 5000) return json({ error: "A brief legfeljebb 5000 karakter lehet." }, 400);
+
+  const allowedRatios = new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"]);
+  if (!allowedRatios.has(requestedAspectRatio)) {
+    return json({ error: "Nem támogatott képarány: " + requestedAspectRatio }, 400);
+  }
+
+  const cost = Number(Deno.env.get("DESIGNLY_IMAGE_COST") || "4");
+  await ensureProfile(user.id);
+  const charged = await consumeCredits(user.id, cost, "designly-image");
+  if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
 
   try {
     const imageUrl = await runQwen(compilePrompt(prompt));
@@ -170,12 +186,19 @@ Deno.serve(async (req) => {
       url: imageUrl,
       width: 2048,
       height: 2048,
+      requestedAspectRatio,
+      outputAspectRatio: "1:1",
       description: "Qwen-Image-2.1 közvetlen Hugging Face ZeroGPU inference",
       model: "Qwen-Image-2.1",
       provider: "Hugging Face Space",
       steps: 28,
     });
   } catch (error) {
+    try {
+      await refundCredits(user.id, cost, "designly-image provider/runtime refund");
+    } catch (refundError) {
+      console.error("image refund failed", refundError);
+    }
     console.error("designly-image qwen error", error);
     return json({
       error: error instanceof Error ? error.message : "Qwen Image generálás sikertelen.",
