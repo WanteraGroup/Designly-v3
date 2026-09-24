@@ -5,9 +5,7 @@ export type { SiteDocument, SiteBlock, SiteTheme, SiteMeta } from './site-schema
 export type { SiteGenerationResult } from './gateway';
 export { GatewayError } from './gateway';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
-const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
-import { authHeaders } from './supabase-client';
+import { authHeaders, SUPABASE_URL } from './supabase-client';
 
 export const buildSite = generateSite;
 
