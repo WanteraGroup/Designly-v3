@@ -9,6 +9,7 @@ export type VideoGenerationOptions = {
   imageUrl?: string;
   prompt: string;
   provider?: VideoProvider;
+  mode?: "t2v" | "i2v";
   duration?: 5 | 10;
 };
 
@@ -40,8 +41,11 @@ async function uploadVideoSource(file: File, userId: string): Promise<string> {
 }
 
 export async function startVideoGeneration(options: VideoGenerationOptions): Promise<VideoGenerationStatus> {
-  if (!options.prompt.trim()) throw new Error('Add meg, milyen mozgást szeretnél a videóban.');
-  if (!options.image && !options.imageUrl) throw new Error('Adj meg egy referencia-képet a videóhoz.');
+  if (!options.prompt.trim()) throw new Error('Add meg a videó promptját.');
+  const mode = options.mode || (options.image || options.imageUrl ? "i2v" : "t2v");
+  if (mode === "i2v" && !options.image && !options.imageUrl) {
+    throw new Error('Adj meg egy referencia-képet az image-to-video módhoz.');
+  }
 
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id;
@@ -49,7 +53,7 @@ export async function startVideoGeneration(options: VideoGenerationOptions): Pro
 
   const imageUrl = options.image
     ? await uploadVideoSource(options.image, userId)
-    : options.imageUrl!.trim();
+    : options.imageUrl?.trim();
 
   const res = await fetch(FUNCTIONS_URL + '/designly-video', {
     method: 'POST',
@@ -57,7 +61,8 @@ export async function startVideoGeneration(options: VideoGenerationOptions): Pro
     body: JSON.stringify({
       action: 'start',
       provider: options.provider || 'wan',
-      imageUrl,
+      mode,
+      ...(imageUrl ? { imageUrl } : {}),
       prompt: options.prompt.trim(),
       duration: options.duration || 5,
     }),
@@ -78,6 +83,7 @@ export async function startVideoGeneration(options: VideoGenerationOptions): Pro
 export async function pollVideoGeneration(
   jobId: string,
   provider: VideoProvider,
+  mode: "t2v" | "i2v" = "i2v",
 ): Promise<VideoGenerationStatus> {
   const res = await fetch(FUNCTIONS_URL + '/designly-video', {
     method: 'POST',
@@ -85,6 +91,7 @@ export async function pollVideoGeneration(
     body: JSON.stringify({
       action: 'status',
       provider,
+      mode,
       jobId,
     }),
   });
@@ -106,13 +113,14 @@ export async function generateVideo(
   onStatus?: (status: VideoGenerationStatus) => void,
 ): Promise<VideoGenerationStatus> {
   const provider = options.provider || 'wan';
-  const started = await startVideoGeneration(options);
+  const mode = options.mode || (options.image || options.imageUrl ? "i2v" : "t2v");
+  const started = await startVideoGeneration({ ...options, mode });
   onStatus?.(started);
 
   const maxAttempts = 50;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 4000));
-    const status = await pollVideoGeneration(started.jobId!, provider);
+    const status = await pollVideoGeneration(started.jobId!, provider, mode);
     onStatus?.(status);
 
     if (status.status === 'COMPLETED') return status;
