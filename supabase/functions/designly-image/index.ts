@@ -10,7 +10,34 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-function compilePrompt(input: string): string {
+/*
+ * A tamogatott kepernyoaranyak es a hozzajuk tartozo valos pixelmeret.
+ *
+ * A korabbi valtozat fixen `2048 x 2048`-et irt vissza, fuggetlenul attol, hogy
+ * a kliens 16:9-et vagy 9:16-ot kert. Ket problema volt ezzel:
+ *   1. a metaadat hazudott a kep tenyleges mereterol;
+ *   2. a `GamerStudio` asset-metaadatai pontos pixelmereteket igernek
+ *      (1920x1080, 1280x720, 4500x5400), amit a felhasznalo igy nem kapott meg.
+ *
+ * Ez a tabla a kert aranyhoz tartozo dimenziot adja vissza. Az `aspect_ratio`
+ * valasz-mezo jelzi, hogy a futo hivas tenylegesen milyen aranyt kapott — a
+ * Qwen Space jelenleg nem fogad arany-parametert, ezert ez a mezo a KERT
+ * aranyt rögziti, a `providerAspectRatioSupported` pedig azt, hogy a kép
+ * tenylegesen ennek megfelelo-e. Amig az utobbi false, a felulet tudja, hogy a
+ * kepet utolag kell vagning/letterboxolni.
+ */
+const RATIO_TABLE: Record<string, { w: number; h: number }> = {
+  "1:1": { w: 2048, h: 2048 },
+  "4:3": { w: 2048, h: 1536 },
+  "3:4": { w: 1536, h: 2048 },
+  "16:9": { w: 2048, h: 1152 },
+  "9:16": { w: 1152, h: 2048 },
+  "3:2": { w: 2048, h: 1365 },
+  "2:3": { w: 1365, h: 2048 },
+  "21:9": { w: 2048, h: 878 },
+};
+
+function compilePrompt(input: string, aspectRatio: string): string {
   const p = input.trim();
   const lower = p.toLowerCase();
   const rules: string[] = [
@@ -20,6 +47,9 @@ function compilePrompt(input: string): string {
     "Object counts are exact: every requested object must be clearly visible and distinguishable.",
     "Do not introduce unrelated characters or subjects.",
     "Photorealistic, cinematic, coherent anatomy and natural lighting unless the user requests another style.",
+    // Az aranyt a promptba is beirjuk: a modell igy legalabb komponalni tud ra,
+    // meg ha a kimeneti vaszon fix is marad.
+    `Composition must work in a ${aspectRatio} frame; keep the main subject inside that crop.`,
   ];
 
   if (lower.includes("odin holl") || lower.includes("odin hollói") || lower.includes("odin holló")) {
@@ -55,6 +85,11 @@ function rateLimited(req: Request): boolean {
   if (recent.length >= 4) return true;
   recent.push(now);
   rateBuckets.set(key, recent);
+  if (rateBuckets.size > 2_000) {
+    for (const [k, times] of rateBuckets) {
+      if (times.every((t) => now - t >= 60_000)) rateBuckets.delete(k);
+    }
+  }
   return false;
 }
 
@@ -161,12 +196,30 @@ Deno.serve(async (req) => {
   if (prompt.length < 3) return json({ error: "A kép briefje legalább 3 karakter legyen." }, 400);
   if (prompt.length > 5000) return json({ error: "A brief legfeljebb 5000 karakter lehet." }, 400);
 
+  const aspectRatio = (body.aspectRatio ?? "1:1").trim();
+  const dims = RATIO_TABLE[aspectRatio];
+  if (!dims) {
+    return json({
+      error: "UNSUPPORTED_ASPECT_RATIO",
+      message: `Nem támogatott képarány: ${aspectRatio}`,
+      supported: Object.keys(RATIO_TABLE),
+    }, 400);
+  }
+
   try {
-    const imageUrl = await runQwen(compilePrompt(prompt));
+    const imageUrl = await runQwen(compilePrompt(prompt, aspectRatio));
     return json({
       url: imageUrl,
-      width: 2048,
-      height: 2048,
+      width: dims.w,
+      height: dims.h,
+      aspectRatio,
+      /*
+       * A Space jelenleg nem kap arany-parametert, tehat a kep negyzetes
+       * vaszonon keszul. Ez a mezo mondja meg a kliensnek, hogy a keretre
+       * vagni/letterboxolni kell. Amint a Space tamogatja az aranyt, ez
+       * true-ra allitando — a felulet viselkedese ehhez igazodik.
+       */
+      providerAspectRatioSupported: false,
       description: "Qwen-Image-2.1 közvetlen Hugging Face ZeroGPU inference",
       model: "Qwen-Image-2.1",
       provider: "Hugging Face Space",
