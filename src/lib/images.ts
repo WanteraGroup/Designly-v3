@@ -5,10 +5,7 @@
 // igy a renderelo mar valodi fotot rajzol, nem szoveges helyorzot.
 
 import type { SiteDocument } from './site-schema';
-
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
-const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+import { FUNCTIONS_URL, authHeaders } from './supabase-client';
 
 export interface ResolvedImage {
   query: string;
@@ -49,13 +46,19 @@ export function collectImageQueries(doc: SiteDocument): string[] {
 export async function resolveImages(queries: string[]): Promise<ResolvedImage[]> {
   if (queries.length === 0) return [];
 
+  let headers: Record<string, string>;
+  try {
+    headers = await authHeaders();
+  } catch {
+    // Kijelentkezve nincs kepfeloldas. A galeria helyorzot mutat, a
+    // generalas ettol fuggetlenul hasznalhato marad.
+    return [];
+  }
+
   try {
     const res = await fetch(`${FUNCTIONS_URL}/vey-images`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(ANON_KEY ? { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY } : {}),
-      },
+      headers,
       body: JSON.stringify({ queries, perQuery: 3 }),
     });
 
