@@ -52,7 +52,7 @@ function compilePrompt(input: string): string {
 const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\/$/, "");
 const ENGINE_KEY = Deno.env.get("DESIGNLY_IMAGE_ENGINE_KEY") ?? "";
 const RUNPOD_KEY = Deno.env.get("RUNPOD_API_KEY") ?? "";
-const RUNPOD_ENDPOINT = (Deno.env.get("DESIGNLY_RUNPOD_ENDPOINT") ?? "https://api.runpod.ai/v2/qwen-image-t2i").replace(/\\/$/, "");
+const RUNPOD_ENDPOINT = (Deno.env.get("DESIGNLY_RUNPOD_ENDPOINT") ?? "https://api.runpod.ai/v2/qwen-image-t2i").replace(/\/$/, "");
 const ALLOW_PUBLIC_FALLBACK = (Deno.env.get("DESIGNLY_IMAGE_ALLOW_PUBLIC_FALLBACK") ?? "false").toLowerCase() === "true";
 
 type ProviderName = "private" | "runpod" | "public";
