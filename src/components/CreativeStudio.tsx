@@ -27,6 +27,12 @@ const TOOLS: Tool[] = [
 const RATIO: Record<string,string> = { business_card:'3:2', invitation:'4:3', flyer:'3:4', poster:'2:3', advertisement:'1:1', brochure:'4:3', menu:'3:4', pricelist:'3:4', social:'1:1', banner:'16:9', presentation:'16:9', tattoo:'1:1' };
 type Brand = { name:string; tone:string; colors:string[]; heading:string; body:string };
 const DEFAULT_BRAND: Brand = { name:'', tone:'Nordic / Minimal / Luxury', colors:['#C9A45C','#0B0C10','#F3EEE3'], heading:'Marcellus', body:'Inter' };
+function LocalImage({ file, alt, className, draggable = false }: { file: File; alt: string; className?: string; draggable?: boolean }) {
+ const [url,setUrl]=useState('');
+ useEffect(()=>{const next=URL.createObjectURL(file);setUrl(next);return()=>URL.revokeObjectURL(next);},[file]);
+ if(!url) return null;
+ return <img src={url} alt={alt} draggable={draggable} className={className}/>;
+}
 function download(name:string,data:BlobPart,type:string){const blob=new Blob([data],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 function cncGcode(w:number,h:number,depth:number,feed:number,plunge:number,spindle:number,controller:string){const d=Math.max(.2,Math.abs(depth));const step=Math.max(.2,d/2);const out=['%','( DESIGNLY CNC CAM )','( CONTROLLER: '+controller+' )','G21 G90 G17 G94','G0 Z5','M3 S'+Math.round(spindle)];for(let z=-step;z>=-d-1e-6;z-=step){const zz=Math.max(z,-d).toFixed(3);out.push('(DEPTH '+zz+' MM)','G0 X0 Y0','G1 Z'+zz+' F'+Math.round(plunge),'G1 X'+w.toFixed(3)+' Y0 F'+Math.round(feed),'G1 X'+w.toFixed(3)+' Y'+h.toFixed(3),'G1 X0 Y'+h.toFixed(3),'G1 X0 Y0','G0 Z5');if(z<=-d)break;}out.push('M5','M30','%');return out.join('\n');}
 function plannerSvg(w:number,h:number,label:string){const safeW=Math.max(1,w),safeH=Math.max(1,h),W=900,H=600,scale=Math.min(760/safeW,450/safeH),rw=safeW*scale,rh=safeH*scale,x=(W-rw)/2,y=(H-rh)/2;return '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="100%" height="100%" fill="#090a0d"/><rect x="'+x+'" y="'+y+'" width="'+rw+'" height="'+rh+'" fill="#13161c" stroke="#c9a45c" stroke-width="3"/><text x="450" y="45" fill="#c9a45c" font-size="22" text-anchor="middle">DESIGNLY PLANNER</text><text x="450" y="570" fill="#eee8dc" font-size="18" text-anchor="middle">'+safeW+' × '+safeH+' mm · '+label+'</text></svg>';}
@@ -132,7 +138,7 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>1. Termékfotó</div>
         <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input' onChange={e=>{setProductFile(e.target.files?.[0]||null);setProductResult(null);setError('');}}/>
-        {productFile&&<img src={URL.createObjectURL(productFile)} alt='Termék referencia' className='mt-3 max-h-80 w-full rounded-xl object-contain'/>}
+        {productFile&&<LocalImage file={productFile} alt='Termék referencia' className='mt-3 max-h-80 w-full rounded-xl object-contain'/>}
        </div>
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>2. Jelenet / irány</div>
@@ -156,7 +162,7 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>1. Referenciák</div>
         <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setEditHistory([]);setError('');}}/>
-        {editFiles.length>0&&<div className='mt-3 grid grid-cols-3 gap-2'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-lg border border-line bg-black'><img src={URL.createObjectURL(file)} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-1.5 text-[9px] text-ink-500'>{i+1}. {file.name}</figcaption></figure>)}</div>}
+        {editFiles.length>0&&<div className='mt-3 grid grid-cols-3 gap-2'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-lg border border-line bg-black'><LocalImage file={file} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-1.5 text-[9px] text-ink-500'>{i+1}. {file.name}</figcaption></figure>)}</div>}
        </div>
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>2. Mit változtassak?</div>
@@ -179,7 +185,7 @@ export default function CreativeStudio({ initialTool }: { initialTool?: string }
       {editImage&&editFiles[0]&&<div className='rounded-2xl border border-line bg-black p-3'>
        <div className='mb-2 flex items-center justify-between text-xs text-ink-400'><span>ELŐTTE / UTÁNA</span><span>{editCompare}%</span></div>
        <div className='relative overflow-hidden rounded-xl'>
-        <img src={URL.createObjectURL(editFiles[0])} alt='Eredeti referencia' className='block max-h-[720px] w-full object-contain'/>
+        <LocalImage file={editFiles[0]} alt='Eredeti referencia' className='block max-h-[720px] w-full object-contain'/>
         <div className='absolute inset-y-0 left-0 overflow-hidden' style={{width:editCompare+'%'}}><img src={editImage} alt='Szerkesztett eredmény' className='block h-full w-[100vw] max-w-none object-contain object-left'/></div>
        </div>
        <input aria-label='Előtte utána összehasonlítás' type='range' min='0' max='100' value={editCompare} onChange={e=>setEditCompare(Number(e.target.value))} className='mt-3 w-full'/>
