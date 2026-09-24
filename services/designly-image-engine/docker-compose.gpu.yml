@@ -1,0 +1,23 @@
+services:
+  designly-image-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DESIGNLY_ENGINE_API_KEY: ${DESIGNLY_ENGINE_API_KEY}
+      MODEL_ID: ${MODEL_ID:-Qwen/Qwen-Image-2512}
+      DEVICE: cuda
+      CPU_OFFLOAD: ${CPU_OFFLOAD:-true}
+      DEFAULT_STEPS: ${DEFAULT_STEPS:-40}
+      MAX_STEPS: ${MAX_STEPS:-50}
+      MAX_CONCURRENCY: ${MAX_CONCURRENCY:-1}
+      PRELOAD_MODEL: ${PRELOAD_MODEL:-true}
+    volumes:
+      - hf-cache:/models/.cache/huggingface
+    gpus: all
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
