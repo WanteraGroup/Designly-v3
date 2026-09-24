@@ -1,3 +1,6 @@
+import { requestUser } from "../_shared/auth.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -37,7 +40,11 @@ const destinations = [
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
-  if (rateLimited(req)) return json({ ok: false, error: "RATE_LIMITED", message: "Túl sok kérés rövid idő alatt." }, 429);
+
+  const user = await requestUser(req);
+  if (!await consumeRateLimit(req, user?.id ?? null, user ? 20 : 8, user ? "huginn" : "huginn-public")) {
+    return json({ ok: false, error: "RATE_LIMITED", message: "Túl sok kérés rövid idő alatt." }, 429);
+  }
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -46,7 +53,9 @@ Deno.serve(async (req: Request) => {
     if (!message) return json({ error: "INVALID_REQUEST" }, 400);
 
     const key = Deno.env.get("GROQ_API_KEY") || Deno.env.get("AI_API_KEY") || "";
-    if (!key) return json({ ok: false, error: "PROVIDER_NOT_CONFIGURED" }, 503);
+    if (!user || !key) {
+      return json({ ok: true, reply: "HUGINN a DESIGNLY guide-ja. A teljes AI concierge a bejelentkezett workspace-ben aktív.", action: "create" });
+    }
 
     const system = [
       "You are HUGINN, the built-in DESIGNLY visitor guide and AI concierge.",
