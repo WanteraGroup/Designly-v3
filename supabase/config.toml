@@ -23,3 +23,7 @@ entrypoint = "./functions/designly-video/index.ts"
 [functions.vey-images]
 verify_jwt = false
 entrypoint = "./functions/vey-images/index.ts"
+
+[functions.designly-form-submit]
+verify_jwt = false
+entrypoint = "./functions/designly-form-submit/index.ts"
