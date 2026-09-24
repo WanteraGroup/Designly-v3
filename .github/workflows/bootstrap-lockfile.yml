@@ -1,0 +1,37 @@
+name: Bootstrap npm lockfile
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    if: ${{ !hashFiles('package-lock.json') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Generate lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Commit lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: add npm lockfile for deterministic installs"
+          git push origin HEAD:main
