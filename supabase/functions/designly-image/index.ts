@@ -20,6 +20,15 @@ function compilePrompt(input: string): string {
     "Photorealistic, cinematic, coherent anatomy and natural lighting unless the user requests another style.",
   ];
 
+  if (/\\b(?:tattoo|tetov[aá]l[aá]s|stencil|tetov[aá]l[aá]sminta)\\b/i.test(lower)) {
+    rules.push(
+      "TATTOO STENCIL CONTRACT: output only one isolated tattoo motif, never a poster, page, mockup, body, skin, scenery or photo.",
+      "NO TEXT: no letters, words, numbers, logos, captions or watermarks.",
+      "Use flat black ink linework, controlled solid black stencil shapes, clean negative space and print/transfer-ready contours.",
+      "The tattoo motif itself is the entire image; do not surround it with a presentation board or scene.",
+    );
+  }
+
   if (lower.includes("odin holl") || lower.includes("odin hollói") || lower.includes("odin holló")) {
     rules.push(
       "CRITICAL SUBJECT: EXACTLY TWO black ravens, Hugin and Munin.",
