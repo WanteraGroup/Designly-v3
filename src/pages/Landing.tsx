@@ -240,9 +240,8 @@ export default function Landing() {
           <div className="vp-card mx-auto max-w-lg p-7 text-center">
             <p className="font-display text-2xl text-accent">Kezdés ingyen</p>
             <p className="mt-3 text-sm leading-relaxed text-ink-300">
-              Regisztráció után a generátor azonnal használható. A terhelés a
-              <span className="text-ink-100"> system_settings</span> sorban él, és a szerver
-              olvassa minden hívásnál.
+              A generátor azonnal kipróbálható. A működéshez szükséges provider- és
+              rendszerbeállításokat a szerver kezeli; a kliens nem tartja a terhelési logikát.
             </p>
             <a href="/app" className="vp-btn mt-6">
               Kezdj el most
@@ -290,10 +289,7 @@ export default function Landing() {
                 </a>
               ))}
             </nav>
-            <div className="flex items-center gap-3 text-ink-400">
-              <Languages className="h-4 w-4" />
-              <Download className="h-4 w-4" />
-            </div>
+            <span className="text-[10px] tracking-[0.14em] text-ink-500">CREATE · DESIGN · BUILD</span>
           </div>
           <p className="mt-8 text-center text-[11px] text-ink-400">
             © 2026 DESIGNLY AI. MINDEN JOG FENNTARTVA.
