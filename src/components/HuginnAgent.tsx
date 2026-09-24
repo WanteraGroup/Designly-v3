@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Bird, ChevronDown, Send, Sparkles, X, ArrowRight } from "lucide-react";
-import { authHeaders } from "../lib/supabase-client";
+import { authHeaders, SUPABASE_URL } from "../lib/supabase-client";
 type Action = "landing"|"services"|"agents"|"templates"|"pricing"|"contact"|"create"|"extra"|"gamer"|"workflow";
 type Message={role:"huginn"|"user";text:string;action?:Action};
 const ACTIONS:Record<Action,{label:string;href:string}>={
@@ -31,7 +31,7 @@ export default function HuginnAgent(){
  const [messages,setMessages]=useState<Message[]>([{role:"huginn",text:"HUGINN online. VYRON CORE irányítja a DESIGNLY agentcsapatot. Kérdezz bátran."}]);
  async function send(message=input.trim()){
   if(!message||busy)return; setInput(""); setMessages(m=>[...m,{role:"user",text:message}]); setBusy(true);
-  const url="https://mxrgdcvmxzhocbdhtlhg.supabase.co";
+  const url=SUPABASE_URL;
   try{
    const controller=new AbortController(); const timeout=window.setTimeout(()=>controller.abort(),9000);
    const r=await fetch(url+"/functions/v1/designly-huginn",{method:"POST",headers:await authHeaders(false),body:JSON.stringify({message,language:new URLSearchParams(window.location.search).get("lang")||"hu"}),signal:controller.signal});
