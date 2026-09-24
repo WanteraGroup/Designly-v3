@@ -7,6 +7,8 @@ export { GatewayError } from './gateway';
 
 import { authHeaders, SUPABASE_URL } from './supabase-client';
 
+const FUNCTIONS_URL = SUPABASE_URL + '/functions/v1';
+
 export const buildSite = generateSite;
 
 export async function refineSite(
