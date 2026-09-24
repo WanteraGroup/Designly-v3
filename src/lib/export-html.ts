@@ -180,6 +180,7 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   const accent = safeColor(theme.palette[0] ?? '#c9a45c', '#c9a45c');
   const headingFont = safeFont(theme.heading_font, 'Marcellus');
   const bodyFont = safeFont(theme.body_font, 'Inter');
+  const backgroundImage = typeof theme.background_image === 'string' && /^https?:\/\//i.test(theme.background_image) ? theme.background_image : '';
   const bg = light ? '#ffffff' : '#0a0a12';
   const fg = light ? '#14141c' : '#eef0f6';
   const FORM_ENDPOINT = SUPABASE_URL + '/functions/v1/designly-form-submit';
@@ -197,7 +198,8 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   :root { --accent: ${accent}; --bg: ${bg}; --fg: ${fg}; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); line-height: 1.6;
-         font-family: ${bodyFont}, Inter, system-ui, sans-serif; }
+         font-family: ${bodyFont}, Inter, system-ui, sans-serif;
+         ${backgroundImage ? `background-image: linear-gradient(${light ? 'rgba(255,255,255,.72)' : 'rgba(10,10,18,.55)'}, ${light ? 'rgba(255,255,255,.88)' : 'rgba(10,10,18,.78)'}), url("${esc(backgroundImage)}"); background-size: cover; background-position: center; background-attachment: fixed;` : ''} }
   h1, h2, h3 { font-family: ${headingFont}, Inter, sans-serif; font-weight: 600; line-height: 1.15; }
   a { color: inherit; }
   header.site { display: flex; align-items: center; justify-content: space-between;
