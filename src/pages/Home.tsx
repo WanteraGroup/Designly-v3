@@ -39,7 +39,10 @@ const EXAMPLES = [
 
 export default function Home() {
   const [brief, setBrief] = useState('');
-  const [language, setLanguage] = useState('hu');
+  const [language, setLanguage] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('lang');
+    return requested && LANGUAGES.some((item) => item.code === requested) ? requested : 'hu';
+  });
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
   const [tab, setTab] = useState<'generator' | 'studio' | 'gamer' | 'templates'>(() => {
