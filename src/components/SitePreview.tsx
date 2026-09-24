@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { SiteDocument, SiteBlock, GalleryImage } from '../lib/site-schema';
 import { SUPABASE_URL } from '../lib/supabase-client';
 
@@ -247,7 +247,7 @@ function Block({
     case 'form': {
       function FormBlock() {
         const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-        async function submit(event: React.FormEvent<HTMLFormElement>) {
+        async function submit(event: FormEvent<HTMLFormElement>) {
           event.preventDefault();
           if (status === 'sending' || status === 'sent') return;
           setStatus('sending');
@@ -263,7 +263,7 @@ function Block({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 formId: block.formId,
-                siteTitle: theme.heading_font ? document?.title ?? '' : '',
+                siteTitle: block.heading,
                 data,
                 website: (new FormData(form).get('website') as string) || '',
               }),
