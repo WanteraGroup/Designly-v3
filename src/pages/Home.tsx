@@ -29,6 +29,7 @@ import { SiteRenderer } from '../components/SitePreview';
 import HuginnAgent from '../components/HuginnAgent';
 import CreativeStudio from '../components/CreativeStudio';
 import GamerStudio from '../components/GamerStudio';
+import MediaStudio from '../components/MediaStudio';
 import { createProject, listProjects, saveProject, type StudioProject } from '../lib/project-store';
 
 const EXAMPLES = [
@@ -45,9 +46,9 @@ export default function Home() {
   });
   const [style, setStyle] = useState<string | null>(null);
   const [category, setCategory] = useState('Business');
-  const [tab, setTab] = useState<'generator' | 'studio' | 'gamer' | 'templates'>(() => {
+  const [tab, setTab] = useState<'generator' | 'studio' | 'media' | 'gamer' | 'templates'>(() => {
     const requested = new URLSearchParams(window.location.search).get('tab');
-    return requested === 'studio' || requested === 'gamer' || requested === 'templates' ? requested : 'generator';
+    return requested === 'studio' || requested === 'media' || requested === 'gamer' || requested === 'templates' ? requested : 'generator';
   });
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -208,7 +209,7 @@ export default function Home() {
       )}
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
-        {(['generator', 'studio', 'gamer', 'templates'] as const).map((t) => (
+        {(['generator', 'studio', 'media', 'gamer', 'templates'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -223,8 +224,10 @@ export default function Home() {
               ? 'Generátor'
               : t === 'studio'
                 ? 'Extra Stúdió'
-                : t === 'gamer'
-                  ? 'Streamer & Gamer'
+                : t === 'media'
+                  ? 'Media Studio'
+                  : t === 'gamer'
+                    ? 'Streamer & Gamer'
                   : `Sablonok (${TEMPLATE_TOTAL.toLocaleString('hu-HU')})`}
           </button>
         ))}
@@ -238,6 +241,12 @@ export default function Home() {
           </span>
         ))}
       </div>
+
+      {tab === 'media' && (
+        <section className="relative mx-auto max-w-6xl px-6 pb-24">
+          <MediaStudio />
+        </section>
+      )}
 
       {tab === 'gamer' && (
         <section className="relative mx-auto max-w-6xl px-6 pb-24">
