@@ -3,6 +3,7 @@ import { LANGUAGES } from '../lib/constants';
 import { FULL_AGENT_TEAM, LIVE_AGENTS, PLANNED_AGENTS } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
 import { TEMPLATE_TOTAL } from '../lib/templates';
+import designlyHeroImage from '../assets/designly-hero';
 import { templateCoverUrl } from '../lib/template-art';
 
 /**
@@ -261,13 +262,23 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-6 py-20 text-center">
-        <p className="font-display text-3xl leading-snug text-ink-100 sm:text-4xl">
-          „A jövőt nem várjuk.
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <div className="overflow-hidden rounded-3xl border border-accent/20 bg-panel/40 shadow-2xl">
+          <img src={designlyHeroImage} alt="DESIGNLY — A jövőt nem várjuk. Mi építjük." draggable={false} className="h-auto w-full object-cover" />
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-6 py-20 text-center">
+        <p className="font-display text-3xl leading-snug text-ink-100 sm:text-5xl">
+          „A JÖVŐT NEM VÁRJUK.
           <br />
-          <span className="text-accent">Mi építjük.”</span>
+          <span className="text-accent">MI ÉPÍTJÜK.”</span>
         </p>
-        <p className="mt-4 text-xs tracking-[0.2em] text-ink-400">— DESIGNLY AI</p>
+        <p className="mx-auto mt-7 max-w-3xl text-base leading-relaxed text-ink-300 sm:text-lg">
+          A DESIGNLY AI-nál hiszünk abban, hogy az emberi kreativitás és a mesterséges intelligencia együtt határtalan lehetőségeket teremt.
+          Segítünk vállalkozásoknak, alkotóknak és csapatoknak, hogy ötleteikből valós eredmény szülessen.
+        </p>
+        <p className="mt-5 text-xs tracking-[0.2em] text-ink-400">— DESIGNLY AI</p>
         <a href="/app" className="vp-btn mt-9">
           <Sparkles className="h-4 w-4" />
           Építsük meg a tiédet
