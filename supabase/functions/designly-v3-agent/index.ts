@@ -13,7 +13,6 @@ const SPECIALIST_ROLES:Record<string,string>={
 "content":"Define headlines, CTA, content hierarchy and conversion copy.",
 "reviewer":"Inspect the brief for risks, missing requirements and acceptance criteria.",
 "builder":"Turn the brief into implementation-ready structure and build constraints.",
-"muninn":"Extract durable project context, assumptions and useful handoff notes.",
 "web-architect":"Define information architecture, navigation and user flows.",
 "ux-ui":"Define interaction patterns, components, accessibility and responsive UX.",
 "seo-content":"Define SEO structure, metadata, headings and search intent alignment.",
