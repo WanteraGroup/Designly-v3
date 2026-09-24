@@ -9,29 +9,40 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) {
-        setSession(data.session);
-        if (data.session) {
-          const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).maybeSingle();
-          setAdminRole(profile?.role === 'owner' || profile?.role === 'admin' ? profile.role : null);
-        } else {
-          setAdminRole(null);
-        }
-        setReady(true);
+
+    async function refreshRole(nextSession: typeof session) {
+      if (!nextSession) {
+        setAdminRole(null);
+        return;
       }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', nextSession.user.id)
+        .maybeSingle();
+      if (!active) return;
+      setAdminRole(profile?.role === 'owner' || profile?.role === 'admin' ? profile.role : null);
+    }
+
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      await refreshRole(data.session);
+      if (active) setReady(true);
     });
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
-      if (active) {
-        setSession(next);
-        if (!next) setAdminRole(null);
-      }
+      if (!active) return;
+      setSession(next);
+      void refreshRole(next);
     });
+
     return () => {
       active = false;
       listener.subscription.unsubscribe();
     };
   }, []);
+
 
   if (!ready) {
     return <div className="grid min-h-screen place-items-center bg-canvas text-ink-200">DESIGNLY betöltése…</div>;
