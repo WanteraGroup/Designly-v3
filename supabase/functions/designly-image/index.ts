@@ -47,6 +47,16 @@ function compilePrompt(input: string): string {
 }
 
 const HF_SPACE = "https://akhaliq-qwen-image-2-1-workflow.hf.space";
+const rateBuckets = new Map<string, number[]>();
+function rateLimited(req: Request): boolean {
+  const key = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "guest").split(",")[0].trim().slice(0, 80);
+  const now = Date.now();
+  const recent = (rateBuckets.get(key) || []).filter((t) => now - t < 60_000);
+  if (recent.length >= 4) return true;
+  recent.push(now);
+  rateBuckets.set(key, recent);
+  return false;
+}
 
 function toAbsoluteFileUrl(value: string): string {
   if (/^https?:\/\//i.test(value)) return value;
@@ -138,6 +148,7 @@ async function runQwen(prompt: string): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (rateLimited(req)) return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
 
   let body: { prompt?: string; aspectRatio?: string };
   try {
