@@ -1,5 +1,7 @@
+export type LanguageCode = 'en' | 'hu' | 'de' | 'fr' | 'es' | 'it' | 'pl' | 'uk' | 'ro' | 'nl';
+
 export interface Language {
-  code: string;
+  code: LanguageCode;
   name: string;
   flag: string;
 }
