@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Download, Grid3X3, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { studioT, disciplineT } from '../lib/studio-i18n';
 
 type Discipline = 'architecture'|'structure'|'electrical'|'lighting'|'plumbing'|'hvac'|'fire'|'data'|'mechanical';
 type ElementKind = 'wall'|'door'|'window'|'beam'|'column'|'socket'|'switch'|'light'|'panel'|'pipe'|'drain'|'duct'|'sprinkler'|'data'|'machine';
@@ -73,17 +74,17 @@ export default function EngineeringPlanner(){
   return <section className='space-y-4'>
     <div className='rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
-        <div><div className='text-xs font-semibold text-ink-100'>ENGINEERING PLAN EDITOR</div><p className='mt-1 text-xs text-ink-400'>Építészet, szerkezet, villamos hálózat, világítás, víz/lefolyó, HVAC, tűzvédelem, adat és gépészet egy tervben.</p></div>
-        <span className='rounded-full border border-cyan-500/30 px-3 py-1 text-[10px] text-cyan-300'>MULTI-DISCIPLINE</span>
+        <div><div className='text-xs font-semibold text-ink-100'>{studioT(language,'engTitle')}</div><p className='mt-1 text-xs text-ink-400'>{studioT(language,'engDesc')}</p></div>
+        <span className='rounded-full border border-cyan-500/30 px-3 py-1 text-[10px] text-cyan-300'>{studioT(language,'multi')}</span>
       </div>
     </div>
 
     <div className='grid gap-3 md:grid-cols-2'>
-      <input className='vp-input' value={project.name} onChange={e=>setProject({...project,name:e.target.value.slice(0,120)})} placeholder='Terv neve'/>
+      <input className='vp-input' value={project.name} onChange={e=>setProject({...project,name:e.target.value.slice(0,120)})} placeholder={studioT(language,'planName')}/>
       <div className='grid grid-cols-3 gap-2'>
-        <input aria-label='Szélesség mm' type='number' min='100' className='vp-input' value={project.width} onChange={e=>setProject({...project,width:Math.max(100,Number(e.target.value)||100)})}/>
-        <input aria-label='Magasság mm' type='number' min='100' className='vp-input' value={project.height} onChange={e=>setProject({...project,height:Math.max(100,Number(e.target.value)||100)})}/>
-        <input aria-label='Méretarány' type='number' min='1' className='vp-input' value={project.scale} onChange={e=>setProject({...project,scale:Math.max(1,Number(e.target.value)||1)})}/>
+        <input aria-label={studioT(language,'width')+' mm'} type='number' min='100' className='vp-input' value={project.width} onChange={e=>setProject({...project,width:Math.max(100,Number(e.target.value)||100)})}/>
+        <input aria-label={studioT(language,'height')+' mm'} type='number' min='100' className='vp-input' value={project.height} onChange={e=>setProject({...project,height:Math.max(100,Number(e.target.value)||100)})}/>
+        <input aria-label={studioT(language,'scale')} type='number' min='1' className='vp-input' value={project.scale} onChange={e=>setProject({...project,scale:Math.max(1,Number(e.target.value)||1)})}/>
       </div>
     </div>
 
@@ -93,12 +94,12 @@ export default function EngineeringPlanner(){
 
     <div className='grid gap-4 lg:grid-cols-[220px_1fr_220px]'>
       <aside className='rounded-2xl border border-line bg-canvas/50 p-3'>
-        <div className='mb-2 text-[10px] uppercase tracking-[.18em] text-ink-500'>Elemkatalógus</div>
+        <div className='mb-2 text-[10px] uppercase tracking-[.18em] text-ink-500'{studioT(language,'catalog')}</div>
         <div className='space-y-1.5'>{current.kinds.map(kind=><button key={kind} type='button' onClick={()=>add(kind)} className='flex w-full items-center gap-2 rounded-xl border border-line px-3 py-2 text-left text-xs text-ink-200 hover:border-accent/50'><Plus className='h-3.5 w-3.5 text-accent'/><span>{iconFor(kind)}</span>{LABELS[kind]}</button>)}</div>
       </aside>
 
       <div className='rounded-2xl border border-line bg-black p-3'>
-        <div className='mb-2 flex items-center justify-between text-[10px] text-ink-500'><span><Grid3X3 className='mr-1 inline h-3.5 w-3.5'/>Nézet · {project.width} × {project.height} mm · M 1:{project.scale}</span><span>{elements.length} elem</span></div>
+        <div className='mb-2 flex items-center justify-between text-[10px] text-ink-500'><span><Grid3X3 className='mr-1 inline h-3.5 w-3.5'/{studioT(language,'view')} · {project.width} × {project.height} mm · M 1:{project.scale}</span><span>{elements.length} elem</span></div>
         <svg viewBox={'0 0 '+svgWidth+' '+svgHeight} className='h-auto w-full rounded-xl border border-line bg-[#090b0f]'>
           <defs><pattern id='grid' width='20' height='20' patternUnits='userSpaceOnUse'><path d='M 20 0 L 0 0 0 20' fill='none' stroke='#242833' strokeWidth='1'/></pattern></defs>
           <rect width={svgWidth} height={svgHeight} fill='url(#grid)'/>
@@ -114,18 +115,18 @@ export default function EngineeringPlanner(){
       </div>
 
       <aside className='rounded-2xl border border-line bg-canvas/50 p-3'>
-        <div className='mb-2 text-[10px] uppercase tracking-[.18em] text-ink-500'>Tulajdonságok</div>
+        <div className='mb-2 text-[10px] uppercase tracking-[.18em] text-ink-500'{studioT(language,'props')}</div>
         {selectedElement?<div className='space-y-2'>
           <input className='vp-input' value={selectedElement.label} onChange={e=>update(selectedElement.id,{label:e.target.value.slice(0,80)})}/>
           {(['x','y','w','h'] as const).map(k=><label key={k} className='block text-[10px] text-ink-500'>{k.toUpperCase()} <input className='vp-input mt-1' type='number' value={selectedElement[k]} onChange={e=>update(selectedElement.id,{[k]:Math.max(1,Number(e.target.value)||1)})}/></label>)}
-          <button type='button' onClick={removeSelected} className='vp-btn-ghost w-full'><Trash2 className='h-4 w-4'/>Elem törlése</button>
-        </div>:<p className='text-xs text-ink-500'>Kattints egy elemre a szerkesztéshez.</p>}
+          <button type='button' onClick={removeSelected} className='vp-btn-ghost w-full'><Trash2 className='h-4 w-4'/{studioT(language,'delete')}</button>
+        </div>:<p className='text-xs text-ink-500'{studioT(language,'clickEdit')}</p>}
       </aside>
     </div>
 
     <div className='flex flex-wrap gap-2'>
-      <button type='button' className='vp-btn' onClick={()=>download('designly-engineering-plan.json',exportText({...project,discipline,elements}),'application/json;charset=utf-8')}><Download className='h-4 w-4'/>JSON export</button>
-      <button type='button' className='vp-btn-ghost' onClick={reset}><RotateCcw className='h-4 w-4'/>Alaphelyzet</button>
+      <button type='button' className='vp-btn' onClick={()=>download('designly-engineering-plan.json',exportText({...project,discipline,elements}),'application/json;charset=utf-8')}><Download className='h-4 w-4'/{studioT(language,'json')}</button>
+      <button type='button' className='vp-btn-ghost' onClick={reset}><RotateCcw className='h-4 w-4'/{studioT(language,'reset')}</button>
     </div>
   </section>;
 }
