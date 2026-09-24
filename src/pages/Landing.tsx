@@ -1,4 +1,4 @@
-import { Sparkles, Users, LayoutTemplate, Wand2, Check, Briefcase, Video, Gamepad2 } from 'lucide-react';
+import { Sparkles, Users, LayoutTemplate, Wand2, Check, Briefcase, Video, Gamepad2, ArrowLeft, Loader2, Download, Save, FileJson, Pencil, RefreshCw, Languages } from 'lucide-react';
 import { LANGUAGES, formatNumber } from '../lib/constants';
 import { FULL_AGENT_TEAM, PUBLIC_AGENT_MODULES } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
@@ -12,8 +12,12 @@ import { useLanguage, dictionaryFor, translate } from '../lib/i18n';
  * A felhasznalo a fo modulokat latja; a VYRON CORE a specialistakat a hatterben koordinalja.
  *
  * A navigacio KEY-ekkel dolgozik, nem magyar cimke-sztringekkel. Ez volt a
- * legnagyobb hiba: a menupont szovege volt az azonosito, tehat egy fordítás
+ * legnagyobb hiba: a menupont szovege volt az azonosito, tehat egy forditas
  * vagy egy atnevezes azonnal eltorte az anchor-linkeket.
+ *
+ * A `useLanguage` a `?lang=` query-parameterbol olvas, es a valtas URL-t ir at
+ * (`history.replaceState`), nem navigal. Igy a nyelv valtas NEM tolja ujra a
+ * lapot, es a `/` es a `/app` kozott is megmarad.
  */
 const NAV = [
   { key: 'nav.services', href: '#services' },
@@ -23,19 +27,19 @@ const NAV = [
   { key: 'nav.contact', href: '#contact' },
 ];
 
-const MODULES = [
-  { icon: Sparkles, id: 'create', name: 'CREATE', href: '/app', desc: { hu: 'Briefből induló alkotási folyamat és generálás.', en: 'A creation flow that starts from a brief, plus generation.' } },
-  { icon: Briefcase, id: 'brand', name: 'BRAND STUDIO', href: '/app?tab=studio', desc: { hu: 'Logó, színpaletta, tipográfia, brand voice és Brand Kit.', en: 'Logo, palette, typography, brand voice and Brand Kit.' } },
-  { icon: LayoutTemplate, id: 'web', name: 'WEB ARCHITECT', href: '/app?tab=studio', desc: { hu: 'Struktúra, UX/UI, reszponzivitás és információs architektúra.', en: 'Structure, UX/UI, responsiveness and information architecture.' } },
-  { icon: Users, id: 'content', name: 'CONTENT & GROWTH', href: '/app?tab=studio', desc: { hu: 'Tartalom, SEO, kampány és értékesítési kreatívok.', en: 'Content, SEO, campaign and sales creatives.' } },
-  { icon: Wand2, id: 'image', name: 'IMAGE STUDIO', href: '/app?tab=studio', desc: { hu: 'AI képgenerálás és vizuális kreatívok.', en: 'AI image generation and visual creatives.' } },
-  { icon: Video, id: 'media', name: 'MEDIA STUDIO', href: '/app?tab=media', desc: { hu: 'Video- és rövidformátumú gyártási terv, storyboard, UGC és AI keyframe.', en: 'Video and short-form production plan, storyboard, UGC and AI keyframe.' } },
-  { icon: Wand2, id: 'social', name: 'SOCIAL STUDIO', href: '/app?tab=studio', desc: { hu: 'Social post, story és platformváltozatok.', en: 'Social posts, stories and platform variants.' } },
-  { icon: LayoutTemplate, id: 'template', name: 'TEMPLATE STUDIO', href: '/app?tab=templates', desc: { hu: 'Sablonillesztés és variációk.', en: 'Template matching and variants.' } },
-  { icon: Wand2, id: 'extra', name: 'EXTRA DESIGN STUDIO', href: '/app?tab=studio', desc: { hu: 'Névjegy, meghívó, flyer, plakát, poszter, Tattoo, Planner és CNC.', en: 'Business card, invitation, flyer, poster, tattoo, planner and CNC.' } },
-  { icon: Gamepad2, id: 'gamer', name: 'STREAMER & GAMER STUDIO', href: '/app?tab=gamer', desc: { hu: 'Overlay, alert, scene, thumbnail, emote és badge.', en: 'Overlays, alerts, scenes, thumbnails, emotes and badges.' } },
-  { icon: Briefcase, id: 'merch', name: 'MERCH FACTORY', href: '/app?tab=gamer', desc: { hu: 'Póló, hoodie, bögre, sapka és sticker artwork.', en: 'T-shirt, hoodie, mug, cap and sticker artwork.' } },
-  { icon: Check, id: 'qa', name: 'QA AGENT', href: '/app?tab=studio', desc: { hu: 'Validáció, minőségellenőrzés és acceptance.', en: 'Validation, quality control and acceptance.' } },
+const MODULES: { icon: typeof Sparkles; id: string; name: string; href: string; hu: string; en: string }[] = [
+  { icon: Sparkles, id: 'create', name: 'CREATE', href: '/app', hu: 'Briefből induló alkotási folyamat és generálás.', en: 'A creation flow that starts from a brief, plus generation.' },
+  { icon: Briefcase, id: 'brand', name: 'BRAND STUDIO', href: '/app?tab=studio', hu: 'Logó, színpaletta, tipográfia, brand voice és Brand Kit.', en: 'Logo, palette, typography, brand voice and Brand Kit.' },
+  { icon: LayoutTemplate, id: 'web', name: 'WEB ARCHITECT', href: '/app?tab=studio', hu: 'Struktúra, UX/UI, reszponzivitás és információs architektúra.', en: 'Structure, UX/UI, responsiveness and information architecture.' },
+  { icon: Users, id: 'content', name: 'CONTENT & GROWTH', href: '/app?tab=studio', hu: 'Tartalom, SEO, kampány és értékesítési kreatívok.', en: 'Content, SEO, campaign and sales creatives.' },
+  { icon: Wand2, id: 'image', name: 'IMAGE STUDIO', href: '/app?tab=studio', hu: 'AI képgenerálás és vizuális kreatívok.', en: 'AI image generation and visual creatives.' },
+  { icon: Video, id: 'media', name: 'MEDIA STUDIO', href: '/app?tab=media', hu: 'Video- és rövidformátumú gyártási terv, storyboard, UGC és AI keyframe.', en: 'Video and short-form production plan, storyboard, UGC and AI keyframe.' },
+  { icon: Wand2, id: 'social', name: 'SOCIAL STUDIO', href: '/app?tab=studio', hu: 'Social post, story és platformváltozatok.', en: 'Social posts, stories and platform variants.' },
+  { icon: LayoutTemplate, id: 'template', name: 'TEMPLATE STUDIO', href: '/app?tab=templates', hu: 'Sablonillesztés és variációk.', en: 'Template matching and variants.' },
+  { icon: Wand2, id: 'extra', name: 'EXTRA DESIGN STUDIO', href: '/app?tab=studio', hu: 'Névjegy, meghívó, flyer, plakát, poszter, Tattoo, Planner és CNC.', en: 'Business card, invitation, flyer, poster, tattoo, planner and CNC.' },
+  { icon: Gamepad2, id: 'gamer', name: 'STREAMER & GAMER STUDIO', href: '/app?tab=gamer', hu: 'Overlay, alert, scene, thumbnail, emote és badge.', en: 'Overlays, alerts, scenes, thumbnails, emotes and badges.' },
+  { icon: Briefcase, id: 'merch', name: 'MERCH FACTORY', href: '/app?tab=gamer', hu: 'Póló, hoodie, bögre, sapka és sticker artwork.', en: 'T-shirt, hoodie, mug, cap and sticker artwork.' },
+  { icon: Check, id: 'qa', name: 'QA AGENT', href: '/app?tab=studio', hu: 'Validáció, minőségellenőrzés és acceptance.', en: 'Validation, quality control and acceptance.' },
 ];
 
 export default function Landing() {
@@ -45,6 +49,9 @@ export default function Landing() {
   const featureCount = Object.keys(CATEGORY_SPECS).length;
   const categoryNames = Object.keys(CATEGORY_SPECS);
   const featured = [0, 24, 48, 72, 96, 120];
+
+  /** A modul linkje: a nyelvet mindig tovabbviszi, hogy az `/app` is ugyanazon a nyelven nyisson. */
+  const withLang = (href: string) => `${href}${href.includes('?') ? '&' : '?'}lang=${lang}`;
 
   return (
     <div className="relative">
@@ -66,19 +73,23 @@ export default function Landing() {
           </nav>
 
           <div className="flex items-center gap-4">
-            <select
-              className="border-none bg-transparent text-xs text-ink-200 outline-none"
-              value={lang}
-              aria-label={t('lang.label')}
-              onChange={(e) => setLang(e.target.value as typeof lang)}
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code} className="bg-canvas">
-                  {l.flag}
-                </option>
-              ))}
-            </select>
-            <a href={`/app?lang=${lang}`} className="vp-btn text-xs">
+            <label className="flex items-center gap-2 text-xs text-ink-300">
+              <Languages className="h-3.5 w-3.5 text-ink-500" aria-hidden="true" />
+              <span className="sr-only">{t('lang.label')}</span>
+              <select
+                className="border-none bg-transparent text-xs text-ink-200 outline-none"
+                value={lang}
+                aria-label={t('lang.label')}
+                onChange={(e) => setLang(e.target.value as typeof lang)}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-canvas">
+                    {l.flag} · {l.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <a href={withLang('/app')} className="vp-btn text-xs">
               {t('cta.start')}
             </a>
           </div>
@@ -93,15 +104,15 @@ export default function Landing() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(0,0,0,.45)_100%)]" />
         <div className="relative mx-auto flex min-h-[720px] max-w-6xl flex-col items-center justify-end px-6 pb-16 text-center">
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <a href={`/app?lang=${lang}`} className="vp-btn">
+            <a href={withLang('/app')} className="vp-btn">
               <Sparkles className="h-4 w-4" />
               {t('cta.buildSite')}
             </a>
-            <a href={`/app?lang=${lang}&tab=studio`} className="vp-btn-ghost">
+            <a href={withLang('/app?tab=studio')} className="vp-btn-ghost">
               <Wand2 className="h-4 w-4" />
               {t('nav.extraStudio')}
             </a>
-            <a href={`/app?lang=${lang}&tab=gamer`} className="vp-btn-ghost">
+            <a href={withLang('/app?tab=gamer')} className="vp-btn-ghost">
               <Gamepad2 className="h-4 w-4" />
               {t('nav.streamerGamer')}
             </a>
@@ -148,7 +159,7 @@ export default function Landing() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {MODULES.map((m) => (
-            <a key={m.id} href={`${m.href}${m.href.includes('?') ? '&' : '?'}lang=${lang}`} className="vp-card group block p-6 transition hover:border-accent/50">
+            <a key={m.id} href={withLang(m.href)} className="vp-card group block p-6 transition hover:border-accent/50">
               <div className="mb-4 flex items-center justify-between">
                 <m.icon className="h-5 w-5 text-accent" />
                 <span className="flex items-center gap-1 text-[10px] text-emerald-400">
@@ -157,7 +168,7 @@ export default function Landing() {
               </div>
               <h3 className="font-display text-lg text-ink-100 group-hover:text-accent">{m.name}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-300">
-                {lang === 'hu' ? m.desc.hu : m.desc.en}
+                {lang === 'hu' ? m.hu : m.en}
               </p>
             </a>
           ))}
@@ -199,7 +210,7 @@ export default function Landing() {
       <section id="templates" className="mx-auto max-w-6xl px-6 py-20">
         <h2 className="mb-3 text-center font-display text-3xl text-ink-100">{t('templates.heading')}</h2>
         <p className="mx-auto mb-10 max-w-2xl text-center text-sm leading-relaxed text-ink-300">
-          {t('templates.lead', { count: formatNumber(featureCount, lang) })}
+          {t('templates.lead', { count: `${formatNumber(TEMPLATE_TOTAL, lang)} / ${formatNumber(featureCount, lang)}` })}
         </p>
 
         <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -222,7 +233,7 @@ export default function Landing() {
         </div>
 
         <div className="text-center">
-          <a href={`/app?lang=${lang}&tab=templates`} className="vp-btn-ghost">
+          <a href={withLang('/app?tab=templates')} className="vp-btn-ghost">
             <LayoutTemplate className="h-4 w-4" />
             {t('cta.openGallery')}
           </a>
@@ -240,7 +251,7 @@ export default function Landing() {
             <p className="mt-3 text-sm leading-relaxed text-ink-300">
               {t('pricing.freeBody')}
             </p>
-            <a href={`/app?lang=${lang}`} className="vp-btn mt-6">
+            <a href={withLang('/app')} className="vp-btn mt-6">
               {t('cta.startNow')}
             </a>
           </div>
@@ -257,7 +268,7 @@ export default function Landing() {
           {t('manifesto.body')}
         </p>
         <p className="mt-5 text-xs tracking-[0.2em] text-ink-400">— DESIGNLY AI</p>
-        <a href={`/app?lang=${lang}`} className="vp-btn mt-9">
+        <a href={withLang('/app')} className="vp-btn mt-9">
           <Sparkles className="h-4 w-4" />
           {t('cta.buildYours')}
         </a>
