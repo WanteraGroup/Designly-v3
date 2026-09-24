@@ -42,7 +42,7 @@ The response is a PNG image.
 
 ## Recommended RunPod test
 
-For the first real model test, an **A100 80GB Secure Cloud Pod** is a straightforward choice. RunPod currently lists A100 80GB at **$1.59/hour** on Secure Cloud and bills Pods per second. cite is intentionally omitted from repository files.
+For the first real model test, an **A100 80GB Secure Cloud Pod** is a straightforward choice. RunPod currently lists A100 80GB at **$1.59/hour** on Secure Cloud and bills Pods per second.
 
 Use a persistent volume mounted at `/models`. The current Qwen-Image-2512 repository is substantially larger than 40 GB, so use **at least 100 GB**, preferably **120–150 GB**, for model files plus cache.
 
