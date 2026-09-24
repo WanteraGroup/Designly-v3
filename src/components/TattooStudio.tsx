@@ -21,7 +21,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   Download, FileImage, ImagePlus, PenTool, Share2, Sparkles, Upload, X,
-  Grid3X3, Ruler, Loader2,
+  Grid3X3, Ruler, Loader2, Printer,
 } from 'lucide-react';
 import { generateCreativeImage } from '../lib/creative-api';
 import {
@@ -32,6 +32,7 @@ import {
   type StencilStyle,
   type StencilWeight,
 } from '../lib/stencil-engine';
+import { buildWorksheet, worksheetToPng } from '../lib/worksheet';
 
 export interface TattooStudioProps {
   language?: string;
@@ -64,6 +65,12 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  /** A tetovalas valodi szelessege MILLIMETERBEN. Csak a munkalap hasznalja. */
+  const [widthMm, setWidthMm] = useState(120);
+  /** A letoltott munkalap elonezete. */
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [sheetInfo, setSheetInfo] = useState<{ w: number; h: number; resized: boolean } | null>(null);
+  const [sheetBusy, setSheetBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /** A forras, amin a motor fut: feltoltott fajl, vagy a RunPod URL-je. */
@@ -95,6 +102,12 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
         return url;
       });
       setDiagnostics(diag);
+      // A regi munkalap elavult: uj stencilhez uj lap kell.
+      setSheetUrl((prev) => {
+        if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return '';
+      });
+      setSheetInfo(null);
       const warning = describeStencilWarning(diag);
       if (warning) setNotice(warning);
     } catch (e) {
@@ -139,12 +152,54 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
       setFile(null);
       await runStencil(image.url);
       const cost = typeof image.cost === 'number' ? image.cost : null;
-      if (cost !== null) {
+      if (cost !== null && cost > 0) {
         setNotice((hu ? 'A generálás költsége: $' : 'Generation cost: $') + cost.toFixed(4) + '.');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : (hu ? 'A stencil készítése sikertelen.' : 'Stencil generation failed.'));
       setBusy(false);
+    }
+  }
+
+  /**
+   * A szalonmunkalap letrehozasa.
+   *
+   * A lap a KESZ stencil blob-URL-jet kapja, nem a motort: igy a stencil PNG
+   * valtozatlan marad (az megy a Procreate-be es a nyomtatoba), es a
+   * segédvonalak csak a lapon jelennek meg.
+   */
+  async function makeWorksheet() {
+    if (!result || sheetBusy) return;
+    setSheetBusy(true);
+    setError('');
+    try {
+      const sheet = await buildWorksheet({
+        stencilUrl: result,
+        sourceUrl: sourceUrl || undefined,
+        widthMm,
+        heightMm: 0,
+        inkColor: '#111111',
+        grid: guides.grid,
+        center: guides.center,
+        mirror: guides.mirror,
+        dpi: 300,
+      });
+      const blob = await worksheetToPng(sheet.canvas);
+      const url = URL.createObjectURL(blob);
+      setSheetUrl((prev) => {
+        if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return url;
+      });
+      setSheetInfo({ w: sheet.printedWidthMm, h: sheet.printedHeightMm, resized: sheet.resized });
+      if (sheet.resized) {
+        setNotice(hu
+          ? 'A kért méret nem fért el A4-en, ezért a minta arányosan kisebb lett. A lábléc mutatja a nyomtatott méretet.'
+          : 'The requested size did not fit on A4, so the artwork was scaled down proportionally. The footer shows the printed size.');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (hu ? 'A munkalap nem készíthető el.' : 'The worksheet could not be created.'));
+    } finally {
+      setSheetBusy(false);
     }
   }
 
@@ -154,10 +209,10 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
     if (activeSource) void runStencil(activeSource);
   }
 
-  function download(href: string) {
+  function download(href: string, name: string) {
     const a = document.createElement('a');
     a.href = href;
-    a.download = 'designly-stencil.png';
+    a.download = name;
     a.click();
   }
 
@@ -361,6 +416,55 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
             </div>
           </div>
 
+          {/*
+           * A tetovalas merete.
+           *
+           * Ez az EGYETLEN adat, amit a tetovalonak tudnia kell a munkalaphoz.
+           * Minden mas ebbol szarmazik: a stencil pixelben valtozatlan, a lap
+           * mm-ben szamol. Ez az, amitol a nyomat hasznalhato lesz a boron.
+           */}
+          <div className="mt-5 rounded-2xl border border-line bg-canvas/50 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Printer className="h-4 w-4 text-accent" />
+              <span className="text-xs font-semibold text-ink-200">
+                {hu ? 'Szalonmunkalap' : 'Salon worksheet'}
+              </span>
+            </div>
+            <label className="block text-xs text-ink-400">
+              {hu ? 'Tetoválás szélessége (mm)' : 'Tattoo width (mm)'}
+              <input
+                type="number"
+                min={10}
+                max={280}
+                value={widthMm}
+                onChange={(e) => setWidthMm(Math.max(10, Math.min(280, Number(e.target.value) || 10)))}
+                className="vp-input mt-1"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!result || sheetBusy}
+              onClick={makeWorksheet}
+              className="vp-btn mt-3 w-full justify-center disabled:opacity-50"
+            >
+              {sheetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              {sheetBusy
+                ? (hu ? 'Munkalap készül…' : 'Building worksheet…')
+                : (hu ? 'Munkalap elkészítése' : 'Build worksheet')}
+            </button>
+            {sheetInfo && (
+              <p className="mt-3 text-[10px] leading-relaxed text-ink-500">
+                {hu ? 'Nyomtatott méret' : 'Printed size'}: {sheetInfo.w.toFixed(1)} × {sheetInfo.h.toFixed(1)} mm
+                {sheetInfo.resized ? (hu ? ' · arányosan kicsinyítve' : ' · scaled to fit') : ''}
+              </p>
+            )}
+            <p className="mt-2 text-[10px] leading-relaxed text-ink-500">
+              {hu
+                ? 'A4 · 300 DPI · REG/CROP/AXIS jelekkel. Nyomtatásnál 100%-ot válassz, ne „Fit to page”-et — különben a méret nem pontos.'
+                : 'A4 · 300 DPI · REG/CROP/AXIS marks. Print at 100%, never “Fit to page” — otherwise the size is not accurate.'}
+            </p>
+          </div>
+
           {error && (
             <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
           )}
@@ -381,7 +485,7 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
           )}
         </div>
 
-        {/* ---------- JOBB: forras es eredmeny ---------- */}
+        {/* ---------- JOBB: forras, stencil es munkalap ---------- */}
         <div className="space-y-4">
           <div>
             <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-ink-500">
@@ -424,7 +528,7 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
 
           {result && (
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => download(result)} className="vp-btn-ghost">
+              <button type="button" onClick={() => download(result, 'designly-stencil.png')} className="vp-btn-ghost">
                 <Download className="h-4 w-4" />{hu ? 'Stencil PNG' : 'Stencil PNG'}
               </button>
               <button
@@ -433,6 +537,25 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
                 className="vp-btn-ghost"
               >
                 <Share2 className="h-4 w-4" />{hu ? 'Másolás / Procreate' : 'Copy / Procreate'}
+              </button>
+            </div>
+          )}
+
+          {/* A munkalap elonezete — csak ha mar elkészult. */}
+          {sheetUrl && (
+            <div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-ink-500">
+                {hu ? 'SZALONMUNKALAP (A4)' : 'SALON WORKSHEET (A4)'}
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-line bg-white">
+                <img src={sheetUrl} alt={hu ? 'Szalonmunkalap' : 'Salon worksheet'} className="w-full" />
+              </div>
+              <button
+                type="button"
+                onClick={() => download(sheetUrl, 'designly-salon-worksheet.png')}
+                className="vp-btn-ghost mt-2"
+              >
+                <Download className="h-4 w-4" />{hu ? 'Munkalap letöltése' : 'Download worksheet'}
               </button>
             </div>
           )}
