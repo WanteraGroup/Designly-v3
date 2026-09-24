@@ -10,9 +10,9 @@
  * irt, tehat a letoltott HTML-ben nem volt foto, mikozben a preview-ban igen.
  * Ez volt az egyik legzavarobb elteres a ket kimenet kozott.
  *
- * A FUNKCIONALIS blokkok (urlap, foglalas, hirlevel) az exportban is mukodnek:
- * a form `action`-ja a sajat fogado vegpont, es a `fetch` + JSON a lapban
- * marad. Ket dolog, amire figyelni kell:
+ * A FUNKCIONALIS blokkok (urlap, foglalas, termeklista, terkep, hirlevel) az
+ * exportban is mukodnek: a lapba agyazott script a sajat fogado vegpontra kuld.
+ * Ket dolog, amire figyelni kell:
  *   1. Az `endpoint`-ot ABSZOLUT URL-kent kell kiirni. Ha relativ maradna, a
  *      letoltott fajl a helyi gepre kuldene az adatot, ahol nincs fogado.
  *   2. Az export NEM tartalmaz kulso scriptet: a bekuldes inline `fetch`, tehat
@@ -46,6 +46,21 @@ function safeColor(value: string, fallback = '#c9a45c'): string {
 function safeFont(value: string, fallback: string): string {
   const font = String(value ?? '').trim();
   return /^[A-Za-z0-9 _.,'\-]{1,80}$/.test(font) ? font : fallback;
+}
+
+/*
+ * A telefon-link a `tel:` semahoz kell, de a `+` es a szamjegyeken kivul minden
+ * karakter eltavolitando.
+ *
+ * Ez a muvelet SZANDEKOSAN kulon fuggvenyben van. Az eredeti egy sorban,
+ * beagyazott sablonliterálon belul volt, a mintaja pedig `[^+\\d]` — a dupla
+ * backslash a forrasszovegben mar ket karakter, es az esbuild ott nem tudta
+ * lezarni a regex literalt: a build a `}` karakternel halt el a contact
+ * blokkban. Kulon fuggvenyben a minta egyszer, tisztan all: `[^+\d]`.
+ */
+function telHref(raw: string): string {
+  const digits = String(raw ?? '').replace(/[^+\d]/g, '');
+  return 'tel:' + digits;
 }
 
 /** Rohid vegpontnev -> abszolut URL. A `parseSite` mar kiszurte a kulso cimeket. */
@@ -175,16 +190,20 @@ function renderBlock(b: SiteBlock, siteTitle: string): string {
   <dl>${b.items.map((i) => `<dt>${esc(i.q)}</dt><dd>${esc(i.a)}</dd>`).join('')}</dl>
 </section>`;
 
-    case 'contact':
+    case 'contact': {
+      const mail = b.email ? 'mailto:' + b.email : '';
+      const tel = b.phone ? telHref(b.phone) : '';
+      const rows = [
+        b.email ? `<li><a href="${esc(mail)}">${esc(b.email)}</a></li>` : '',
+        b.phone ? `<li><a href="${esc(tel)}">${esc(b.phone)}</a></li>` : '',
+        b.address ? `<li>${esc(b.address)}</li>` : '',
+      ].join('');
       return `<section>
   <h2>${esc(b.heading)}</h2>
   <p>${esc(b.body)}</p>
-  <ul class="plain">${[
-    b.email ? `<li><a href="${esc(`mailto:${b.email}`)}">${esc(b.email)}</a></li>` : '',
-    b.phone ? `<li><a href="${esc(`tel:${b.phone.replace(/[^+\\d]/g, '')}`)}">${esc(b.phone)}</a></li>` : '',
-    b.address ? `<li>${esc(b.address)}</li>` : '',
-  ].join('')}</ul>
+  <ul class="plain">${rows}</ul>
 </section>`;
+    }
 
     case 'cta':
       return `<section class="hero">
@@ -279,6 +298,9 @@ function renderBlock(b: SiteBlock, siteTitle: string): string {
     <p class="dl-status" aria-live="polite"></p>
   </form>
 </section>`;
+
+    default:
+      return '';
   }
 }
 
