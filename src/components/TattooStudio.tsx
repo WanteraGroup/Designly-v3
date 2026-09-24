@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Download, Grid3X3, Mail, PenTool, Share2, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { Download, Grid3X3, PenTool, Share2, Sparkles } from 'lucide-react';
 import { generateCreativeImage } from '../lib/creative-api';
 
 type Lang = 'hu'|'en'|'de'|'fr'|'es'|'it'|'pl'|'uk'|'ro'|'nl';
@@ -100,7 +100,6 @@ export default function TattooStudio({language='hu'}:{language?:string}){
   try{const file=new File([blob],name,{type:'image/png'}); if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({title:'Designly Tattoo',text:'Tetoválásminta – Designly',files:[file]});return;} dl(name,blob);
   }catch(e){if(e instanceof DOMException && e.name==='AbortError') return; dl(name,blob);}
  }
- const svg=useMemo(()=>transparent?null:null,[transparent]);
  return <section className='space-y-5'>
   <div className='rounded-2xl border border-accent/25 bg-accent/5 p-4'><div className='flex flex-wrap items-center justify-between gap-3'><div><div className='text-xs font-semibold text-ink-100'>{t(language,'title')}</div><p className='mt-1 text-xs text-ink-400'>{t(language,'desc')}</p></div><span className='rounded-full border border-emerald-500/30 px-3 py-1 text-[10px] text-emerald-300'>{t(language,'ready')}</span></div></div>
   <div className='grid gap-4 lg:grid-cols-2'>
