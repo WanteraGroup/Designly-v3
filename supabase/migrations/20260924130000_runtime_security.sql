@@ -109,3 +109,17 @@ revoke all on function public.refund_credits(uuid, integer, text) from public, a
 grant execute on function public.refund_credits(uuid, integer, text) to service_role;
 
 create index if not exists idx_designly_rate_limits_window on public.designly_rate_limits(window_started_at);
+
+create table if not exists public.designly_form_submissions (
+  id uuid primary key default gen_random_uuid(),
+  form_id text not null,
+  site_title text not null default '',
+  payload jsonb not null default '{}'::jsonb,
+  source_url text not null default '',
+  created_at timestamptz not null default now()
+);
+alter table public.designly_form_submissions enable row level security;
+revoke all on table public.designly_form_submissions from anon, authenticated;
+grant all on table public.designly_form_submissions to service_role;
+create index if not exists idx_designly_form_submissions_form_id on public.designly_form_submissions(form_id);
+create index if not exists idx_designly_form_submissions_created_at on public.designly_form_submissions(created_at desc);
