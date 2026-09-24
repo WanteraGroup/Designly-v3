@@ -1,3 +1,6 @@
+import { consumeCredits, ensureProfile, refundCredits, requestUser } from "../_shared/auth.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -148,7 +151,7 @@ async function runQwen(prompt: string): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  if (rateLimited(req)) return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
+  const user = await requestUser(req);\n  if (!user) return json({ error: "UNAUTHORIZED", message: "Jelentkezz be a képgeneráláshoz." }, 401);\n  if (!await consumeRateLimit(req, user.id, 4, "image")) return json({ error: "RATE_LIMITED", message: "Túl sok képgenerálási kérés rövid idő alatt." }, 429);
 
   let body: { prompt?: string; aspectRatio?: string };
   try {
