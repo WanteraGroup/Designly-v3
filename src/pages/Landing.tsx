@@ -61,32 +61,27 @@ export default function Landing() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-4xl px-6 pb-16 pt-20 text-center">
-        <span className="mb-7 inline-block rounded-full border border-line px-4 py-1.5 text-[11px] tracking-[0.28em] text-accent">
-          DESIGNLY V3 — AZ AI KREATÍV OPERÁCIÓS RENDSZER
-        </span>
-
-        <h1 className="font-display text-4xl leading-[1.1] text-ink-100 sm:text-6xl">
-          Írd le egy mondatban.
-          <br />
-          <span className="text-accent">Megkapod a kész oldalt.</span>
-        </h1>
-
-        <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-ink-300">
-          Nem sablont kapsz, hanem kész weboldalt — szöveggel, színekkel, szerkezettel és
-          exportálható fájllal együtt. Az agent-csapat a briefből tervet, alkotást és
-          ellenőrzést készít.
-        </p>
-
-        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <a href="/app" className="vp-btn">
-            <Sparkles className="h-4 w-4" />
-            Weboldal készítése
-          </a>
-          <a href="#templates" className="vp-btn-ghost">
-            <LayoutTemplate className="h-4 w-4" />
-            Sablonok böngészése
-          </a>
+      <section
+        className="relative mx-auto min-h-[720px] overflow-hidden border-b border-line bg-cover bg-center"
+        style={{ backgroundImage: `linear-gradient(rgba(5,7,10,.12), rgba(5,7,10,.78)), url(${designlyHeroImage})` }}
+        aria-label="DESIGNLY fő vizuális"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(0,0,0,.45)_100%)]" />
+        <div className="relative mx-auto flex min-h-[720px] max-w-6xl flex-col items-center justify-end px-6 pb-16 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <a href="/app" className="vp-btn">
+              <Sparkles className="h-4 w-4" />
+              Weboldal készítése
+            </a>
+            <a href="/app?tab=studio" className="vp-btn-ghost">
+              <Wand2 className="h-4 w-4" />
+              Extra Stúdió
+            </a>
+            <a href="/app?tab=gamer" className="vp-btn-ghost">
+              <Gamepad2 className="h-4 w-4" />
+              Streamer & Gamer
+            </a>
+          </div>
         </div>
       </section>
 
