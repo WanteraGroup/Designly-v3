@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "designly-image": { "verify_jwt": true },
+    "designly-v3-agent": { "verify_jwt": true },
+    "designly-v3-refine": { "verify_jwt": true },
+    "designly-huginn": { "verify_jwt": false },
+    "designly-video": { "verify_jwt": true },
+    "vey-images": { "verify_jwt": true }
+  }
+}
