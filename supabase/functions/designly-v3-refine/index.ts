@@ -2,8 +2,7 @@ import { consumeCredits, ensureProfile, refundCredits, requestUser } from "../_s
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization, X-Client-Info, Apikey"};
-const buckets=new Map<string,number[]>();
-function rateLimited(req:Request){const key=(req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")||"guest").split(",")[0].trim().slice(0,80);const now=Date.now();const recent=(buckets.get(key)||[]).filter((t)=>now-t<60000);if(recent.length>=20)return true;recent.push(now);buckets.set(key,recent);if(buckets.size>2000){for(const [k,times] of buckets){if(times.every((t)=>now-t>=60000))buckets.delete(k);}}return false;}
+
 function json(data:unknown,status=200){return new Response(JSON.stringify(data),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});}
 Deno.serve(async(req:Request)=>{
 if(req.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders});
