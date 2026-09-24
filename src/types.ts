@@ -9,8 +9,11 @@
  * build` 1-es koddal all le — ez volt a deploy hibaja.
  */
 
+/** A tamogatott feluleti nyelvek. Az `i18n.ts` ebbol epit. */
+export type LanguageCode = 'hu' | 'en' | 'de' | 'fr' | 'es' | 'it' | 'pl' | 'uk' | 'ro' | 'nl';
+
 export interface Language {
-  code: string;
+  code: LanguageCode;
   name: string;
   flag: string;
 }
