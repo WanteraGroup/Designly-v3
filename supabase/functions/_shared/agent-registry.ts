@@ -4,7 +4,6 @@ export const DESIGNLY_AGENT_REGISTRY:AgentCapability[]=[
 {id:"core",name:"VYRON CORE",role:"főorchestrátor; routing, feladatbontás, handoff",capabilities:["orchestration","routing","mission-plan","handoff"],source:"NEXORA / Designity"},
 {id:"master",name:"DESIGNLY MASTER",role:"fő design director; kreatív irány és vizuális rendszer",capabilities:["creative-direction","design-brief","visual-system"],source:"Designity"},
 {id:"huginn",name:"HUGINN",role:"Odin hollója; AI concierge és navigátor",capabilities:["navigation","help","onboarding","project-guidance"],source:"Designity"},
-{id:"muninn",name:"MUNINN",role:"memória- és kontextusréteg",capabilities:["context-memory","knowledge-summary","handoff"],source:"Designity"},
 {id:"brand",name:"BRAND AGENT",role:"márkaidentitás és Brand Kit",capabilities:["logo","palette","typography","brand-kit"],source:"Designity"},
 {id:"web",name:"WEB AGENT",role:"weboldal struktúra és reszponzív hierarchia",capabilities:["website","landing","sections","responsive"],source:"Designity"},
 {id:"web-architect",name:"WEB ARCHITECT",role:"információs architektúra és user-flow",capabilities:["site-architecture","multi-page","navigation","user-flow"],source:"Designity"},
