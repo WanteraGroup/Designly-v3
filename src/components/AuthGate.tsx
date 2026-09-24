@@ -1,21 +1,31 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
-import { LogIn, LogOut, ShieldCheck, UserPlus, X } from 'lucide-react';
+import { Cog, LogIn, LogOut, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { supabase } from '../lib/supabase-client';
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null);
   const [ready, setReady] = useState(false);
+  const [adminRole, setAdminRole] = useState<'owner'|'admin'|null>(null);
 
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
       if (active) {
         setSession(data.session);
+        if (data.session) {
+          const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).maybeSingle();
+          setAdminRole(profile?.role === 'owner' || profile?.role === 'admin' ? profile.role : null);
+        } else {
+          setAdminRole(null);
+        }
         setReady(true);
       }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
-      if (active) setSession(next);
+      if (active) {
+        setSession(next);
+        if (!next) setAdminRole(null);
+      }
     });
     return () => {
       active = false;
@@ -34,6 +44,16 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-panel/90 px-3 py-1.5 text-[10px] text-ink-300 shadow-xl backdrop-blur">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
             <span className="max-w-44 truncate">{session.user.email ?? 'DESIGNLY fiók'}</span>
+            {adminRole && (
+              <a
+                href="/admin"
+                className="rounded-full p-1.5 text-accent hover:bg-panel-hi"
+                aria-label="Admin menü"
+                title={adminRole === 'owner' ? 'Owner admin menü' : 'Admin menü'}
+              >
+                <Cog className="h-3.5 w-3.5" />
+              </a>
+            )}
             <button
               type="button"
               onClick={() => { void supabase.auth.signOut(); }}
