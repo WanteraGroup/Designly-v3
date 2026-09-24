@@ -8,7 +8,7 @@ import type { SiteDocument } from './site-schema';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || 'https://mxrgdcvmxzhocbdhtlhg.supabase.co';
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+import { authHeaders } from './supabase-client';
 
 export interface ResolvedImage {
   query: string;
@@ -52,10 +52,7 @@ export async function resolveImages(queries: string[]): Promise<ResolvedImage[]>
   try {
     const res = await fetch(`${FUNCTIONS_URL}/vey-images`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(ANON_KEY ? { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY } : {}),
-      },
+      headers: await authHeaders(true),
       body: JSON.stringify({ queries, perQuery: 3 }),
     });
 
