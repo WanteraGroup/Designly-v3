@@ -134,7 +134,7 @@ export default function Landing() {
             { icon: LayoutTemplate, name: 'WEB ARCHITECT', desc: 'Struktúra, UX/UI, reszponzivitás és információs architektúra.' },
             { icon: Users, name: 'CONTENT & GROWTH', desc: 'Tartalom, SEO, kampány és értékesítési kreatívok.' },
             { icon: Wand2, name: 'IMAGE STUDIO', desc: 'AI képgenerálás és vizuális kreatívok.' },
-            { icon: Video, name: 'MEDIA STUDIO', desc: 'Video- és rövidformátumú gyártási terv, storyboard, UGC és AI keyframe.' },
+            { icon: Video, name: 'VIDEO STUDIO', desc: 'Video- és rövidformátumú gyártási terv, storyboard, UGC és AI keyframe.' },
             { icon: Wand2, name: 'SOCIAL STUDIO', desc: 'Social post, story és platformváltozatok.' },
             { icon: LayoutTemplate, name: 'TEMPLATE STUDIO', desc: 'Sablonillesztés és variációk.' },
             { icon: Wand2, name: 'EXTRA DESIGN STUDIO', desc: 'Névjegy, meghívó, flyer, plakát, poszter, Tattoo, Planner és CNC.' },
