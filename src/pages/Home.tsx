@@ -29,7 +29,7 @@ import { SiteRenderer } from '../components/SitePreview';
 import HuginnAgent from '../components/HuginnAgent';
 import CreativeStudio from '../components/CreativeStudio';
 import GamerStudio from '../components/GamerStudio';
-import { createProject, saveProject } from '../lib/project-store';
+import { createProject, listProjects, saveProject, type StudioProject } from '../lib/project-store';
 
 const EXAMPLES = [
   'Egy sötét, prémium fodrászszalon weboldala árakkal és foglalási lehetőséggel',
@@ -61,6 +61,7 @@ export default function Home() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [savedProjects, setSavedProjects] = useState<StudioProject[]>(() => listProjects());
   const refineRef = useRef<HTMLInputElement>(null);
 
   const plan = planAgents(brief);
@@ -172,6 +173,39 @@ export default function Home() {
           </select>
         </label>
       </header>
+
+      <div className="mx-auto mb-4 flex max-w-6xl justify-end px-6">
+        <button
+          type="button"
+          onClick={() => setSavedProjects(listProjects())}
+          className="vp-btn-ghost text-xs"
+        >
+          <Save className="h-3.5 w-3.5" /> Mentett projektek ({savedProjects.length})
+        </button>
+      </div>
+      {savedProjects.length > 0 && (
+        <div className="mx-auto mb-6 grid max-w-6xl gap-2 px-6 sm:grid-cols-2 lg:grid-cols-3">
+          {savedProjects.slice(0, 6).map((project) => (
+            <button
+              key={project.id}
+              type="button"
+              onClick={() => {
+                setBrief(project.brief);
+                setSite(project.site);
+                setSavedProjectId(project.id);
+                setSavedNotice(false);
+                setEditorOpen(!!project.site);
+                setTab('generator');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="rounded-xl border border-line bg-panel/70 px-4 py-3 text-left transition hover:border-accent/50"
+            >
+              <div className="text-xs font-semibold text-ink-100">{project.name}</div>
+              <div className="mt-1 line-clamp-2 text-[11px] text-ink-400">{project.brief || 'Mentett projekt'}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="relative mx-auto mb-8 flex max-w-3xl justify-center gap-2 px-6">
         {(['generator', 'studio', 'gamer', 'templates'] as const).map((t) => (
@@ -336,6 +370,7 @@ export default function Home() {
                         saveProject(created);
                         setSavedProjectId(created.id);
                       }
+                      setSavedProjects(listProjects());
                       setSavedNotice(true);
                       window.setTimeout(() => setSavedNotice(false), 1800);
                     }} className="vp-btn">
