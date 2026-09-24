@@ -50,6 +50,7 @@ function compilePrompt(input: string): string {
 }
 
 const HF_SPACE = "https://akhaliq-qwen-image-2-1-workflow.hf.space";
+const HF_FN = "text_to_image";
 function toAbsoluteFileUrl(value: string): string {
   if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith("/")) return HF_SPACE + value;
@@ -57,10 +58,10 @@ function toAbsoluteFileUrl(value: string): string {
 }
 
 async function runQwen(prompt: string): Promise<string> {
-  const start = await fetch(`${HF_SPACE}/gradio_api/call/generated_image`, {
+  const start = await fetch(`${HF_SPACE}/gradio_api/call/${HF_FN}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data: [prompt] }),
+    body: JSON.stringify({ data: [prompt, 28] }),
   });
 
   const startText = await start.text();
@@ -137,6 +138,35 @@ async function runQwen(prompt: string): Promise<string> {
   throw new Error("A Qwen Image generálás túllépte a 110 másodperces várakozási időt.");
 }
 
+async function runQwenWithRetry(prompt: string): Promise<string> {
+  let lastError: unknown;
+  for (const wait of [0, 4000, 8000]) {
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    try {
+      return await runQwen(prompt);
+    } catch (error) {
+      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!/\(5\d\d\)|Space|event_id/i.test(msg)) throw error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function classifyProviderError(error: unknown): { code: string; message: string } {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (/\(5\d\d\)/.test(msg)) {
+    return { code: "PROVIDER_UNAVAILABLE", message: "A képgenerátor átmenetileg nem elérhető. Próbáld újra fél perc múlva." };
+  }
+  if (/várakozási időt|túllépte/i.test(msg)) {
+    return { code: "PROVIDER_TIMEOUT", message: "A generálás túllépte az időkeretet. Próbáld újra." };
+  }
+  if (/nem adott képet|\[DONE\]/i.test(msg)) {
+    return { code: "PROVIDER_EMPTY", message: "A generátor nem adott képet erre a briefre. Fogalmazd át." };
+  }
+  return { code: "PROVIDER_ERROR", message: "A képgenerálás nem sikerült." };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -170,7 +200,7 @@ Deno.serve(async (req) => {
   if (!charged) return json({ error: "INSUFFICIENT_CREDITS", message: "Elfogytak a kreditek." }, 402);
 
   try {
-    const imageUrl = await runQwen(compilePrompt(prompt));
+    const imageUrl = await runQwenWithRetry(compilePrompt(prompt));
     return json({
       url: imageUrl,
       width: 2048,
@@ -189,8 +219,7 @@ Deno.serve(async (req) => {
       console.error("image refund failed", refundError);
     }
     console.error("designly-image qwen error", error);
-    return json({
-      error: error instanceof Error ? error.message : "Qwen Image generálás sikertelen.",
-    }, 502);
+    const { code, message } = classifyProviderError(error);
+    return json({ error: code, message }, 502);
   }
 });
