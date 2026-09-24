@@ -254,7 +254,7 @@ export function toStandaloneHtml(doc: SiteDocument): string {
 ${doc.blocks.map((block) => renderBlock(block, title)).join('\n')}
 <script>
 (() => {
-  const endpoint = "";
+  const endpoint = ${JSON.stringify(FORM_ENDPOINT)};
   document.querySelectorAll('[data-designly-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -266,7 +266,7 @@ ${doc.blocks.map((block) => renderBlock(block, title)).join('\n')}
       const website = String(data.website ?? '');
       delete data.website;
       try {
-        const response = await fetch('${FORM_ENDPOINT}', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
