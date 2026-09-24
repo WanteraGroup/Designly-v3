@@ -21,6 +21,24 @@ export function esc(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function safeHref(value: string, fallback = '#'): string {
+  const href = String(value ?? '').trim();
+  if (!href) return fallback;
+  if (/^(#|\/|\.\/|\.\.\/)/.test(href)) return href;
+  if (/^(https?:|mailto:|tel:)/i.test(href)) return href;
+  return fallback;
+}
+
+function safeColor(value: string, fallback = '#c9a45c'): string {
+  const color = String(value ?? '').trim();
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
+}
+
+function safeFont(value: string, fallback: string): string {
+  const font = String(value ?? '').trim();
+  return /^[A-Za-z0-9 _.,'\-]{1,80}$/.test(font) ? font : fallback;
+}
+
 function renderBlock(b: SiteBlock): string {
   switch (b.type) {
     case 'hero':
@@ -28,7 +46,7 @@ function renderBlock(b: SiteBlock): string {
   <p class="eyebrow">${esc(b.eyebrow)}</p>
   <h1>${esc(b.headline)}</h1>
   <p class="lead">${esc(b.subheadline)}</p>
-  <a class="btn" href="${esc(b.cta.href)}">${esc(b.cta.label)}</a>
+  <a class="btn" href="${esc(safeHref(b.cta.href))}">${esc(b.cta.label)}</a>
 </section>`;
 
     case 'features':
@@ -84,7 +102,7 @@ function renderBlock(b: SiteBlock): string {
       const credit = i.author
         ? `<span class="credit">${
             i.source
-              ? `<a href="${esc(i.source)}" target="_blank" rel="noopener noreferrer">${esc(i.author)}</a>`
+              ? `<a href="${esc(safeHref(i.source))}" target="_blank" rel="noopener noreferrer">${esc(i.author)}</a>`
               : esc(i.author)
           }</span>`
         : '';
@@ -140,7 +158,9 @@ function renderBlock(b: SiteBlock): string {
 export function toStandaloneHtml(doc: SiteDocument): string {
   const { theme, title, nav, language } = doc.site;
   const light = theme.mode === 'light';
-  const accent = theme.palette[0] ?? '#7c5cff';
+  const accent = safeColor(theme.palette[0] ?? '#c9a45c', '#c9a45c');
+  const headingFont = safeFont(theme.heading_font, 'Marcellus');
+  const bodyFont = safeFont(theme.body_font, 'Inter');
   const bg = light ? '#ffffff' : '#0a0a12';
   const fg = light ? '#14141c' : '#eef0f6';
 
@@ -157,8 +177,8 @@ export function toStandaloneHtml(doc: SiteDocument): string {
   :root { --accent: ${accent}; --bg: ${bg}; --fg: ${fg}; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); line-height: 1.6;
-         font-family: ${theme.body_font}, Inter, system-ui, sans-serif; }
-  h1, h2, h3 { font-family: ${theme.heading_font}, Inter, sans-serif; font-weight: 600; line-height: 1.15; }
+         font-family: ${bodyFont}, Inter, system-ui, sans-serif; }
+  h1, h2, h3 { font-family: ${headingFont}, Inter, sans-serif; font-weight: 600; line-height: 1.15; }
   a { color: inherit; }
   header.site { display: flex; align-items: center; justify-content: space-between;
                 padding: 1rem 1.5rem; border-bottom: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); }
@@ -201,7 +221,7 @@ export function toStandaloneHtml(doc: SiteDocument): string {
 <body>
 <header class="site">
   <span style="font-weight:600; letter-spacing:.04em">${esc(title)}</span>
-  <nav>${nav.map((n) => `<a href="${esc(n.href)}">${esc(n.label)}</a>`).join('')}</nav>
+  <nav>${nav.map((n) => `<a href="${esc(safeHref(n.href))}">${esc(n.label)}</a>`).join('')}</nav>
 </header>
 ${doc.blocks.map(renderBlock).join('\n')}
 </body>
