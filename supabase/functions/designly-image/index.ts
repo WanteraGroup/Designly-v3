@@ -1,4 +1,4 @@
-import { consumeCredits, ensureProfile, refundCredits, requestUser } from "../_shared/auth.ts";
+import { adminClient, consumeCredits, ensureProfile, refundCredits, requestUser } from "../_shared/auth.ts";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
@@ -49,12 +49,77 @@ function compilePrompt(input: string): string {
   ].join("\n");
 }
 
+const ENGINE_URL = (Deno.env.get("DESIGNLY_IMAGE_ENGINE_URL") ?? "").replace(/\\/$/, "");
+const ENGINE_KEY = Deno.env.get("DESIGNLY_IMAGE_ENGINE_KEY") ?? "";
+const ALLOW_PUBLIC_FALLBACK = (Deno.env.get("DESIGNLY_IMAGE_ALLOW_PUBLIC_FALLBACK") ?? "false").toLowerCase() === "true";
+
 const HF_SPACE = "https://akhaliq-qwen-image-2-1-workflow.hf.space";
 const HF_FN = "text_to_image";
 function toAbsoluteFileUrl(value: string): string {
   if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith("/")) return HF_SPACE + value;
   return HF_SPACE + "/" + value;
+}
+
+const RATIO_SIZES: Record<string, [number, number]> = {
+  "1:1": [1328, 1328],
+  "4:3": [1472, 1104],
+  "3:4": [1104, 1472],
+  "16:9": [1664, 928],
+  "9:16": [928, 1664],
+  "3:2": [1584, 1056],
+  "2:3": [1056, 1584],
+  "21:9": [1664, 714],
+};
+
+async function runDesignlyEngine(prompt: string, aspectRatio: string): Promise<{ bytes: ArrayBuffer; model: string; width: number; height: number; seed: string }> {
+  if (!ENGINE_URL || !ENGINE_KEY) throw new Error("DESIGNLY_ENGINE_NOT_CONFIGURED");
+
+  const response = await fetch(ENGINE_URL + "/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Designly-Engine-Key": ENGINE_KEY,
+    },
+    body: JSON.stringify({
+      prompt,
+      aspectRatio,
+      steps: Number(Deno.env.get("DESIGNLY_IMAGE_STEPS") || "40"),
+    }),
+    signal: AbortSignal.timeout(Number(Deno.env.get("DESIGNLY_IMAGE_TIMEOUT_MS") || "300000")),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Designly Image Engine HTTP ${response.status}: ${text.slice(0, 500)}`);
+  }
+
+  const bytes = await response.arrayBuffer();
+  if (!bytes.byteLength) throw new Error("Designly Image Engine returned an empty image");
+
+  const [width, height] = RATIO_SIZES[aspectRatio] ?? RATIO_SIZES["1:1"];
+  return {
+    bytes,
+    model: response.headers.get("X-Designly-Model") || "Qwen-Image-2512",
+    width,
+    height,
+    seed: response.headers.get("X-Designly-Seed") || "",
+  };
+}
+
+async function storeGeneratedImage(userId: string, bytes: ArrayBuffer): Promise<string> {
+  const admin = adminClient();
+  const path = `${userId}/${crypto.randomUUID()}.png`;
+  const { error } = await admin.storage.from("designly-generations").upload(path, bytes, {
+    contentType: "image/png",
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (error) throw new Error("A generált kép mentése sikertelen: " + error.message);
+
+  const { data } = admin.storage.from("designly-generations").getPublicUrl(path);
+  if (!data.publicUrl) throw new Error("A generált kép publikus URL-je nem jött létre.");
+  return data.publicUrl;
 }
 
 async function runQwen(prompt: string): Promise<string> {
