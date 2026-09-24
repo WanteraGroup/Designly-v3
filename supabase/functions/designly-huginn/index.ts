@@ -7,31 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const buckets = new Map<string, number[]>();
-
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-
-function rateLimited(req: Request): boolean {
-  const key = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "guest")
-    .split(",")[0].trim().slice(0, 80);
-  const now = Date.now();
-  const recent = (buckets.get(key) || []).filter((t) => now - t < 60_000);
-  if (recent.length >= 20) return true;
-  recent.push(now);
-  buckets.set(key, recent);
-  if (buckets.size > 2000) {
-    for (const [k, times] of buckets) {
-      if (times.every((t) => now - t >= 60_000)) buckets.delete(k);
-    }
-  }
-  return false;
-}
-
 const destinations = [
   "landing", "services", "agents", "templates", "pricing", "contact",
   "create", "extra", "gamer", "workflow"
