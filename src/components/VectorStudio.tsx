@@ -126,7 +126,7 @@ const PRESETS = {
 export default function VectorStudio({ language = 'hu' }: Props) {
   const hu = language === 'hu';
   const [mode, setMode] = useState<Mode>('prompt');
-  const [prompt, setPrompt] = useState(hu ? PRESETS.hu[0][1] : PRESETS.en[0][1]);
+  const [prompt, setPrompt] = useState<string>(hu ? PRESETS.hu[0][1] : PRESETS.en[0][1]);
   const [style, setStyle] = useState('logo');
   const [file, setFile] = useState<File | null>(null);
   const [traceMode, setTraceMode] = useState<'color'|'mono'>('color');
@@ -215,6 +215,6 @@ export default function VectorStudio({ language = 'hu' }: Props) {
 function Preview({ svg, previewUrl, hu, onDownload }: { svg:string; previewUrl:string; hu:boolean; onDownload:()=>void }) {
   return <div className='rounded-2xl border border-line bg-black/30 p-4'>
     <div className='mb-3 text-xs uppercase tracking-[.18em] text-ink-500'>{hu ? 'VEKTOR ELŐNÉZET' : 'VECTOR PREVIEW'}</div>
-    {svg ? <><div className='checkerboard overflow-auto rounded-xl border border-accent/20 p-4' dangerouslySetInnerHTML={{__html:svg}}/><div className='mt-3 flex gap-2'><a href={previewUrl} target='_blank' rel='noreferrer' className='vp-btn-ghost flex-1 justify-center'><ImageIcon className='h-4 w-4'/>{hu?'Megnyitás':'Open'}</a><button type='button' onClick={onDownload} className='vp-btn flex-1'><Download className='h-4 w-4'/>{hu?'SVG mentése':'Save SVG'}</button></div></> : <div className='flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-line text-center text-xs text-ink-500'>{hu ? 'A vektor előnézete itt jelenik meg.' : 'Vector preview appears here.'}</div>}
+    {svg ? <><div className='checkerboard overflow-auto rounded-xl border border-accent/20 p-4'><img src={previewUrl} alt={hu ? 'Vektor előnézet' : 'Vector preview'} className='mx-auto max-h-[560px] max-w-full object-contain'/></div><div className='mt-3 flex gap-2'><a href={previewUrl} target='_blank' rel='noreferrer' className='vp-btn-ghost flex-1 justify-center'><ImageIcon className='h-4 w-4'/>{hu?'Megnyitás':'Open'}</a><button type='button' onClick={onDownload} className='vp-btn flex-1'><Download className='h-4 w-4'/>{hu?'SVG mentése':'Save SVG'}</button></div></> : <div className='flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-line text-center text-xs text-ink-500'>{hu ? 'A vektor előnézete itt jelenik meg.' : 'Vector preview appears here.'}</div>}
   </div>;
 }
