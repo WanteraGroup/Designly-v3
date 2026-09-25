@@ -81,7 +81,7 @@ Deno.serve(async (req)=>{
       await admin.from("admin_audit_log").insert({
         actor_user_id:actor.id,
         action:actionName,
-        target_email:target?.email??targetEmail||null,
+        target_email:(target?.email ?? targetEmail) || null,
         target_user_id:target?.id??null,
         metadata,
       });
