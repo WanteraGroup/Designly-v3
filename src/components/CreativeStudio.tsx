@@ -4,8 +4,9 @@ import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 import EngineeringPlanner from './EngineeringPlanner';
 import CncPromptStudio from './CncPromptStudio';
 import TattooStudio from './TattooStudio';
+import PortraitStudio from './PortraitStudio';
 
-type ToolId = 'brand'|'campaign'|'product'|'ai_edit'|'business_card'|'invitation'|'flyer'|'poster'|'advertisement'|'brochure'|'menu'|'pricelist'|'social'|'banner'|'presentation'|'tattoo'|'planner'|'cnc';
+type ToolId = 'brand'|'campaign'|'product'|'ai_edit'|'portrait'|'business_card'|'invitation'|'flyer'|'poster'|'advertisement'|'brochure'|'menu'|'pricelist'|'social'|'banner'|'presentation'|'tattoo'|'planner'|'cnc';
 /**
  * Egy eszkoz.
  *
@@ -15,6 +16,7 @@ type ToolId = 'brand'|'campaign'|'product'|'ai_edit'|'business_card'|'invitation
 type Tool = { id: ToolId; label: string; desc: { hu: string; en: string }; icon: typeof Sparkles; kind: 'visual'|'system' };
 const TOOLS: Tool[] = [
   {id:'ai_edit',label:'AI Image Edit',desc:{hu:'Nano Banana 2: képszerkesztés és több referencia összeillesztése.',en:'Nano Banana 2: image editing and combining several references.'},icon:Wand2,kind:'visual'},
+  {id:'portrait',label:'Portrait Studio',desc:{hu:'Fotórealisztikus cinematic, dark, Celtic és Nordic portrék.',en:'Photorealistic cinematic, dark, Celtic and Nordic portraits.'},icon:ImageIcon,kind:'visual'},
   {id:'brand',label:'Brand Kit',desc:{hu:'Színek, tipográfia, hangnem és márkaalap.',en:'Colours, typography, tone of voice and brand foundation.'},icon:BriefcaseBusiness,kind:'system'},
   {id:'campaign',label:'Kampány Stúdió',desc:{hu:'Egy briefből több kreatív formátum.',en:'Several creative formats from one brief.'},icon:Megaphone,kind:'visual'},
   {id:'product',label:'AI Product Studio',desc:{hu:'Termékfotóból prémium reklám- és lifestyle jelenetek.',en:'Premium ad and lifestyle scenes from a product photo.'},icon:ImageIcon,kind:'visual'},
@@ -45,7 +47,7 @@ const RATIO: Record<string,string> = { business_card:'3:2', invitation:'4:3', fl
  * latott — a generalikus blokk ugyanis a `current.label`-t hasznalta promptkent,
  * ami edit eseten ertelmezhetetlen.
  */
-const TOOLS_WITH_OWN_BLOCK: ToolId[] = ['brand','cnc','planner','campaign','product','ai_edit','tattoo'];
+const TOOLS_WITH_OWN_BLOCK: ToolId[] = ['brand','cnc','planner','campaign','product','ai_edit','portrait','tattoo'];
 type Brand = { name:string; tone:string; colors:string[]; heading:string; body:string };
 const DEFAULT_BRAND: Brand = { name:'', tone:'Nordic / Minimal / Luxury', colors:['#C9A45C','#0B0C10','#F3EEE3'], heading:'Marcellus', body:'Inter' };
 
@@ -229,6 +231,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
      {tool==='cnc' && <CncPromptStudio language={language} />}
      {tool==='planner' && <EngineeringPlanner language={language} />}
      {tool==='tattoo' && <TattooStudio language={language} />}
+     {tool==='portrait' && <PortraitStudio language={language} />}
      {tool==='product' && <section className='space-y-4'>
       <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'><div className='font-semibold text-ink-100'>AI Product Studio</div><p className='mt-1'>{t('productLead')}</p></div>
       <div className='mb-3 flex gap-2 rounded-xl border border-line bg-black/20 p-1'>
