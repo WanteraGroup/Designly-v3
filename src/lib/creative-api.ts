@@ -21,7 +21,7 @@ export type CreativeImageOptions = {
 };
 
 async function uploadReferenceImage(file: File, userId: string): Promise<string> {
-  if (!/^image\\/(png|jpeg|webp)$/i.test(file.type)) {
+  if (!/^image\/(png|jpeg|webp)$/i.test(file.type)) {
     throw new Error('Csak PNG, JPG vagy WEBP referencia-kép használható.');
   }
   if (file.size > 20 * 1024 * 1024) {
