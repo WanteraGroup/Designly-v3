@@ -433,10 +433,16 @@ Deno.serve(async (req) => {
 
   const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 4000) : "";
   const aspectRatio = typeof body.aspectRatio === "string" ? body.aspectRatio.trim() : "1:1";
-  const wantsEdit = (body.edit === true || body.mode === "edit") && Array.isArray(body.images) && body.images.length > 0;
+  const referenceImages = Array.isArray(body.images)
+    ? body.images.filter((value): value is string => typeof value === "string" && /^https?:\\/\\//i.test(value.trim())).map(value => value.trim()).slice(0, 14)
+    : [];
+  const wantsEdit = referenceImages.length > 0;
   const resolution: NanoBananaEditResolution = body.resolution === "2k" || body.resolution === "4k" ? body.resolution : "1k";
 
   if (!prompt) return json({ error: "INVALID_REQUEST", message: "A prompt kötelező." }, 400, req);
+  if (wantsEdit && !RUNPOD_KEY) {
+    return json({ error: "REFERENCE_PROVIDER_NOT_CONFIGURED", message: "A referencia-képes generáláshoz a RunPod képszerkesztő provider nincs beállítva." }, 503, req);
+  }
 
   const chain = providerChain();
   if (chain.length === 0) {
@@ -460,7 +466,7 @@ Deno.serve(async (req) => {
       let height: number;
 
       if (wantsEdit) {
-        const result = await runNanoBanana2Edit(body.images as string[], prompt, resolution, aspectRatio);
+        const result = await runNanoBanana2Edit(referenceImages, prompt, resolution, aspectRatio);
         bytes = result.bytes; model = result.model; width = result.width; height = result.height;
       } else if (provider === "private") {
         const result = await runDesignlyEngine(compilePrompt(prompt), aspectRatio);
