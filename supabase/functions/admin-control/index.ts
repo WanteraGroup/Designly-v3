@@ -52,6 +52,12 @@ Deno.serve(async (req)=>{
       return json(req,{profiles:profiles.data??[],plans:plans.data??[],gifts:gifts.data??[],audit:audit.data??[],jobs:jobs.data??[],payments:payments.data??[],settings:settings.data??[]});
     }
 
+    if(action==="subscriptions"){
+      const result=await admin.from("subscriptions").select("id,user_id,plan_id,status,provider,provider_subscription_id,stripe_customer_id,stripe_price_id,current_period_end,created_at,updated_at").order("created_at",{ascending:false}).limit(200);
+      if(result.error) throw result.error;
+      return json(req,{subscriptions:result.data??[]});
+    }
+
     if(action==="user_search"){
       const q=String(body?.query??"").trim();
       let query=admin.from("profiles").select("id,email,full_name,role,plan_id,credits,unlimited_access,created_at,updated_at").order("created_at",{ascending:false}).limit(50);
