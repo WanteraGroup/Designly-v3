@@ -25,6 +25,7 @@ jobs:
           - designly-v3-refine
           - designly-huginn
           - designly-image
+          - designly-vector
           - designly-video
           - vey-images
           - designly-form-submit
