@@ -404,7 +404,7 @@ export async function buildStencil(
   // 4) Adaptív küszöb. A `scale` ugyanaz, amivel a maszkolás normalizál.
   const { threshold, scale } = otsuOnSobel(edges, thresholdBias);
 
-  let mask = new Uint8Array(w * h);
+  let mask: Uint8Array<ArrayBufferLike> = new Uint8Array(w * h);
   for (let i = 0; i < edges.length; i++) {
     const normalized = Math.min(255, (edges[i] / scale) * 255) | 0;
     mask[i] = normalized >= threshold ? 1 : 0;
