@@ -3,7 +3,6 @@ import { LANGUAGES, formatNumber } from '../lib/constants';
 import { FULL_AGENT_TEAM, PUBLIC_AGENT_MODULES } from '../lib/agents';
 import { CATEGORY_SPECS } from '../lib/brief';
 import { TEMPLATE_TOTAL } from '../lib/templates';
-import designlyHeroImage from '../assets/designly-hero';
 import { templateCoverUrl } from '../lib/template-art';
 import { useLanguage, dictionaryFor, translate } from '../lib/i18n';
 
@@ -96,13 +95,22 @@ export default function Landing() {
         </div>
       </header>
 
-      <section
-        className="relative mx-auto min-h-[720px] overflow-hidden border-b border-line bg-cover bg-center"
-        style={{ backgroundImage: `linear-gradient(rgba(5,7,10,.12), rgba(5,7,10,.78)), url(${designlyHeroImage})` }}
-        aria-label="DESIGNLY"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(0,0,0,.45)_100%)]" />
-        <div className="relative mx-auto flex min-h-[720px] max-w-6xl flex-col items-center justify-end px-6 pb-16 text-center">
+      <section className="reference-hero" aria-label="DESIGNLY">
+        <div className="reference-hero__noise" />
+        <div className="reference-hero__fog reference-hero__fog--one" />
+        <div className="reference-hero__fog reference-hero__fog--two" />
+        <div className="reference-hero__grid" />
+        <div className="reference-hero__ring reference-hero__ring--outer" />
+        <div className="reference-hero__ring reference-hero__ring--mid" />
+        <div className="reference-hero__ring reference-hero__ring--inner" />
+        <div className="reference-hero__core">
+          <div className="reference-hero__core-glow" />
+          <div className="reference-hero__core-mark">D</div>
+        </div>
+        <div className="reference-hero__content">
+          <div className="reference-hero__eyebrow"><span /> DESIGNLY V3 <span /></div>
+          <h1 className="reference-hero__title">CREATE <strong>WITHOUT LIMITS</strong></h1>
+          <p className="reference-hero__lead">{t('manifesto.body')}</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a href={withLang('/app')} className="vp-btn">
               <Sparkles className="h-4 w-4" />
@@ -117,6 +125,11 @@ export default function Landing() {
               {t('nav.streamerGamer')}
             </a>
           </div>
+        </div>
+        <div className="reference-hero__stats">
+          <span><b>{PUBLIC_AGENT_MODULES.length}</b> AI MODULES</span>
+          <span><b>{formatNumber(TEMPLATE_TOTAL, lang)}</b> TEMPLATES</span>
+          <span><b>{LANGUAGES.length}</b> LANGUAGES</span>
         </div>
       </section>
 
