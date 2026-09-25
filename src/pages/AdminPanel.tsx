@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, Check, ChevronRight, CreditCard, Gift, History, Loader2, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Users, X, Coins, Bot, ReceiptText } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, ChevronRight, CreditCard, Gift, History, Loader2, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Users, X, Coins, ReceiptText, Activity, DatabaseZap, LockKeyhole, Server, Gauge, UserCog, Ban, CheckCircle2 } from 'lucide-react';
 import { supabase, SUPABASE_URL, PUBLISHABLE_KEY } from '../lib/supabase-client';
 
 type Role='owner'|'admin';
@@ -10,6 +10,7 @@ type Audit={id:string;actor_user_id:string|null;action:string;target_email:strin
 type Job={id:string;user_id:string;type:string;status:string;provider:string;credits_cost:number;created_at:string;completed_at:string|null;error:string|null};
 type Payment={id:string;user_id:string;amount:number;currency:string;type:string;status:string;provider:string;provider_payment_id:string|null;created_at:string};
 type Setting={key:string;value:unknown;description:string;updated_at:string};
+type Subscription={id:string;user_id:string;plan_id:string;status:string;provider:string;provider_subscription_id:string|null;stripe_customer_id:string|null;stripe_price_id:string|null;current_period_end:string|null;created_at:string;updated_at:string};
 type Overview={profiles:UserRow[];plans:Plan[];gifts:Gift[];audit:Audit[];jobs:Job[];payments:Payment[];settings:Setting[]};
 
 const TABS=[
@@ -20,6 +21,9 @@ const TABS=[
   ['credits','Kreditek',Coins],
   ['activity','Napló / AI',History],
   ['payments','Fizetések',ReceiptText],
+  ['subscriptions','Előfizetések',CreditCard],
+  ['security','Biztonság',LockKeyhole],
+  ['system','Rendszer',Server],
   ['settings','Beállítások',Settings],
 ] as const;
 
@@ -48,6 +52,10 @@ export default function AdminPanel(){
   const [userCredits,setUserCredits]=useState<Record<string,string>>({});
   const [userUnlimited,setUserUnlimited]=useState<Record<string,boolean>>({});
   const [settingDraft,setSettingDraft]=useState<Record<string,string>>({});
+  const [subscriptions,setSubscriptions]=useState<Subscription[]>([]);
+  const [subscriptionBusy,setSubscriptionBusy]=useState(false);
+  const [subscriptionSearch,setSubscriptionSearch]=useState('');
+  const [subscriptionStatus,setSubscriptionStatus]=useState('all');
 
   const load=useCallback(async()=>{
     setBusy(true);setError('');
@@ -68,6 +76,20 @@ export default function AdminPanel(){
   },[]);
 
   useEffect(()=>{void load();},[load]);
+
+  const loadSubscriptions=useCallback(async()=>{
+    setSubscriptionBusy(true);setError('');
+    try{
+      const headers=await adminHeaders();
+      const res=await fetch(SUPABASE_URL+'/functions/v1/admin-control',{method:'POST',headers,body:JSON.stringify({action:'subscriptions'})});
+      const json=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error||'Az előfizetések betöltése sikertelen.');
+      setSubscriptions((json.subscriptions??[]) as Subscription[]);
+    }catch(e){setError(e instanceof Error?e.message:'Az előfizetések betöltése sikertelen.');}
+    finally{setSubscriptionBusy(false);}
+  },[]);
+
+  useEffect(()=>{ if(tab==='subscriptions' && !subscriptions.length) void loadSubscriptions(); },[tab,subscriptions.length,loadSubscriptions]);
 
   const call=useCallback(async(action:string,payload:Record<string,unknown>={})=>{
     setBusy(true);setError('');setNotice('');
@@ -198,7 +220,66 @@ export default function AdminPanel(){
         </section>
       </div>}
 
-      {tab==='settings'&&<section className='vp-card p-5'><div className='mb-4'><div className='text-[10px] uppercase tracking-widest text-accent'>SYSTEM SETTINGS</div><h2 className='mt-1 font-display text-2xl'>Rendszerbeállítások</h2><p className='mt-1 text-sm text-ink-400'>Bizalmas kulcsok itt nem jelennek meg és nem szerkeszthetők.</p></div>
+      {tab==='subscriptions'&&<section className='vp-card p-5'>
+        <div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
+          <div><div className='text-[10px] uppercase tracking-widest text-accent'>SUBSCRIPTION CONTROL</div><h2 className='mt-1 font-display text-2xl'>Előfizetések</h2><p className='mt-1 text-sm text-ink-400'>Stripe és Designly csomagállapotok áttekintése.</p></div>
+          <button className='vp-btn-ghost' onClick={()=>void loadSubscriptions()} disabled={subscriptionBusy}><RefreshCw className={'h-4 w-4 '+(subscriptionBusy?'animate-spin':'')}/> Frissítés</button>
+        </div>
+        <div className='mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
+          {['active','trialing','past_due','canceled'].map(status=><button key={status} type='button' onClick={()=>setSubscriptionStatus(subscriptionStatus===status?'all':status)} className={'rounded-xl border px-4 py-3 text-left '+(subscriptionStatus===status?'border-accent/60 bg-accent/10 text-accent':'border-line text-ink-300')}>
+            <div className='text-[10px] uppercase tracking-widest'>{status}</div>
+            <div className='mt-1 text-xl'>{subscriptions.filter(s=>s.status===status).length}</div>
+          </button>)}
+        </div>
+        <div className='mb-4 grid gap-3 md:grid-cols-[1fr_220px]'>
+          <div className='relative'><Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-600'/><input className='vp-input pl-9' value={subscriptionSearch} onChange={e=>setSubscriptionSearch(e.target.value)} placeholder='User ID, Stripe customer, subscription ID…'/></div>
+          <select className='vp-input' value={subscriptionStatus} onChange={e=>setSubscriptionStatus(e.target.value)}><option value='all'>Minden státusz</option><option value='active'>Active</option><option value='trialing'>Trialing</option><option value='past_due'>Past due</option><option value='canceled'>Canceled</option></select>
+        </div>
+        <div className='overflow-x-auto'><table className='w-full min-w-[980px] text-left text-xs'><thead><tr className='border-b border-line text-ink-500'><th className='p-2'>Felhasználó</th><th className='p-2'>Csomag</th><th className='p-2'>Állapot</th><th className='p-2'>Provider</th><th className='p-2'>Időszak vége</th><th className='p-2'>Stripe</th></tr></thead><tbody>{
+          subscriptions.filter(sub=>{
+            const q=subscriptionSearch.trim().toLowerCase();
+            const text=(sub.user_id+' '+(sub.stripe_customer_id??'')+' '+(sub.provider_subscription_id??'')+' '+sub.plan_id).toLowerCase();
+            return (!q||text.includes(q)) && (subscriptionStatus==='all'||sub.status===subscriptionStatus);
+          }).map(sub=><tr key={sub.id} className='border-b border-line/60'>
+            <td className='p-2'><div className='font-medium text-ink-100'>{sub.user_id}</div></td>
+            <td className='p-2'><span className='rounded-full border border-line px-2 py-1'>{sub.plan_id}</span></td>
+            <td className='p-2'><span className={sub.status==='active'||sub.status==='trialing'?'text-emerald-300':sub.status==='past_due'?'text-amber-300':'text-red-300'}>{sub.status}</span></td>
+            <td className='p-2'>{sub.provider}</td>
+            <td className='p-2'>{sub.current_period_end?new Date(sub.current_period_end).toLocaleString('hu-HU'):'—'}</td>
+            <td className='p-2'><div className='max-w-[250px] truncate text-[10px] text-ink-500'>{sub.stripe_customer_id||sub.provider_subscription_id||'—'}</div></td>
+          </tr>)
+        }</tbody></table></div>
+      </section>}
+
+      {tab==='security'&&<div className='grid gap-5 lg:grid-cols-[.8fr_1.2fr]'>
+        <section className='vp-card p-5'>
+          <div className='mb-4 flex items-center gap-3'><LockKeyhole className='h-5 w-5 text-accent'/><div><div className='text-[10px] uppercase tracking-widest text-accent'>SECURITY CONTROL</div><h2 className='font-display text-2xl'>Biztonság</h2></div></div>
+          <div className='grid gap-3'>
+            <div className='rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4'><div className='flex items-center gap-2 text-sm font-semibold text-emerald-300'><CheckCircle2 className='h-4 w-4'/> Admin API védelem</div><p className='mt-1 text-xs text-ink-500'>JWT + owner/admin szerepkör-ellenőrzés.</p></div>
+            <div className='rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4'><div className='flex items-center gap-2 text-sm font-semibold text-emerald-300'><CheckCircle2 className='h-4 w-4'/> Audit napló</div><p className='mt-1 text-xs text-ink-500'>Admin műveletek célfelhasználóval és időbélyeggel.</p></div>
+            <div className='rounded-xl border border-amber-500/20 bg-amber-500/5 p-4'><div className='flex items-center gap-2 text-sm font-semibold text-amber-300'><Gauge className='h-4 w-4'/> Rate limit storage</div><p className='mt-1 text-xs text-ink-500'>A táblán RLS migration található; a production futtatást külön kell alkalmazni.</p></div>
+          </div>
+        </section>
+        <section className='vp-card p-5'>
+          <div className='mb-4 flex items-center gap-3'><History className='h-5 w-5 text-accent'/><div><div className='text-[10px] uppercase tracking-widest text-accent'>AUDIT TRAIL</div><h2 className='font-display text-2xl'>Biztonsági napló</h2></div></div>
+          <div className='space-y-2'>{data.audit.map(a=><div key={a.id} className='rounded-xl border border-line p-3'><div className='flex flex-wrap items-center justify-between gap-3'><span className='text-xs font-semibold'>{a.action}</span><span className='text-[10px] text-ink-500'>{new Date(a.created_at).toLocaleString('hu-HU')}</span></div><div className='mt-1 text-[10px] text-ink-500'>{a.target_email||a.target_user_id||'—'}</div><pre className='mt-2 overflow-auto rounded-lg bg-black/30 p-2 text-[9px] text-ink-600'>{JSON.stringify(a.metadata,null,2)}</pre></div>)}</div>
+        </section>
+      </div>}
+
+      {tab==='system'&&<div className='grid gap-5 lg:grid-cols-2'>
+        <section className='vp-card p-5'>
+          <div className='mb-4 flex items-center gap-3'><Server className='h-5 w-5 text-accent'/><div><div className='text-[10px] uppercase tracking-widest text-accent'>SYSTEM HEALTH</div><h2 className='font-display text-2xl'>Rendszerállapot</h2></div></div>
+          <div className='grid gap-3'>
+            {[['Profiles',stats.users],['AI jobok',stats.jobs],['Payments',stats.payments],['Összes kredit',stats.credits]].map(([label,value])=><div key={String(label)} className='flex items-center justify-between rounded-xl border border-line px-4 py-3'><span className='text-xs text-ink-400'>{label}</span><span className='text-sm font-semibold text-ink-100'>{value}</span></div>)}
+          </div>
+        </section>
+        <section className='vp-card p-5'>
+          <div className='mb-4 flex items-center gap-3'><DatabaseZap className='h-5 w-5 text-accent'/><div><div className='text-[10px] uppercase tracking-widest text-accent'>CONFIGURATION</div><h2 className='font-display text-2xl'>Aktív rendszerbeállítások</h2></div></div>
+          <div className='space-y-2'>{data.settings.filter(s=>/payment|credit|rate|test|provider|maintenance|origin/i.test(s.key)).map(s=><div key={s.key} className='rounded-xl border border-line p-3'><div className='text-xs font-semibold'>{s.key}</div><div className='mt-1 text-[10px] text-ink-500'>{s.description}</div><pre className='mt-2 overflow-auto rounded-lg bg-black/30 p-2 text-[9px] text-ink-500'>{JSON.stringify(s.value,null,2)}</pre></div>)}</div>
+        </section>
+      </div>}
+
+            {tab==='settings'&&<section className='vp-card p-5'><div className='mb-4'><div className='text-[10px] uppercase tracking-widest text-accent'>SYSTEM SETTINGS</div><h2 className='mt-1 font-display text-2xl'>Rendszerbeállítások</h2><p className='mt-1 text-sm text-ink-400'>Bizalmas kulcsok itt nem jelennek meg és nem szerkeszthetők.</p></div>
         <div className='grid gap-3'>{data.settings.map(s=><div key={s.key} className='rounded-xl border border-line p-4'><div className='flex flex-wrap items-center justify-between gap-3'><div><div className='text-xs font-semibold text-ink-100'>{s.key}</div><div className='text-[10px] text-ink-500'>{s.description}</div></div>{role==='owner'&&<button className='vp-btn-ghost' onClick={()=>void call('save_setting',{key:s.key,value:settingDraft[s.key]??JSON.stringify(s.value),description:s.description})}>Mentés</button>}</div>{role==='owner'&&<input className='vp-input mt-3' value={settingDraft[s.key]??JSON.stringify(s.value)} onChange={e=>setSettingDraft({...settingDraft,[s.key]:e.target.value})}/>}<pre className='mt-3 overflow-auto rounded-lg bg-black/40 p-3 text-[10px] text-ink-500'>{JSON.stringify(s.value,null,2)}</pre></div>)}</div>
       </section>}
     </div>
