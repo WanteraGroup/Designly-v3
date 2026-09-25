@@ -129,6 +129,7 @@ export default function VectorStudio({ language = 'hu' }: Props) {
   const [prompt, setPrompt] = useState<string>(hu ? PRESETS.hu[0][1] : PRESETS.en[0][1]);
   const [style, setStyle] = useState('logo');
   const [file, setFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
   const [traceMode, setTraceMode] = useState<'color'|'mono'>('color');
   const [svg, setSvg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -148,11 +149,21 @@ export default function VectorStudio({ language = 'hu' }: Props) {
   };
 
   const runImage = async () => {
-    if (!file || busy) return;
+    if ((!file && !imageUrl.trim()) || busy) return;
     setBusy(true); setError(''); setSvg('');
-    try { setSvg(await imageToVector(file, traceMode === 'mono')); }
-    catch (e) { setError(e instanceof Error ? e.message : (hu ? 'A kép vektorizálása sikertelen.' : 'Image vectorization failed.')); }
-    finally { setBusy(false); }
+    try {
+      let source = file;
+      if (!source) {
+        const response = await fetch(imageUrl.trim());
+        if (!response.ok) throw new Error('A kép-link nem tölthető be (' + response.status + ').');
+        const blob = await response.blob();
+        if (!blob.type.startsWith('image/')) throw new Error('A megadott link nem közvetlen képfájl.');
+        source = new File([blob], 'remote-reference.' + ((blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')), { type: blob.type });
+      }
+      setSvg(await imageToVector(source, traceMode === 'mono'));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (hu ? 'A kép vektorizálása sikertelen.' : 'Image vectorization failed.'));
+    } finally { setBusy(false); }
   };
 
   const downloadSvg = () => {
@@ -195,13 +206,17 @@ export default function VectorStudio({ language = 'hu' }: Props) {
             <label className='block rounded-xl border border-dashed border-accent/30 bg-black/20 p-6 text-center cursor-pointer'>
               <Upload className='mx-auto h-6 w-6 text-accent'/>
               <div className='mt-2 text-xs text-ink-300'>{file ? file.name : (hu ? 'Tölts fel PNG / JPG / WEBP képet' : 'Upload PNG / JPG / WEBP')}</div>
-              <input type='file' accept='image/png,image/jpeg,image/webp' className='sr-only' onChange={e=>{setFile(e.target.files?.[0] || null);setSvg('');setError('')}}/>
+              <input type='file' accept='image/png,image/jpeg,image/webp' className='sr-only' onChange={e=>{setFile(e.target.files?.[0] || null);setImageUrl('');setSvg('');setError('')}}/>
+            </label>
+            <label className='block'>
+              <span className='mb-1 text-[10px] text-ink-400'>{hu ? 'Vagy közvetlen kép-link' : 'Or direct image URL'}</span>
+              <input className='vp-input' value={imageUrl} onChange={e=>{setImageUrl(e.target.value);setFile(null);setSvg('');setError('')}} placeholder='https://.../image.png'/>
             </label>
             <div className='grid gap-3 sm:grid-cols-2'>
               <label className='text-xs text-ink-400'>{hu ? 'Trace mód' : 'Trace mode'}<select className='vp-input mt-1' value={traceMode} onChange={e=>setTraceMode(e.target.value as 'color'|'mono')}><option value='color'>{hu ? 'Színes vektor' : 'Colour vector'}</option><option value='mono'>{hu ? 'Fekete sziluett / stencil' : 'Black silhouette / stencil'}</option></select></label>
               <div className='rounded-xl border border-line p-3 text-xs text-ink-500'>{hu ? 'A trace lokálisan fut a böngészőben; a forráskép nem kerül AI-hoz.' : 'Tracing runs locally in the browser; the source image is not sent to AI.'}</div>
             </div>
-            <button type='button' onClick={runImage} disabled={busy || !file} className='vp-btn w-full'><FileImage className='h-4 w-4'/>{busy ? (hu ? 'Vektorizálás…' : 'Vectorizing…') : (hu ? 'KÉP VECTORIZÁLÁSA' : 'VECTORIZE IMAGE')}</button>
+            <button type='button' onClick={runImage} disabled={busy || (!file && !imageUrl.trim())} className='vp-btn w-full'><FileImage className='h-4 w-4'/>{busy ? (hu ? 'Vektorizálás…' : 'Vectorizing…') : (hu ? 'KÉP VECTORIZÁLÁSA' : 'VECTORIZE IMAGE')}</button>
           </div>
           <Preview svg={svg} previewUrl={previewUrl} hu={hu} onDownload={downloadSvg}/>
         </div>
