@@ -62,7 +62,15 @@ const TEXT: Record<string,{hu:string;en:string}> = {
   brandLoad:{hu:'Mentett betöltése',en:'Load saved'},
   saved:{hu:'Elmentve',en:'Saved'},
   openLogo:{hu:'Logó megnyitása / mentése',en:'Open / save logo'},
-  productLead:{hu:'Tölts fel egy termékfotót, válassz jelenetet, majd készíts reklám- vagy webshop-kompatibilis képet. A meglévő AI Edit motor használja a referenciát.',en:'Upload a product photo, choose a scene, then create an ad- or webshop-ready image. The existing AI Edit engine uses the reference.'},
+  productLead:{hu:'Tölts fel egy termékfotót vagy dolgozz csak promptból, majd készíts reklám- vagy webshop-kompatibilis képet.',en:'Upload a product photo or work from prompt only, then create an ad- or webshop-ready image.'},
+  sourceImage:{hu:'Referencia-kép',en:'Reference image'},
+  promptOnly:{hu:'Csak promptból',en:'Prompt only'},
+  promptGenerate:{hu:'Promptból generálás',en:'Generate from prompt'},
+  promptOnlyHint:{hu:'Nem kell fotó: írd le a terméket és a jelenetet, a rendszer önálló képet generál.',en:'No photo required: describe the product and scene, and the system generates the image.'},
+  editSource:{hu:'Mód',en:'Mode'},
+  editWithReference:{hu:'Referenciával',en:'With reference'},
+  editFromPrompt:{hu:'Csak promptból',en:'Prompt only'},
+  editPromptOnlyHint:{hu:'Referencia nélkül is készíthetsz teljesen új képet promptból.',en:'You can also create a completely new image from prompt without a reference.'},
   stepProduct:{hu:'1. Termékfotó',en:'1. Product photo'},
   productRef:{hu:'Termék referencia',en:'Product reference'},
   stepScene:{hu:'2. Jelenet / irány',en:'2. Scene / direction'},
@@ -130,6 +138,8 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
  const [editHistory,setEditHistory]=useState<string[]>([]);
  const [editCompare,setEditCompare]=useState(50);
  const [productFile,setProductFile]=useState<File|null>(null);
+ const [productMode,setProductMode]=useState<'reference'|'prompt'>('reference');
+ const [editMode,setEditMode]=useState<'reference'|'prompt'>('reference');
  const [productPrompt,setProductPrompt]=useState(() => hu
    ? 'Hozd létre a termék prémium lifestyle reklámfotóját természetes fényekkel, realisztikus anyagokkal és finom árnyékokkal. A termék formáját, logóját és arányait tartsd változatlanul.'
    : 'Create a premium lifestyle advertising photo of the product with natural lighting, realistic materials and subtle shadows. Keep the product shape, logo and proportions unchanged.');
@@ -171,20 +181,30 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
  }
  async function generateVisual(){if(!brief.trim()||busy)return;setBusy(true);setError('');setImage(null);try{const prompt='Professional '+current.label+' design. Brief: '+brief+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Premium polished graphic composition.';const result=await generateCreativeImage(prompt,RATIO[tool]||'1:1');setImage(result.url);}catch(e){setError(e instanceof Error?e.message:t('errGeneric'));}finally{setBusy(false);}}
  async function runImageEdit(){
-  if(!editFiles.length||!editPrompt.trim()||busy)return;
+  if(!editPrompt.trim()||busy||(editMode==='reference'&&!editFiles.length))return;
   setBusy(true);setError('');setEditImage(null);
   try{
-    const result=await editCreativeImage({files:editFiles,prompt:editPrompt,aspectRatio:editAspectRatio,resolution:editResolution});
+    const result = editMode==='prompt'
+      ? await generateCreativeImage(
+          'Create a polished commercial image from this creative brief: '+editPrompt.trim()+'. Preserve a coherent subject, clean composition and professional visual quality. No placeholder text or watermark.',
+          editAspectRatio
+        )
+      : await editCreativeImage({files:editFiles,prompt:editPrompt,aspectRatio:editAspectRatio,resolution:editResolution});
     setEditImage(result.url);
     setEditHistory((prev)=>[result.url,...prev.filter((url)=>url!==result.url)].slice(0,8));
   }catch(e){setError(e instanceof Error?e.message:t('errEdit'));}
   finally{setBusy(false);}
  }
  async function generateProduct(){
-  if(!productFile||!productPrompt.trim()||busy)return;
+  if(!productPrompt.trim()||busy||(productMode==='reference'&&!productFile))return;
   setBusy(true);setError('');setProductResult(null);
   try{
-    const result=await editCreativeImage({files:[productFile],prompt:productPrompt.trim(),aspectRatio:editAspectRatio,resolution:editResolution});
+    const prompt = productMode==='prompt'
+      ? 'Create a premium product advertising / ecommerce image from this textual brief. '+productPrompt.trim()+'. Clean professional commercial composition, realistic materials, coherent product proportions, no placeholder text, no watermark.'
+      : productPrompt.trim();
+    const result = productMode==='prompt'
+      ? await generateCreativeImage(prompt,editAspectRatio)
+      : await editCreativeImage({files:[productFile!],prompt:productPrompt.trim(),aspectRatio:editAspectRatio,resolution:editResolution});
     setProductResult(result.url);
   }catch(e){setError(e instanceof Error?e.message:t('errProduct'));}
   finally{setBusy(false);}
@@ -211,11 +231,18 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
      {tool==='tattoo' && <TattooStudio language={language} />}
      {tool==='product' && <section className='space-y-4'>
       <div className='rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm text-ink-300'><div className='font-semibold text-ink-100'>AI Product Studio</div><p className='mt-1'>{t('productLead')}</p></div>
+      <div className='mb-3 flex gap-2 rounded-xl border border-line bg-black/20 p-1'>
+       <button type='button' onClick={()=>setProductMode('reference')} className={'flex-1 rounded-lg px-3 py-2 text-xs '+(productMode==='reference'?'bg-accent/15 text-accent':'text-ink-300')}>{t('sourceImage')}</button>
+       <button type='button' onClick={()=>setProductMode('prompt')} className={'flex-1 rounded-lg px-3 py-2 text-xs '+(productMode==='prompt'?'bg-accent/15 text-accent':'text-ink-300')}>{t('promptOnly')}</button>
+      </div>
+      {productMode==='prompt'&&<div className='mb-3 rounded-xl border border-accent/20 bg-accent/5 p-3 text-xs text-ink-400'>{t('promptOnlyHint')}</div>}
       <div className='grid gap-4 md:grid-cols-2'>
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>{t('stepProduct')}</div>
-        <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input' onChange={e=>{setProductFile(e.target.files?.[0]||null);setProductResult(null);setError('');}}/>
-        {productFile&&<LocalImage file={productFile} alt={t('productRef')} className='mt-3 max-h-80 w-full rounded-xl object-contain'/>}
+        {productMode==='reference' ? <>
+          <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input' onChange={e=>{setProductFile(e.target.files?.[0]||null);setProductResult(null);setError('');}}/>
+          {productFile&&<LocalImage file={productFile} alt={t('productRef')} className='mt-3 max-h-80 w-full rounded-xl object-contain'/>}
+        </> : <div className='rounded-xl border border-dashed border-accent/30 bg-black/20 p-6 text-center text-xs text-ink-500'>{t('promptOnlyHint')}</div>}
        </div>
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>{t('stepScene')}</div>
@@ -229,7 +256,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
       <div className='grid gap-3 sm:grid-cols-3'>
        <label className='text-xs text-ink-400'>{t('resolution')}<select className='vp-input mt-1' value={editResolution} onChange={e=>setEditResolution(e.target.value as '1k'|'2k'|'4k')}>{resolutions.map(v=><option key={v} value={v}>{v.toUpperCase()+' · '+t('freeTest')}</option>)}</select></label>
        <label className='text-xs text-ink-400'>{t('aspectRatio')}<select className='vp-input mt-1' value={editAspectRatio} onChange={e=>setEditAspectRatio(e.target.value)}>{['1:1','16:9','9:16','3:2','4:5','4:3','3:4','2:3'].map(v=><option key={v}>{v}</option>)}</select></label>
-       <div className='flex items-end'><button type='button' disabled={busy||!productFile||!productPrompt.trim()} onClick={generateProduct} className='vp-btn w-full'><Sparkles className='h-4 w-4'/>{busy?t('productBusy'):t('productMake')}</button></div>
+       <div className='flex items-end'><button type='button' disabled={busy||!productPrompt.trim()||(productMode==='reference'&&!productFile)} onClick={generateProduct} className='vp-btn w-full'><Sparkles className='h-4 w-4'/>{busy?t('productBusy'):t('productMake')}</button></div>
       </div>
       {productResult&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={productResult} alt={t('productMake')} className='max-h-[720px] w-full object-contain'/><div className='flex justify-end p-3'><a href={productResult} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openResult')}</a></div></div>}
      </section>}
@@ -238,11 +265,18 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
        <div className='font-semibold text-ink-100'>AI Image Editor 2.0</div>
        <p className='mt-1'>{t('editLead')}</p>
       </div>
+      <div className='mb-3 flex gap-2 rounded-xl border border-line bg-black/20 p-1'>
+       <button type='button' onClick={()=>{setEditMode('reference');setEditImage(null);setError('');}} className={'flex-1 rounded-lg px-3 py-2 text-xs '+(editMode==='reference'?'bg-accent/15 text-accent':'text-ink-300')}>{t('editWithReference')}</button>
+       <button type='button' onClick={()=>{setEditMode('prompt');setEditImage(null);setError('');}} className={'flex-1 rounded-lg px-3 py-2 text-xs '+(editMode==='prompt'?'bg-accent/15 text-accent':'text-ink-300')}>{t('editFromPrompt')}</button>
+      </div>
+      {editMode==='prompt'&&<div className='mb-3 rounded-xl border border-accent/20 bg-accent/5 p-3 text-xs text-ink-400'>{t('editPromptOnlyHint')}</div>}
       <div className='grid gap-3 md:grid-cols-2'>
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>{t('stepRefs')}</div>
-        <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setEditHistory([]);setError('');}}/>
-        {editFiles.length>0&&<div className='mt-3 grid grid-cols-3 gap-2'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-lg border border-line bg-black'><LocalImage file={file} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-1.5 text-[9px] text-ink-500'>{i+1}. {file.name}</figcaption></figure>)}</div>}
+        {editMode==='reference' ? <>
+          <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setEditHistory([]);setError('');}}/>
+          {editFiles.length>0&&<div className='mt-3 grid grid-cols-3 gap-2'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-lg border border-line bg-black'><LocalImage file={file} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-1.5 text-[9px] text-ink-500'>{i+1}. {file.name}</figcaption></figure>)}</div>}
+        </> : <div className='rounded-xl border border-dashed border-accent/30 bg-black/20 p-6 text-center text-xs text-ink-500'>{t('editPromptOnlyHint')}</div>}
        </div>
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>{t('stepChange')}</div>
@@ -258,11 +292,12 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
        <label className='text-xs text-ink-400'>{t('aspectRatio')}<select className='vp-input mt-1' value={editAspectRatio} onChange={e=>setEditAspectRatio(e.target.value)}>{['1:1','16:9','9:16','3:2','4:5','4:3','3:4','2:3'].map(v=><option key={v}>{v}</option>)}</select></label>
        <div className='flex items-end'><button type='button' disabled={busy||!editFiles.length||!editPrompt.trim()} onClick={runImageEdit} className='vp-btn w-full'><Wand2 className='h-4 w-4'/>{busy?t('editBusy'):t('editRun')}</button></div>
       </div>
-      {editImage&&editFiles[0]&&<div className='rounded-2xl border border-line bg-black p-3'>
+      {editImage&&<div className='rounded-2xl border border-line bg-black p-3'>
        <div className='mb-2 flex items-center justify-between text-xs text-ink-400'><span>{t('beforeAfter')}</span><span>{editCompare}%</span></div>
        <div className='relative overflow-hidden rounded-xl'>
-        <LocalImage file={editFiles[0]} alt={hu?'Eredeti referencia':'Original reference'} className='block max-h-[720px] w-full object-contain'/>
-        <div className='absolute inset-y-0 left-0 overflow-hidden' style={{width:editCompare+'%'}}><img src={editImage} alt={t('openResult')} className='block h-full w-[100vw] max-w-none object-contain object-left'/></div>
+        {editMode==='reference'&&editFiles[0] ? <div className='relative overflow-hidden'><LocalImage file={editFiles[0]} alt={hu?'Eredeti referencia':'Original reference'} className='block max-h-[720px] w-full object-contain'/>
+          <div className='absolute inset-y-0 left-0 overflow-hidden' style={{width:editCompare+'%'}}><img src={editImage} alt={t('openResult')} className='block h-full w-[100vw] max-w-none object-contain object-left'/></div>
+        </div> : <img src={editImage} alt={t('openResult')} className='block max-h-[720px] w-full object-contain'/>
        </div>
        <input aria-label={t('compareLabel')} type='range' min='0' max='100' value={editCompare} onChange={e=>setEditCompare(Number(e.target.value))} className='mt-3 w-full'/>
        <div className='mt-3 flex flex-wrap justify-end gap-2'><a href={editImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openResult')}</a></div>
