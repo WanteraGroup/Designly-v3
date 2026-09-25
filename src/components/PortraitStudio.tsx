@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Image as ImageIcon, Sparkles, Upload, Wand2 } from 'lucide-react';
+import { Download, Image as ImageIcon, Link2, Sparkles, Upload, Wand2 } from 'lucide-react';
 import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 
 type Props = { language?: string };
@@ -56,6 +56,7 @@ export default function PortraitStudio({ language = 'hu' }: Props) {
   const presets = hu ? PRESETS.hu : PRESETS.en;
   const [mode, setMode] = useState<'prompt' | 'reference'>('prompt');
   const [file, setFile] = useState<File | null>(null);
+  const [sourceUrl, setSourceUrl] = useState('');
   const [prompt, setPrompt] = useState<string>(presets[0].prompt);
   const [ratio, setRatio] = useState('1:1');
   const [resolution, setResolution] = useState<'1k' | '2k' | '4k'>('2k');
@@ -64,7 +65,7 @@ export default function PortraitStudio({ language = 'hu' }: Props) {
   const [error, setError] = useState('');
 
   const run = async () => {
-    if (busy || !prompt.trim() || (mode === 'reference' && !file)) return;
+    if (busy || !prompt.trim() || (mode === 'reference' && !file && !sourceUrl.trim())) return;
     setBusy(true);
     setError('');
     setResult(null);
@@ -113,13 +114,19 @@ export default function PortraitStudio({ language = 'hu' }: Props) {
           </div>
 
           {mode === 'reference' && (
-            <label className='block rounded-xl border border-dashed border-accent/30 bg-black/20 p-4 text-center'>
-              <Upload className='mx-auto h-5 w-5 text-accent' />
-              <span className='mt-2 block text-xs text-ink-300'>
-                {file ? file.name : (hu ? 'Tölts fel egy referenciafotót' : 'Upload a reference photo')}
-              </span>
-              <input type='file' accept='image/png,image/jpeg,image/webp' className='sr-only' onChange={e => setFile(e.target.files?.[0] || null)} />
-            </label>
+            <div className='space-y-3'>
+              <label className='block rounded-xl border border-dashed border-accent/30 bg-black/20 p-4 text-center'>
+                <Upload className='mx-auto h-5 w-5 text-accent' />
+                <span className='mt-2 block text-xs text-ink-300'>
+                  {file ? file.name : (hu ? 'Tölts fel egy referenciafotót' : 'Upload a reference photo')}
+                </span>
+                <input type='file' accept='image/png,image/jpeg,image/webp' className='sr-only' onChange={e => setFile(e.target.files?.[0] || null)} />
+              </label>
+              <label className='block'>
+                <span className='mb-1 flex items-center gap-1 text-[10px] text-ink-400'><Link2 className='h-3.5 w-3.5'/>{hu ? 'Vagy kép-link' : 'Or image URL'}</span>
+                <input className='vp-input' value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder='https://.../portrait.jpg' />
+              </label>
+            </div>
           )}
 
           <div className='grid gap-2 sm:grid-cols-2'>
@@ -165,7 +172,7 @@ export default function PortraitStudio({ language = 'hu' }: Props) {
             </label>
           </div>
 
-          <button type='button' onClick={run} disabled={busy || !prompt.trim() || (mode === 'reference' && !file)} className='vp-btn w-full'>
+          <button type='button' onClick={run} disabled={busy || !prompt.trim() || (mode === 'reference' && !file && !sourceUrl.trim())} className='vp-btn w-full'>
             <Wand2 className='h-4 w-4' />
             {busy ? (hu ? 'Generálás…' : 'Generating…') : (hu ? 'PORTRÉ GENERÁLÁSA' : 'GENERATE PORTRAIT')}
           </button>
