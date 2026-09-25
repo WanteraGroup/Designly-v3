@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, Check, ChevronRight, CreditCard, Gift, History, Loader2, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Users, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, ChevronRight, CreditCard, Gift, History, Loader2, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Users, X, Coins, Bot, ReceiptText } from 'lucide-react';
 import { supabase, SUPABASE_URL, PUBLISHABLE_KEY } from '../lib/supabase-client';
 
 type Role='owner'|'admin';
@@ -17,7 +17,9 @@ const TABS=[
   ['users','Felhasználók',Users],
   ['plans','Csomagok',CreditCard],
   ['gifts','Ajándékok',Gift],
+  ['credits','Kreditek',Coins],
   ['activity','Napló / AI',History],
+  ['payments','Fizetések',ReceiptText],
   ['settings','Beállítások',Settings],
 ] as const;
 
@@ -39,6 +41,9 @@ export default function AdminPanel(){
   const [giftEmail,setGiftEmail]=useState('');
   const [giftType,setGiftType]=useState<'full_unlock'|'plan'>('full_unlock');
   const [giftPlan,setGiftPlan]=useState('pro');
+  const [creditEmail,setCreditEmail]=useState('');
+  const [creditAmount,setCreditAmount]=useState('100');
+  const [creditAction,setCreditAction]=useState<'grant_credits'|'deduct_credits'>('grant_credits');
   const [userPlan,setUserPlan]=useState<Record<string,string>>({});
   const [userCredits,setUserCredits]=useState<Record<string,string>>({});
   const [userUnlimited,setUserUnlimited]=useState<Record<string,boolean>>({});
@@ -91,6 +96,8 @@ export default function AdminPanel(){
       admins:p.filter(u=>u.role==='admin'||u.role==='owner').length,
       jobs:(data?.jobs??[]).length,
       payments:(data?.payments??[]).length,
+      revenue:(data?.payments??[]).filter(p=>p.status==='succeeded').reduce((a,p)=>a+p.amount,0),
+      failedPayments:(data?.payments??[]).filter(p=>p.status!=='succeeded').length,
     };
   },[data]);
 
@@ -98,6 +105,14 @@ export default function AdminPanel(){
     e.preventDefault();
     if(!giftEmail.trim())return;
     await call('gift',{email:giftEmail.trim(),giftType,planId:giftType==='plan'?giftPlan:undefined});
+  }
+
+  async function submitCredit(e:FormEvent){
+    e.preventDefault();
+    const amount=Math.floor(Number(creditAmount));
+    if(!creditEmail.trim()||!Number.isFinite(amount)||amount<=0)return;
+    await call(creditAction,{email:creditEmail.trim(),amount});
+    setCreditEmail('');
   }
 
   if(error && !role) return <div className='grid min-h-screen place-items-center bg-canvas px-6'><div className='max-w-md rounded-3xl border border-red-500/30 bg-red-500/10 p-6 text-red-200'><h1 className='font-display text-2xl text-ink-100'>Admin hozzáférés</h1><p className='mt-3 text-sm'>{error}</p><a className='vp-btn-ghost mt-5 inline-flex' href='/app'><ArrowLeft className='h-4 w-4'/> Vissza</a></div></div>;
@@ -111,7 +126,7 @@ export default function AdminPanel(){
       </header>
 
       <div className='mb-5 grid gap-2 sm:grid-cols-3 lg:grid-cols-6'>
-        {[['Felhasználók',stats.users],['Aktív csomagok',stats.active],['Összes kredit',stats.credits],['Adminok',stats.admins],['AI jobok',stats.jobs],['Fizetések',stats.payments]].map(([label,value])=><div key={String(label)} className='rounded-2xl border border-line bg-panel/70 p-4'><div className='text-[10px] uppercase tracking-wider text-ink-500'>{label}</div><div className='mt-1 text-2xl font-semibold text-ink-100'>{value}</div></div>)}
+        {[['Felhasználók',stats.users],['Aktív csomagok',stats.active],['Összes kredit',stats.credits],['Adminok',stats.admins],['AI jobok',stats.jobs],['Fizetések',stats.payments],['Sikeres bevétel',stats.revenue.toLocaleString('hu-HU')+' Ft'],['Hibás fizetések',stats.failedPayments]].map(([label,value])=><div key={String(label)} className='rounded-2xl border border-line bg-panel/70 p-4'><div className='text-[10px] uppercase tracking-wider text-ink-500'>{label}</div><div className='mt-1 text-2xl font-semibold text-ink-100'>{value}</div></div>)}
       </div>
 
       <nav className='mb-5 grid gap-2 sm:grid-cols-3 lg:grid-cols-6'>
@@ -129,7 +144,7 @@ export default function AdminPanel(){
       </div>}
 
       {tab==='users'&&<section className='vp-card p-5'><div className='mb-4 flex flex-wrap items-center justify-between gap-3'><div><div className='text-[10px] uppercase tracking-widest text-accent'>USER MANAGEMENT</div><h2 className='mt-1 font-display text-2xl'>Felhasználók</h2></div><div className='relative w-full max-w-md'><Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-600'/><input className='vp-input pl-9' value={search} onChange={e=>setSearch(e.target.value)} placeholder='Email, név vagy csomag…'/></div></div>
-        <div className='overflow-x-auto'><table className='w-full min-w-[980px] text-left text-xs'><thead><tr className='border-b border-line text-ink-500'><th className='p-2'>Felhasználó</th><th className='p-2'>Szerep</th><th className='p-2'>Csomag</th><th className='p-2'>Kredit</th><th className='p-2'>Unlimited</th><th className='p-2'>Műveletek</th></tr></thead><tbody>{users.map(u=><tr key={u.id} className='border-b border-line/60 align-top'><td className='p-2'><div className='font-medium text-ink-100'>{u.full_name||'—'}</div><div className='text-ink-500'>{u.email}</div></td><td className='p-2'><span className='rounded-full border border-line px-2 py-1'>{u.role}</span></td><td className='p-2'><select className='vp-input !w-40' value={userPlan[u.id] || u.plan_id} onChange={e=>setUserPlan({...userPlan,[u.id]:e.target.value)}>{data.plans.map(p=><option key={p.id} value={p.id}>{p.id}</option>)}</select></td><td className='p-2'><input className='vp-input !w-28' type='number' min='0' max='10000000' value={userCredits[u.id] || String(u.credits)} onChange={e=>setUserCredits({...userCredits,[u.id]:e.target.value})}/></td><td className='p-2'><input type='checkbox' checked={userUnlimited[u.id] !== undefined ? userUnlimited[u.id] : u.unlimited_access} onChange={e=>setUserUnlimited({...userUnlimited,[u.id]:e.target.checked})}/></td><td className='p-2'><div className='flex flex-wrap gap-2'><button className='vp-btn-ghost' onClick={()=>void call('set_plan',{userId:u.id,planId:userPlan[u.id] || u.plan_id})}>Csomag</button><button className='vp-btn-ghost' onClick={()=>void call('set_credits',{userId:u.id,credits:Number(userCredits[u.id] || u.credits)})}>Kredit</button><button className='vp-btn-ghost' onClick={()=>void call('set_unlimited',{userId:u.id,enabled:userUnlimited[u.id] !== undefined ? userUnlimited[u.id] : u.unlimited_access})}>Unlimited</button>{role==='owner'&&<button className='vp-btn-ghost' onClick={()=>void call('set_role',{userId:u.id,role:u.role==='admin'?'user':'admin'})}>{u.role==='admin'?'User':'Admin'}</button>}</div></td></tr>)}</tbody></table></div>
+        <div className='overflow-x-auto'><table className='w-full min-w-[980px] text-left text-xs'><thead><tr className='border-b border-line text-ink-500'><th className='p-2'>Felhasználó</th><th className='p-2'>Szerep</th><th className='p-2'>Csomag</th><th className='p-2'>Kredit</th><th className='p-2'>Unlimited</th><th className='p-2'>Műveletek</th></tr></thead><tbody>{users.map(u=><tr key={u.id} className='border-b border-line/60 align-top'><td className='p-2'><div className='font-medium text-ink-100'>{u.full_name||'—'}</div><div className='text-ink-500'>{u.email}</div></td><td className='p-2'><span className='rounded-full border border-line px-2 py-1'>{u.role}</span></td><td className='p-2'><select className='vp-input !w-40' value={userPlan[u.id] || u.plan_id} onChange={e=>setUserPlan({...userPlan,[u.id]:e.target.value)}>{data.plans.map(p=><option key={p.id} value={p.id}>{p.id}</option>)}</select></td><td className='p-2'><input className='vp-input !w-28' type='number' min='0' max='10000000' value={userCredits[u.id] || String(u.credits)} onChange={e=>setUserCredits({...userCredits,[u.id]:e.target.value})}/></td><td className='p-2'><input type='checkbox' checked={userUnlimited[u.id] !== undefined ? userUnlimited[u.id] : u.unlimited_access} onChange={e=>setUserUnlimited({...userUnlimited,[u.id]:e.target.checked})}/></td><td className='p-2'><div className='flex flex-wrap gap-2'><button className='vp-btn-ghost' onClick={()=>void call('set_plan',{userId:u.id,planId:userPlan[u.id] || u.plan_id})}>Csomag</button><button className='vp-btn-ghost' onClick={()=>void call('set_credits',{userId:u.id,credits:Number(userCredits[u.id] || u.credits)})}>Kredit</button><button className='vp-btn-ghost' onClick={()=>void call('grant_credits',{userId:u.id,amount:100})}>+100</button><button className='vp-btn-ghost' onClick={()=>void call('set_unlimited',{userId:u.id,enabled:userUnlimited[u.id] !== undefined ? userUnlimited[u.id] : u.unlimited_access})}>Unlimited</button>{role==='owner'&&<button className='vp-btn-ghost' onClick={()=>void call('set_role',{userId:u.id,role:u.role==='admin'?'user':'admin'})}>{u.role==='admin'?'User':'Admin'}</button>}</div></td></tr>)}</tbody></table></div>
       </section>}
 
       {tab==='plans'&&<section className='vp-card p-5'><div className='mb-4'><div className='text-[10px] uppercase tracking-widest text-accent'>BILLING CONFIGURATION</div><h2 className='mt-1 font-display text-2xl'>Csomagok és limitek</h2><p className='mt-1 text-sm text-ink-400'>Az árak és kreditkeretek központilag módosíthatók. Csak owner módosíthat.</p></div>
@@ -143,10 +158,44 @@ export default function AdminPanel(){
         <section className='vp-card p-5'><div className='mb-3 flex items-center gap-3'><History className='h-5 w-5 text-accent'/><div><h2 className='font-display text-2xl'>Ajándékozási előzmények</h2><p className='text-xs text-ink-400'>Legutóbbi admin hozzáférés-módosítások.</p></div></div><div className='space-y-2'>{data.gifts.map(g=><div key={g.id} className='rounded-xl border border-line p-3'><div className='flex items-center justify-between gap-3'><span className='text-xs font-semibold'>{g.email}</span><span className='text-[10px] text-accent'>{g.status}</span></div><div className='mt-1 text-[10px] text-ink-500'>{g.gift_type} · {g.plan_id??'FULL UNLOCK'} · {new Date(g.created_at).toLocaleString('hu-HU')}</div></div>)}</div></section>
       </div>}
 
+      {tab==='credits'&&<div className='grid gap-5 lg:grid-cols-[.8fr_1.2fr]'>
+        <section className='vp-card p-5'>
+          <div className='mb-4 flex items-center gap-3'><Coins className='h-5 w-5 text-accent'/><div><div className='text-[10px] uppercase tracking-widest text-accent'>CREDIT CONTROL</div><h2 className='font-display text-2xl'>Kreditműveletek</h2><p className='text-xs text-ink-400'>Kredit jóváírás / levonás felhasználónként, auditálva.</p></div></div>
+          <form onSubmit={submitCredit} className='space-y-3'>
+            <input className='vp-input' type='email' required value={creditEmail} onChange={e=>setCreditEmail(e.target.value)} placeholder='Felhasználó e-mail címe'/>
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <select className='vp-input' value={creditAction} onChange={e=>setCreditAction(e.target.value as typeof creditAction)}><option value='grant_credits'>Kredit hozzáadása</option><option value='deduct_credits'>Kredit levonása</option></select>
+              <input className='vp-input' type='number' min='1' max='10000000' value={creditAmount} onChange={e=>setCreditAmount(e.target.value)} placeholder='Kredit'/>
+            </div>
+            <button className='vp-btn w-full' disabled={busy}><Coins className='h-4 w-4'/>{busy?'Feldolgozás…':'Művelet végrehajtása'}</button>
+          </form>
+        </section>
+        <section className='vp-card p-5'>
+          <div className='mb-4 flex items-center gap-3'><Users className='h-5 w-5 text-accent'/><div><div className='text-[10px] uppercase tracking-widest text-accent'>QUICK USERS</div><h2 className='font-display text-2xl'>Gyors áttekintés</h2></div></div>
+          <div className='space-y-2'>{users.slice(0,12).map(u=><div key={u.id} className='flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3'><div><div className='text-xs font-medium text-ink-100'>{u.full_name||'—'}</div><div className='text-[10px] text-ink-500'>{u.email} · {u.plan_id} · {u.credits} kredit</div></div><div className='flex gap-2'><button className='vp-btn-ghost' onClick={()=>void call('grant_credits',{userId:u.id,amount:100})}>+100 kredit</button><button className='vp-btn-ghost' onClick={()=>void call('set_unlimited',{userId:u.id,enabled:true})}>Unlimited</button></div></div>)}</div>
+        </section>
+      </div>}
+
       {tab==='activity'&&<div className='grid gap-5 lg:grid-cols-2'>
         <section className='vp-card p-5'><div className='mb-3 flex items-center gap-3'><Sparkles className='h-5 w-5 text-accent'/><h2 className='font-display text-2xl'>AI jobok</h2></div>{data.jobs.map(j=><div key={j.id} className='border-b border-line py-3 last:border-0'><div className='flex items-center justify-between'><span className='text-xs font-medium'>{j.type}</span><span className='text-[10px] text-accent'>{j.status}</span></div><div className='text-[10px] text-ink-500'>{j.provider} · {j.credits_cost} kredit · {new Date(j.created_at).toLocaleString('hu-HU')}</div></div>)}</section>
         <section className='vp-card p-5'><div className='mb-3 flex items-center gap-3'><History className='h-5 w-5 text-accent'/><h2 className='font-display text-2xl'>Admin audit</h2></div>{data.audit.map(a=><div key={a.id} className='border-b border-line py-3 last:border-0'><div className='text-xs font-medium'>{a.action}</div><div className='mt-1 text-[10px] text-ink-500'>{a.target_email??'—'} · {new Date(a.created_at).toLocaleString('hu-HU')}</div></div>)}</section>
         <section className='vp-card p-5 lg:col-span-2'><div className='mb-3 flex items-center gap-3'><CreditCard className='h-5 w-5 text-accent'/><h2 className='font-display text-2xl'>Fizetési események</h2></div>{data.payments.map(p=><div key={p.id} className='border-b border-line py-3 last:border-0'><div className='flex items-center justify-between'><span className='text-xs'>{p.type} · {p.provider}</span><span className='text-xs text-accent'>{p.amount.toLocaleString('hu-HU')} {p.currency}</span></div><div className='text-[10px] text-ink-500'>{p.status} · {new Date(p.created_at).toLocaleString('hu-HU')}</div></div>)}</section>
+      </div>}
+
+      {tab==='payments'&&<div className='grid gap-5 lg:grid-cols-[.7fr_1.3fr]'>
+        <section className='vp-card p-5'>
+          <div className='text-[10px] uppercase tracking-widest text-accent'>PAYMENT SUMMARY</div>
+          <h2 className='mt-1 font-display text-2xl'>Fizetések</h2>
+          <div className='mt-5 grid gap-3'>
+            <div className='rounded-xl border border-line p-4'><div className='text-[10px] text-ink-500'>Sikeres események</div><div className='mt-1 text-2xl'>{data.payments.filter(p=>p.status==='succeeded').length}</div></div>
+            <div className='rounded-xl border border-line p-4'><div className='text-[10px] text-ink-500'>Összes sikeres összeg</div><div className='mt-1 text-2xl'>{stats.revenue.toLocaleString('hu-HU')} Ft</div></div>
+            <div className='rounded-xl border border-line p-4'><div className='text-[10px] text-ink-500'>Sikertelen / egyéb</div><div className='mt-1 text-2xl'>{stats.failedPayments}</div></div>
+          </div>
+        </section>
+        <section className='vp-card p-5'>
+          <div className='mb-3 flex items-center gap-3'><ReceiptText className='h-5 w-5 text-accent'/><h2 className='font-display text-2xl'>Fizetési események</h2></div>
+          <div className='space-y-2'>{data.payments.map(p=><div key={p.id} className='flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3'><div><div className='text-xs font-medium'>{p.type} · {p.provider}</div><div className='text-[10px] text-ink-500'>{p.status} · {new Date(p.created_at).toLocaleString('hu-HU')}</div></div><div className='text-right'><div className='text-xs text-accent'>{p.amount.toLocaleString('hu-HU')} {p.currency}</div>{p.provider_payment_id&&<div className='max-w-[220px] truncate text-[9px] text-ink-600'>{p.provider_payment_id}</div>}</div></div>)}</div>
+        </section>
       </div>}
 
       {tab==='settings'&&<section className='vp-card p-5'><div className='mb-4'><div className='text-[10px] uppercase tracking-widest text-accent'>SYSTEM SETTINGS</div><h2 className='mt-1 font-display text-2xl'>Rendszerbeállítások</h2><p className='mt-1 text-sm text-ink-400'>Bizalmas kulcsok itt nem jelennek meg és nem szerkeszthetők.</p></div>
