@@ -234,7 +234,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
           'Create a polished commercial image from this creative brief: '+editPrompt.trim()+'. Preserve a coherent subject, clean composition and professional visual quality. No placeholder text or watermark.',
           editAspectRatio
         )
-      : await editCreativeImage({files:editFiles,prompt:editPrompt,aspectRatio:editAspectRatio,resolution:editResolution});
+      : await editCreativeImage({files:editFiles,imageUrls:editUrl?[editUrl]:[],prompt:editPrompt,aspectRatio:editAspectRatio,resolution:editResolution});
     setEditImage(result.url);
     setEditHistory((prev)=>[result.url,...prev.filter((url)=>url!==result.url)].slice(0,8));
   }catch(e){setError(e instanceof Error?e.message:t('errEdit'));}
@@ -287,7 +287,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>{t('stepProduct')}</div>
         {productMode==='reference' ? <>
-          <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input' onChange={e=>{setProductFile(e.target.files?.[0]||null);setProductResult(null);setError('');}}/>
+          <input type='file' accept='image/png,image/jpeg,image/webp' className='vp-input' onChange={e=>{setProductFile(e.target.files?.[0]||null);setProductResult(null);setError('');}}/><label className='mt-3 block'><span className='mb-1 flex items-center gap-1 text-[10px] text-ink-400'><Link2 className='h-3.5 w-3.5'/>{hu?'Kép URL / közvetlen kép-link':'Image URL / direct image link'}</span><input className='vp-input' value={productUrl} onChange={e=>setProductUrl(e.target.value)} placeholder='https://.../product.jpg'/></label>
           {productFile&&<LocalImage file={productFile} alt={t('productRef')} className='mt-3 max-h-80 w-full rounded-xl object-contain'/>}
         </> : <div className='rounded-xl border border-dashed border-accent/30 bg-black/20 p-6 text-center text-xs text-ink-500'>{t('promptOnlyHint')}</div>}
        </div>
@@ -321,7 +321,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
        <div className='rounded-2xl border border-line bg-canvas/50 p-4'>
         <div className='mb-2 text-xs font-semibold text-ink-200'>{t('stepRefs')}</div>
         {editMode==='reference' ? <>
-          <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setEditHistory([]);setError('');}}/>
+          <input type='file' accept='image/png,image/jpeg,image/webp' multiple className='vp-input' onChange={e=>{const files=Array.from(e.target.files||[]).slice(0,14);setEditFiles(files);setEditImage(null);setEditHistory([]);setError('');}}/><label className='mt-3 block'><span className='mb-1 flex items-center gap-1 text-[10px] text-ink-400'><Link2 className='h-3.5 w-3.5'/>{hu?'Kép URL / közvetlen kép-link':'Image URL / direct image link'}</span><input className='vp-input' value={editUrl} onChange={e=>setEditUrl(e.target.value)} placeholder='https://.../image.jpg'/></label>
           {editFiles.length>0&&<div className='mt-3 grid grid-cols-3 gap-2'>{editFiles.map((file,i)=><figure key={file.name+i} className='overflow-hidden rounded-lg border border-line bg-black'><LocalImage file={file} alt={file.name} className='aspect-square w-full object-cover'/><figcaption className='truncate p-1.5 text-[9px] text-ink-500'>{i+1}. {file.name}</figcaption></figure>)}</div>}
         </> : <div className='rounded-xl border border-dashed border-accent/30 bg-black/20 p-6 text-center text-xs text-ink-500'>{t('editPromptOnlyHint')}</div>}
        </div>
