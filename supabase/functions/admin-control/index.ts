@@ -1,5 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeadersFor } from "../_shared/cors.ts";
+function corsHeadersFor(req:Request):Record<string,string>{
+  const origin=req.headers.get("origin")??"";
+  const allowed=["https://designly-v3.vercel.app","https://designly-v3-designlystudio36-1723.vercel.app","http://localhost:5173","http://localhost:4173",...(Deno.env.get("DESIGNLY_ALLOWED_ORIGINS")??"").split(",").map(s=>s.trim()).filter(Boolean)];
+  const h:Record<string,string>={"Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Vary":"Origin"};
+  if(origin&&allowed.includes(origin))h["Access-Control-Allow-Origin"]=origin;
+  return h;
+}
 
 const json=(req:Request,body:unknown,status=200)=>new Response(JSON.stringify(body),{
   status,
