@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 function corsHeadersFor(req:Request):Record<string,string>{
   const origin=req.headers.get("origin")??"";
   const allowed=["https://designly-v3.vercel.app","https://designly-v3-designlystudio36-1723.vercel.app","http://localhost:5173","http://localhost:4173",...(Deno.env.get("DESIGNLY_ALLOWED_ORIGINS")??"").split(",").map(s=>s.trim()).filter(Boolean)];
