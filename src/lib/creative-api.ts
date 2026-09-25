@@ -72,7 +72,8 @@ export async function generateCreativeImage(
 
 
 export type CreativeEditOptions = {
-  files: File[];
+  files?: File[];
+  imageUrls?: string[];
   prompt: string;
   aspectRatio?: string;
   resolution?: '1k' | '2k' | '4k';
@@ -93,14 +94,16 @@ async function uploadEditSource(file: File, userId: string): Promise<string> {
 }
 
 export async function editCreativeImage(options: CreativeEditOptions): Promise<CreativeImageResult> {
-  if (!options.files.length) throw new Error('Legalabb egy kepet valassz.');
-  if (options.files.length > 14) throw new Error('Legfeljebb 14 referencia-kep adhato meg.');
+  const images = [...(options.imageUrls ?? [])].map(v => v.trim()).filter(Boolean).slice(0, 14);
+  const files = (options.files ?? []).slice(0, Math.max(0, 14 - images.length));
+  if (!images.length && !files.length) throw new Error('Legalabb egy kepet vagy kep-linket adj meg.');
   if (!options.prompt.trim()) throw new Error('Add meg, mit szeretnel modositani.');
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new AuthRequiredError();
-  const images = [];
-  for (const file of options.files) images.push(await uploadEditSource(file, userId));
+  if (files.length) {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) throw new AuthRequiredError();
+    for (const file of files) images.push(await uploadEditSource(file, userId));
+  }
   const res = await fetch(FUNCTIONS_URL + '/designly-image', {
     method: 'POST',
     headers: await authHeaders(true),
