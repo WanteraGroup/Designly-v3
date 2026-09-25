@@ -226,7 +226,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
  }
  async function generateVisual(){if(!brief.trim()||busy)return;setBusy(true);setError('');setImage(null);try{const prompt='Professional '+current.label+' design. Brief: '+brief+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Premium polished graphic composition.';const result=await generateCreativeImage(prompt,RATIO[tool]||'1:1',{files:referenceFiles,imageUrls:referenceUrl?[referenceUrl]:[]});setImage(result.url);}catch(e){setError(e instanceof Error?e.message:t('errGeneric'));}finally{setBusy(false);}}
  async function runImageEdit(){
-  if(!editPrompt.trim()||busy||(editMode==='reference'&&!editFiles.length))return;
+  if(!editPrompt.trim()||busy||(editMode==='reference'&&!editFiles.length&&!editUrl.trim()))return;
   setBusy(true);setError('');setEditImage(null);
   try{
     const result = editMode==='prompt'
