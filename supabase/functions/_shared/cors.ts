@@ -34,7 +34,8 @@ export function corsHeadersFor(req: Request): Record<string, string> {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
   };
-  if (origin && allowed.includes(origin)) {
+  const isDesignlyVercelDeployment = /^https:\/\/designly-v3(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(origin);
+  if (origin && (allowed.includes(origin) || isDesignlyVercelDeployment)) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
   return headers;
