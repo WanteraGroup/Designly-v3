@@ -27,3 +27,7 @@ entrypoint = "./functions/vey-images/index.ts"
 [functions.designly-form-submit]
 verify_jwt = false
 entrypoint = "./functions/designly-form-submit/index.ts"
+
+[functions.admin-control]
+verify_jwt = true
+entrypoint = "./functions/admin-control/index.ts"
