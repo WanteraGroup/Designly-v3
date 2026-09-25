@@ -434,7 +434,7 @@ Deno.serve(async (req) => {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 4000) : "";
   const aspectRatio = typeof body.aspectRatio === "string" ? body.aspectRatio.trim() : "1:1";
   const referenceImages = Array.isArray(body.images)
-    ? body.images.filter((value): value is string => typeof value === "string" && /^https?:\\/\\//i.test(value.trim())).map(value => value.trim()).slice(0, 14)
+    ? body.images.filter((value): value is string => typeof value === "string" && /^https?:\/\//i.test(value.trim())).map(value => value.trim()).slice(0, 14)
     : [];
   const wantsEdit = referenceImages.length > 0;
   const resolution: NanoBananaEditResolution = body.resolution === "2k" || body.resolution === "4k" ? body.resolution : "1k";
