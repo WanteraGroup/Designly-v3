@@ -54,6 +54,7 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
   const [mode, setMode] = useState<'upload' | 'ai'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [sourceUrl, setSourceUrl] = useState('');
+  const [referenceUrl, setReferenceUrl] = useState('');
   const [concept, setConcept] = useState('');
   const [engine, setEngine] = useState<StencilStyle>((initialStyle as StencilStyle) ?? 'outline');
   const [weight, setWeight] = useState<StencilWeight>('standard');
@@ -147,7 +148,7 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
     setError('');
     setNotice('');
     try {
-      const image = await generateCreativeImage(concept.trim(), '1:1');
+      const image = await generateCreativeImage(concept.trim(), '1:1', { files: file ? [file] : [], imageUrls: referenceUrl.trim() ? [referenceUrl.trim()] : [] });
       setSourceUrl(image.url);
       setFile(null);
       await runStencil(image.url);
@@ -305,6 +306,18 @@ export default function TattooStudio({ language = 'hu', initialStyle }: TattooSt
                   className="vp-input mt-1 resize-none"
                 />
               </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block rounded-xl border border-dashed border-accent/30 bg-black/20 p-3 text-center cursor-pointer">
+                  <Upload className="mx-auto h-5 w-5 text-accent" />
+                  <span className="mt-1 block text-[10px] text-ink-300">{hu ? 'Opcionális referencia-kép' : 'Optional reference image'}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={e => setFile(e.target.files?.[0] || null)} />
+                  {file && <span className="mt-1 block truncate text-[9px] text-ink-500">{file.name}</span>}
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[10px] text-ink-400">{hu ? 'Vagy kép-link' : 'Or image URL'}</span>
+                  <input className="vp-input" value={referenceUrl} onChange={e => setReferenceUrl(e.target.value)} placeholder="https://.../image.jpg" />
+                </label>
+              </div>
               <button
                 type="button"
                 disabled={!concept.trim() || busy}
