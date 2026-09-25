@@ -115,6 +115,7 @@ export async function buildWorksheet(options: WorksheetOptions): Promise<Workshe
   canvas.height = page.height;
   const c = canvas.getContext('2d');
   if (!c) throw new Error('A munkalap nem készíthető el ebben a böngészőben.');
+  const ctx = c;
 
   // Feher lap — a nyomtatas nem szereti az atlatszot.
   c.fillStyle = '#ffffff';
@@ -202,15 +203,15 @@ export async function buildWorksheet(options: WorksheetOptions): Promise<Workshe
 
   /** Egy kereszt es a felirata. */
   function drawReg(px: number, py: number, label: string, labelBelow: boolean) {
-    c.beginPath();
-    c.moveTo(px - regLen / 2, py);
-    c.lineTo(px + regLen / 2, py);
-    c.moveTo(px, py - regLen / 2);
-    c.lineTo(px, py + regLen / 2);
-    c.stroke();
-    c.fillText(
+    ctx.beginPath();
+    ctx.moveTo(px - regLen / 2, py);
+    ctx.lineTo(px + regLen / 2, py);
+    ctx.moveTo(px, py - regLen / 2);
+    ctx.lineTo(px, py + regLen / 2);
+    ctx.stroke();
+    ctx.fillText(
       label,
-      px - c.measureText(label).width / 2,
+      px - ctx.measureText(label).width / 2,
       labelBelow ? py + regLen / 2 + regGap : py - regLen / 2 - regGap,
     );
   }
