@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, BriefcaseBusiness, Brush, CalendarDays, Check, Download, FileText, Image as ImageIcon, Layers3, LayoutDashboard, Megaphone, PenTool, Ruler, Save, Settings2, Sparkles, Target, Wand2, Wrench, X } from 'lucide-react';
+import { BadgeCheck, BriefcaseBusiness, Brush, CalendarDays, Check, Download, FileText, Image as ImageIcon, Layers3, LayoutDashboard, Link2, Megaphone, PenTool, Ruler, Save, Settings2, Sparkles, Target, Upload, Wand2, Wrench, X } from 'lucide-react';
 import { editCreativeImage, generateCreativeImage } from '../lib/creative-api';
 import EngineeringPlanner from './EngineeringPlanner';
 import CncPromptStudio from './CncPromptStudio';
@@ -119,6 +119,43 @@ function LocalImage({ file, alt, className, draggable = false }: { file: File; a
 }
 function download(name:string,data:BlobPart,type:string){const blob=new Blob([data],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 
+function ReferenceInput({
+ files,
+ setFiles,
+ url,
+ setUrl,
+ hu,
+ multiple = true,
+}: {
+ files: File[];
+ setFiles: (files: File[]) => void;
+ url: string;
+ setUrl: (url: string) => void;
+ hu: boolean;
+ multiple?: boolean;
+}) {
+ return <div className='rounded-2xl border border-line bg-canvas/40 p-4'>
+  <div className='mb-2 flex items-center gap-2 text-xs font-semibold text-ink-200'><Upload className='h-4 w-4 text-accent'/>{hu ? 'Referencia-kép (opcionális)' : 'Reference image (optional)'}</div>
+  <div className='grid gap-3 md:grid-cols-2'>
+   <label className='cursor-pointer rounded-xl border border-dashed border-accent/30 bg-black/20 p-4 text-center hover:border-accent/60'>
+    <Upload className='mx-auto h-5 w-5 text-accent'/>
+    <span className='mt-2 block text-[11px] text-ink-300'>{hu ? 'Kép feltöltése' : 'Upload image'}</span>
+    <input type='file' accept='image/png,image/jpeg,image/webp' multiple={multiple} className='sr-only' onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,multiple?14:1))}/>
+   </label>
+   <label className='block'>
+    <span className='mb-1 flex items-center gap-1 text-[11px] text-ink-400'><Link2 className='h-3.5 w-3.5'/>{hu ? 'Kép URL / közvetlen kép-link' : 'Image URL / direct image link'}</span>
+    <input className='vp-input' value={url} onChange={e=>setUrl(e.target.value)} placeholder='https://.../image.jpg'/>
+   </label>
+  </div>
+  {(files.length>0 || url.trim()) && <div className='mt-3 space-y-2'>
+   {files.length>0 && <div className='flex flex-wrap gap-2'>{files.map((file,i)=><span key={file.name+i} className='rounded-lg border border-line bg-panel px-2 py-1 text-[10px] text-ink-300'>{i+1}. {file.name}</span>)}</div>}
+   {url.trim() && <div className='truncate text-[10px] text-ink-500'>{url.trim()}</div>}
+   <button type='button' onClick={()=>{setFiles([]);setUrl('');}} className='text-[10px] text-accent'>{hu ? 'Referenciák törlése' : 'Clear references'}</button>
+  </div>}
+  <p className='mt-2 text-[10px] text-ink-500'>{hu ? 'Prompt + feltöltött kép vagy kép-link együtt is használható. Több referencia is megadható.' : 'Prompt + uploaded image or image URL can be used together. Multiple references are supported.'}</p>
+ </div>;
+}
+
 export default function CreativeStudio({ initialTool, language='hu' }: { initialTool?: string; language?: string }) {
  const hu = language === 'hu';
  const t = (key:string) => (hu ? TEXT[key]?.hu : (TEXT[key]?.en ?? TEXT[key]?.hu)) ?? key;
@@ -135,6 +172,9 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
  const [logoImage,setLogoImage]=useState<string|null>(null);
  const [campaign,setCampaign]=useState<{label:string;url:string}[]>([]);
  const [editFiles,setEditFiles]=useState<File[]>([]);
+ const [editUrl,setEditUrl]=useState('');
+ const [referenceFiles,setReferenceFiles]=useState<File[]>([]);
+ const [referenceUrl,setReferenceUrl]=useState('');
  const [editPrompt,setEditPrompt]=useState('');
  const [editResolution,setEditResolution]=useState<'1k'|'2k'|'4k'>('1k');
  const [editAspectRatio,setEditAspectRatio]=useState('1:1');
@@ -142,6 +182,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
  const [editHistory,setEditHistory]=useState<string[]>([]);
  const [editCompare,setEditCompare]=useState(50);
  const [productFile,setProductFile]=useState<File|null>(null);
+ const [productUrl,setProductUrl]=useState('');
  const [productMode,setProductMode]=useState<'reference'|'prompt'>('reference');
  const [editMode,setEditMode]=useState<'reference'|'prompt'>('reference');
  const [productPrompt,setProductPrompt]=useState(() => hu
@@ -153,7 +194,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
  const [cnc,setCnc]=useState({w:80,h:50,depth:4,feed:700,plunge:250,spindle:12000,controller:'GRBL'});
  const [planner,setPlanner]=useState({w:200,h:100,label:hu?'Alaprajz / gyártási terv':'Layout / production plan'});
  const current=useMemo(()=>TOOLS.find(t=>t.id===tool)!,[tool]);
- const select=(id:ToolId)=>{setTool(id);setImage(null);setLogoImage(null);setCampaign([]);setEditImage(null);setEditHistory([]);setProductResult(null);setError('');};
+ const select=(id:ToolId)=>{setTool(id);setImage(null);setLogoImage(null);setCampaign([]);setEditImage(null);setEditHistory([]);setProductResult(null);setReferenceFiles([]);setReferenceUrl('');setEditUrl('');setProductUrl('');setError('');};
  const loadBrand=()=>{
   try{
     const v=localStorage.getItem('designly_brand_kit_v5');
@@ -178,12 +219,12 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
   setBusy(true);setError('');setLogoImage(null);
   try{
     const prompt='Professional brand logo concept for '+brand.name+'. Tone: '+brand.tone+'. Typography direction: '+brand.heading+'. Colors: '+brand.colors.join(', ')+'. Create a clean distinctive logo mark and wordmark on a dark neutral presentation board. No mockup-only result.';
-    const result=await generateCreativeImage(prompt,'1:1');
+    const result=await generateCreativeImage(prompt,'1:1',{files:referenceFiles,imageUrls:referenceUrl?[referenceUrl]:[]});
     setLogoImage(result.url);
   }catch(e){setError(e instanceof Error?e.message:t('errLogo'));}
   finally{setBusy(false);}
  }
- async function generateVisual(){if(!brief.trim()||busy)return;setBusy(true);setError('');setImage(null);try{const prompt='Professional '+current.label+' design. Brief: '+brief+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Premium polished graphic composition.';const result=await generateCreativeImage(prompt,RATIO[tool]||'1:1');setImage(result.url);}catch(e){setError(e instanceof Error?e.message:t('errGeneric'));}finally{setBusy(false);}}
+ async function generateVisual(){if(!brief.trim()||busy)return;setBusy(true);setError('');setImage(null);try{const prompt='Professional '+current.label+' design. Brief: '+brief+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Premium polished graphic composition.';const result=await generateCreativeImage(prompt,RATIO[tool]||'1:1',{files:referenceFiles,imageUrls:referenceUrl?[referenceUrl]:[]});setImage(result.url);}catch(e){setError(e instanceof Error?e.message:t('errGeneric'));}finally{setBusy(false);}}
  async function runImageEdit(){
   if(!editPrompt.trim()||busy||(editMode==='reference'&&!editFiles.length))return;
   setBusy(true);setError('');setEditImage(null);
@@ -200,7 +241,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
   finally{setBusy(false);}
  }
  async function generateProduct(){
-  if(!productPrompt.trim()||busy||(productMode==='reference'&&!productFile))return;
+  if(!productPrompt.trim()||busy||(productMode==='reference'&&!productFile&&!productUrl.trim()))return;
   setBusy(true);setError('');setProductResult(null);
   try{
     const prompt = productMode==='prompt'
@@ -208,12 +249,12 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
       : productPrompt.trim();
     const result = productMode==='prompt'
       ? await generateCreativeImage(prompt,editAspectRatio)
-      : await editCreativeImage({files:[productFile!],prompt:productPrompt.trim(),aspectRatio:editAspectRatio,resolution:editResolution});
+      : await editCreativeImage({files:productFile?[productFile]:[],imageUrls:productUrl?[productUrl]:[],prompt:productPrompt.trim(),aspectRatio:editAspectRatio,resolution:editResolution});
     setProductResult(result.url);
   }catch(e){setError(e instanceof Error?e.message:t('errProduct'));}
   finally{setBusy(false);}
  }
- async function generateCampaign(){if(!brief.trim()||busy)return;setBusy(true);setError('');setCampaign([]);const formats=['poster','flyer','social','advertisement'];const out:{label:string;url:string}[]=[];try{for(const fmt of formats){const label=TOOLS.find(t=>t.id===fmt)?.label||fmt;const result=await generateCreativeImage('Campaign creative for '+brief+'. Format: '+label+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Keep the same identity and preserve the requested format composition.',RATIO[fmt]||'1:1');out.push({label,url:result.url});setCampaign([...out]);}}catch(e){setError(e instanceof Error?e.message:t('errCampaign'));}finally{setBusy(false);}}
+ async function generateCampaign(){if(!brief.trim()||busy)return;setBusy(true);setError('');setCampaign([]);const formats=['poster','flyer','social','advertisement'];const out:{label:string;url:string}[]=[];try{for(const fmt of formats){const label=TOOLS.find(t=>t.id===fmt)?.label||fmt;const result=await generateCreativeImage('Campaign creative for '+brief+'. Format: '+label+'. Style: '+style+'. Brand: '+(brand.name||'DESIGNLY')+'. Colors: '+brand.colors.join(', ')+'. Keep the same identity and preserve the requested format composition.',RATIO[fmt]||'1:1',{files:referenceFiles,imageUrls:referenceUrl?[referenceUrl]:[]});out.push({label,url:result.url});setCampaign([...out]);}}catch(e){setError(e instanceof Error?e.message:t('errCampaign'));}finally{setBusy(false);}}
  const resolutions: Array<'1k'|'2k'|'4k'> = ['1k','2k','4k'];
  return (
   <div className='mt-8 rounded-3xl border border-line bg-panel/70 p-5 shadow-2xl backdrop-blur-xl'>
@@ -229,7 +270,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
        <span className='font-semibold'>{t('testBanner')}</span> · {t('testBannerBody')}
       </div>
      <div className='mb-5 flex flex-wrap items-start justify-between gap-4'><div><div className='text-[10px] uppercase tracking-[.2em] text-accent'>ACTIVE TOOL</div><h2 className='mt-1 font-display text-2xl text-ink-100'>{current.label}</h2><p className='mt-1 text-sm text-ink-400'>{descOf(current)}</p></div><span className='rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] text-emerald-300'>{t('active')}</span></div>
-     {tool==='brand' && <section className='space-y-4'><div className='grid gap-4 md:grid-cols-2'><input className='vp-input' value={brand.name} onChange={e=>setBrand({...brand,name:e.target.value})} placeholder={t('brandName')}/><input className='vp-input' value={brand.tone} onChange={e=>setBrand({...brand,tone:e.target.value})} placeholder={t('brandTone')}/><input className='vp-input' value={brand.heading} onChange={e=>setBrand({...brand,heading:e.target.value})} placeholder={t('brandHeading')}/><input className='vp-input' value={brand.body} onChange={e=>setBrand({...brand,body:e.target.value})} placeholder={t('brandBody')}/></div><div className='flex flex-wrap gap-2'>{brand.colors.map((c,i)=><input key={i} type='color' value={c} onChange={e=>{const colors=[...brand.colors];colors[i]=e.target.value;setBrand({...brand,colors});}} className='h-11 w-14 rounded-lg border border-line bg-panel'/>)}</div><div className='grid gap-3 md:grid-cols-4'>{brand.colors.map((c,i)=><div key={i} className='h-20 rounded-xl border border-line' style={{background:c}} title={t('colorTitle')+' '+(i+1)+' '+c}/>)}</div><div className='flex flex-wrap items-center gap-3'><button type='button' onClick={generateLogo} disabled={busy||!brand.name.trim()} className='vp-btn'><Sparkles className='h-4 w-4'/>{t('logoConcept')}</button><button type='button' onClick={saveBrand} className='vp-btn'><Save className='h-4 w-4'/>{t('brandSave')}</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>{t('brandLoad')}</button>{brandSaved&&<span className='text-xs text-emerald-300'><Check className='inline h-4 w-4'/> {t('saved')}</span>}</div>{logoImage&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={logoImage} alt={t('logoConcept')} draggable={false} className='max-h-[420px] w-full object-contain'/><div className='flex justify-end p-3'><a href={logoImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openLogo')}</a></div></div>}</section>}
+     {tool==='brand' && <section className='space-y-4'><div className='grid gap-4 md:grid-cols-2'><input className='vp-input' value={brand.name} onChange={e=>setBrand({...brand,name:e.target.value})} placeholder={t('brandName')}/><input className='vp-input' value={brand.tone} onChange={e=>setBrand({...brand,tone:e.target.value})} placeholder={t('brandTone')}/><input className='vp-input' value={brand.heading} onChange={e=>setBrand({...brand,heading:e.target.value})} placeholder={t('brandHeading')}/><input className='vp-input' value={brand.body} onChange={e=>setBrand({...brand,body:e.target.value})} placeholder={t('brandBody')}/></div><div className='flex flex-wrap gap-2'>{brand.colors.map((c,i)=><input key={i} type='color' value={c} onChange={e=>{const colors=[...brand.colors];colors[i]=e.target.value;setBrand({...brand,colors});}} className='h-11 w-14 rounded-lg border border-line bg-panel'/>)}</div><div className='grid gap-3 md:grid-cols-4'>{brand.colors.map((c,i)=><div key={i} className='h-20 rounded-xl border border-line' style={{background:c}} title={t('colorTitle')+' '+(i+1)+' '+c}/>)}</div><div className='flex flex-wrap items-center gap-3'><ReferenceInput files={referenceFiles} setFiles={setReferenceFiles} url={referenceUrl} setUrl={setReferenceUrl} hu={hu} multiple={true}/><button type='button' onClick={generateLogo} disabled={busy||!brand.name.trim()} className='vp-btn'><Sparkles className='h-4 w-4'/>{t('logoConcept')}</button><button type='button' onClick={saveBrand} className='vp-btn'><Save className='h-4 w-4'/>{t('brandSave')}</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>{t('brandLoad')}</button>{brandSaved&&<span className='text-xs text-emerald-300'><Check className='inline h-4 w-4'/> {t('saved')}</span>}</div>{logoImage&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={logoImage} alt={t('logoConcept')} draggable={false} className='max-h-[420px] w-full object-contain'/><div className='flex justify-end p-3'><a href={logoImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openLogo')}</a></div></div>}</section>}
      {tool==='cnc' && <CncPromptStudio language={language} />}
      {tool==='planner' && <EngineeringPlanner language={language} />}
      {tool==='tattoo' && <TattooStudio language={language} />}
@@ -262,7 +303,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
       <div className='grid gap-3 sm:grid-cols-3'>
        <label className='text-xs text-ink-400'>{t('resolution')}<select className='vp-input mt-1' value={editResolution} onChange={e=>setEditResolution(e.target.value as '1k'|'2k'|'4k')}>{resolutions.map(v=><option key={v} value={v}>{v.toUpperCase()+' · '+t('freeTest')}</option>)}</select></label>
        <label className='text-xs text-ink-400'>{t('aspectRatio')}<select className='vp-input mt-1' value={editAspectRatio} onChange={e=>setEditAspectRatio(e.target.value)}>{['1:1','16:9','9:16','3:2','4:5','4:3','3:4','2:3'].map(v=><option key={v}>{v}</option>)}</select></label>
-       <div className='flex items-end'><button type='button' disabled={busy||!productPrompt.trim()||(productMode==='reference'&&!productFile)} onClick={generateProduct} className='vp-btn w-full'><Sparkles className='h-4 w-4'/>{busy?t('productBusy'):t('productMake')}</button></div>
+       <div className='flex items-end'><button type='button' disabled={busy||!productPrompt.trim()||(productMode==='reference'&&!productFile&&!productUrl.trim())} onClick={generateProduct} className='vp-btn w-full'><Sparkles className='h-4 w-4'/>{busy?t('productBusy'):t('productMake')}</button></div>
       </div>
       {productResult&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={productResult} alt={t('productMake')} className='max-h-[720px] w-full object-contain'/><div className='flex justify-end p-3'><a href={productResult} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openResult')}</a></div></div>}
      </section>}
@@ -296,7 +337,7 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
       <div className='grid gap-3 sm:grid-cols-3'>
        <label className='text-xs text-ink-400'>{t('resolution')}<select className='vp-input mt-1' value={editResolution} onChange={e=>setEditResolution(e.target.value as '1k'|'2k'|'4k')}><option value='1k'>1K · 10 {hu?'kredit':'credits'}</option><option value='2k'>2K · 15 {hu?'kredit':'credits'}</option><option value='4k'>4K · 20 {hu?'kredit':'credits'}</option></select></label>
        <label className='text-xs text-ink-400'>{t('aspectRatio')}<select className='vp-input mt-1' value={editAspectRatio} onChange={e=>setEditAspectRatio(e.target.value)}>{['1:1','16:9','9:16','3:2','4:5','4:3','3:4','2:3'].map(v=><option key={v}>{v}</option>)}</select></label>
-       <div className='flex items-end'><button type='button' disabled={busy||!editPrompt.trim()||(editMode==='reference'&&!editFiles.length)} onClick={runImageEdit} className='vp-btn w-full'><Wand2 className='h-4 w-4'/>{busy?t('editBusy'):t('editRun')}</button></div>
+       <div className='flex items-end'><button type='button' disabled={busy||!editPrompt.trim()||(editMode==='reference'&&!editFiles.length&&!editUrl.trim())} onClick={runImageEdit} className='vp-btn w-full'><Wand2 className='h-4 w-4'/>{busy?t('editBusy'):t('editRun')}</button></div>
       </div>
       {editImage&&<div className='rounded-2xl border border-line bg-black p-3'>
        <div className='mb-2 flex items-center justify-between text-xs text-ink-400'>
@@ -322,8 +363,8 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
       </div>}
       {editHistory.length>0&&<div className='rounded-2xl border border-line bg-canvas/50 p-4'><div className='mb-3 text-xs font-semibold text-ink-200'>{t('versions')} · {editHistory.length}</div><div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>{editHistory.map((url,i)=><button key={url} type='button' onClick={()=>setEditImage(url)} className={'overflow-hidden rounded-xl border bg-black '+(url===editImage?'border-accent/70':'border-line')}><img src={url} alt={'AI Edit '+(i+1)} className='aspect-square w-full object-cover'/><span className='block p-2 text-left text-[10px] text-ink-400'>V{i+1}</span></button>)}</div></div>}
       </section>}
-     {tool==='campaign' && <section className='space-y-4'><textarea rows={4} className='vp-input' value={brief} onChange={e=>setBrief(e.target.value)} placeholder={hu?'Pl. KÉK MAJOM őszi kampány: autókozmetika akció':'E.g. BLUE MONKEY autumn campaign: car detailing offer'}/><button type='button' disabled={busy||!brief.trim()} onClick={generateCampaign} className='vp-btn'><Megaphone className='h-4 w-4'/>{busy?t('campaignBusy'):t('campaignMake')}</button>{campaign.length>0&&<div className='grid gap-4 sm:grid-cols-2'>{campaign.map(x=><figure key={x.label} className='overflow-hidden rounded-2xl border border-line bg-panel'><img src={x.url} alt={x.label} draggable={false} className='h-auto w-full object-cover'/><figcaption className='flex items-center justify-between gap-3 p-3 text-xs text-ink-200'><span>{x.label}</span><a href={x.url} target='_blank' rel='noreferrer' className='text-accent'>{t('open')}</a></figcaption></figure>)}</div>}</section>}
-     {!TOOLS_WITH_OWN_BLOCK.includes(tool) && <section className='space-y-4'><textarea rows={4} className='vp-input' value={brief} onChange={e=>setBrief(e.target.value)} placeholder={t('genericPlaceholder')+current.label+t('genericPlaceholderTail')}/><div className='flex flex-wrap gap-2'>{['premium','luxury','minimal','modern','cinematic','corporate','bold'].map(v=><button key={v} type='button' onClick={()=>setStyle(v)} className={'rounded-full border px-3 py-1 text-xs '+(style===v?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}>{v}</button>)}</div><div className='flex flex-wrap gap-2'><button type='button' disabled={busy||!brief.trim()} onClick={generateVisual} className='vp-btn'>{busy?<Sparkles className='h-4 w-4 animate-pulse'/>:<Brush className='h-4 w-4'/>}{busy?t('genericBusy'):t('genericMake')}</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>{t('brandLoadShort')}</button></div>{image&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={image} alt={current.label} draggable={false} className='max-h-[620px] w-full object-contain'/><div className='flex justify-end p-3'><a href={image} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openImage')}</a></div></div>}</section>}
+     {tool==='campaign' && <section className='space-y-4'><textarea rows={4} className='vp-input' value={brief} onChange={e=>setBrief(e.target.value)} placeholder={hu?'Pl. KÉK MAJOM őszi kampány: autókozmetika akció':'E.g. BLUE MONKEY autumn campaign: car detailing offer'}/><ReferenceInput files={referenceFiles} setFiles={setReferenceFiles} url={referenceUrl} setUrl={setReferenceUrl} hu={hu}/><button type='button' disabled={busy||!brief.trim()} onClick={generateCampaign} className='vp-btn'><Megaphone className='h-4 w-4'/>{busy?t('campaignBusy'):t('campaignMake')}</button>{campaign.length>0&&<div className='grid gap-4 sm:grid-cols-2'>{campaign.map(x=><figure key={x.label} className='overflow-hidden rounded-2xl border border-line bg-panel'><img src={x.url} alt={x.label} draggable={false} className='h-auto w-full object-cover'/><figcaption className='flex items-center justify-between gap-3 p-3 text-xs text-ink-200'><span>{x.label}</span><a href={x.url} target='_blank' rel='noreferrer' className='text-accent'>{t('open')}</a></figcaption></figure>)}</div>}</section>}
+     {!TOOLS_WITH_OWN_BLOCK.includes(tool) && <section className='space-y-4'><textarea rows={4} className='vp-input' value={brief} onChange={e=>setBrief(e.target.value)} placeholder={t('genericPlaceholder')+current.label+t('genericPlaceholderTail')}/><ReferenceInput files={referenceFiles} setFiles={setReferenceFiles} url={referenceUrl} setUrl={setReferenceUrl} hu={hu}/><div className='flex flex-wrap gap-2'>{['premium','luxury','minimal','modern','cinematic','corporate','bold'].map(v=><button key={v} type='button' onClick={()=>setStyle(v)} className={'rounded-full border px-3 py-1 text-xs '+(style===v?'border-accent/70 bg-accent/15 text-accent':'border-line text-ink-300')}>{v}</button>)}</div><div className='flex flex-wrap gap-2'><button type='button' disabled={busy||!brief.trim()} onClick={generateVisual} className='vp-btn'>{busy?<Sparkles className='h-4 w-4 animate-pulse'/>:<Brush className='h-4 w-4'/>}{busy?t('genericBusy'):t('genericMake')}</button><button type='button' onClick={loadBrand} className='vp-btn-ghost'><Wand2 className='h-4 w-4'/>{t('brandLoadShort')}</button></div>{image&&<div className='overflow-hidden rounded-2xl border border-accent/20 bg-black'><img src={image} alt={current.label} draggable={false} className='max-h-[620px] w-full object-contain'/><div className='flex justify-end p-3'><a href={image} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openImage')}</a></div></div>}</section>}
      {error&&<div className='mt-4 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300'><X className='h-4 w-4'/>{error}</div>}
      </main>
    </div>
