@@ -293,14 +293,26 @@ export default function CreativeStudio({ initialTool, language='hu' }: { initial
        <div className='flex items-end'><button type='button' disabled={busy||!editPrompt.trim()||(editMode==='reference'&&!editFiles.length)} onClick={runImageEdit} className='vp-btn w-full'><Wand2 className='h-4 w-4'/>{busy?t('editBusy'):t('editRun')}</button></div>
       </div>
       {editImage&&<div className='rounded-2xl border border-line bg-black p-3'>
-       <div className='mb-2 flex items-center justify-between text-xs text-ink-400'><span>{t('beforeAfter')}</span><span>{editCompare}%</span></div>
-       <div className='relative overflow-hidden rounded-xl'>
-        {editMode==='reference'&&editFiles[0] ? <div className='relative overflow-hidden'><LocalImage file={editFiles[0]} alt={hu?'Eredeti referencia':'Original reference'} className='block max-h-[720px] w-full object-contain'/>
-          <div className='absolute inset-y-0 left-0 overflow-hidden' style={{width:editCompare+'%'}}><img src={editImage} alt={t('openResult')} className='block h-full w-[100vw] max-w-none object-contain object-left'/></div>
-        </div> : <img src={editImage} alt={t('openResult')} className='block max-h-[720px] w-full object-contain'/>
+       <div className='mb-2 flex items-center justify-between text-xs text-ink-400'>
+        <span>{t('beforeAfter')}</span>
+        {editMode==='reference'&&<span>{editCompare}%</span>}
        </div>
+       {editMode==='reference'&&editFiles[0] ? (
+        <div className='relative overflow-hidden rounded-xl'>
+         <LocalImage file={editFiles[0]} alt={hu?'Eredeti referencia':'Original reference'} className='block max-h-[720px] w-full object-contain'/>
+         <div className='absolute inset-y-0 left-0 overflow-hidden' style={{width:editCompare+'%'}}>
+          <img src={editImage} alt={t('openResult')} className='block h-full w-[100vw] max-w-none object-contain object-left'/>
+         </div>
+        </div>
+       ) : (
+        <div className='overflow-hidden rounded-xl'>
+         <img src={editImage} alt={t('openResult')} className='block max-h-[720px] w-full object-contain'/>
+        </div>
+       )}
        {editMode==='reference'&&<input aria-label={t('compareLabel')} type='range' min='0' max='100' value={editCompare} onChange={e=>setEditCompare(Number(e.target.value))} className='mt-3 w-full'/>}
-       <div className='mt-3 flex flex-wrap justify-end gap-2'><a href={editImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openResult')}</a></div>
+       <div className='mt-3 flex flex-wrap justify-end gap-2'>
+        <a href={editImage} target='_blank' rel='noreferrer' className='vp-btn-ghost'><Download className='h-4 w-4'/>{t('openResult')}</a>
+       </div>
       </div>}
       {editHistory.length>0&&<div className='rounded-2xl border border-line bg-canvas/50 p-4'><div className='mb-3 text-xs font-semibold text-ink-200'>{t('versions')} · {editHistory.length}</div><div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>{editHistory.map((url,i)=><button key={url} type='button' onClick={()=>setEditImage(url)} className={'overflow-hidden rounded-xl border bg-black '+(url===editImage?'border-accent/70':'border-line')}><img src={url} alt={'AI Edit '+(i+1)} className='aspect-square w-full object-cover'/><span className='block p-2 text-left text-[10px] text-ink-400'>V{i+1}</span></button>)}</div></div>}
       </section>}
